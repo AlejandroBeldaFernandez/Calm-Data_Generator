@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calm-data-generator"
+version = "0.1.0"
+description = "CALM-Data-Generator: A Python library for synthetic data generation with support for drift injection, privacy, and clinical data."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+  { name = "Alejandro Belda Fernandez", email = "alejandrobeldafernandez@gmail.com" },
+]
+dependencies = [
+    "numpy>=1.26.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.0.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "plotly>=5.0.0",
+    "imbalanced-learn>=0.10.0",
+    "river>=0.21.0"
+]
+
+[project.optional-dependencies]
+deeplearning = [
+    "sdv>=1.0.0",
+    "torch>=2.0.0",
+    "smartnoise-synth",
+    "ydata-synthetic"
+]
+profiling = [
+    "ydata-profiling>=4.0.0",
+    "sweetviz>=2.3.0"
+]
+full = [
+    "calm-data-generator[deeplearning,profiling]"
+]
+
+[tool.setuptools]
+packages = {find = {}}
+
+[tool.setuptools.package-data]
+calm_data_generator = ["tutorials/*.py", "docs/*.md"]
+
+[project.scripts]
+calm-data-generator = "calm_data_generator.cli:main"
