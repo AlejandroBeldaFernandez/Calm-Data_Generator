@@ -21,25 +21,17 @@ dependencies = [
     "seaborn>=0.12.0",
     "plotly>=5.0.0",
     "imbalanced-learn>=0.10.0",
-    "river>=0.21.0"
+    "sdv>=1.0.0",
+    "torch>=2.0.0",
+    "smartnoise-synth",
+    "ydata-synthetic",
+    "ydata-profiling>=4.0.0",
+    "sweetviz>=2.3.0"
 ]
 
 [project.optional-dependencies]
 stream = [
     "river>=0.21.0"
-]
-deeplearning = [
-    "sdv>=1.0.0",
-    "torch>=2.0.0",
-    "smartnoise-synth",
-    "ydata-synthetic"
-]
-profiling = [
-    "ydata-profiling>=4.0.0",
-    "sweetviz>=2.3.0"
-]
-full = [
-    "calm-data-generator[stream,deeplearning,profiling]"
 ]
 
 [tool.setuptools]
