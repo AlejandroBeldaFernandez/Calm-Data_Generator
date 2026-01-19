@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "calm-data-generator"
-version = "0.1.0"
+version = "1.0.0"
 description = "CALM-Data-Generator: A Python library for synthetic data generation with support for drift injection, privacy, and clinical data."
 readme = "README.md"
 requires-python = ">=3.8"

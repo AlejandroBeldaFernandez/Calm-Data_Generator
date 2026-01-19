@@ -1,4 +1,4 @@
-# CalmGenerator - Full Documentation
+# CALM-Data-Generator - Full Documentation
 
 ## Table of Contents
 
@@ -330,33 +330,38 @@ synthetic = gen.generate(
 
 Inject controlled drift into datasets for ML testing.
 
-### Gradual Drift
+### Gradual Feature Drift
 
 ```python
 from calm_data_generator.generators.drift import DriftInjector
 
 injector = DriftInjector(time_col='timestamp')
 
-drifted = injector.inject_gradual_drift(
+# Gradual drift with smooth transition window
+drifted = injector.inject_feature_drift_gradual(
     df=data,
-    columns=['feature1', 'feature2'],
+    feature_cols=['feature1', 'feature2'],
     drift_magnitude=0.5,
-    drift_type='mean_shift',
+    drift_type='shift',          # gaussian_noise, shift, scale
     start_index=50,
-    end_index=100,
-    transition_width=20
+    center=25,                   # Center of transition
+    width=20,                    # Width of transition
+    profile='sigmoid',           # sigmoid, linear, cosine
+    auto_report=False
 )
 ```
 
-### Sudden Drift
+### Abrupt Feature Drift
 
 ```python
-drifted = injector.inject_sudden_drift(
+# Immediate drift from a specific index
+drifted = injector.inject_feature_drift(
     df=data,
-    columns=['feature1'],
-    drift_magnitude=1.0,
-    drift_type='mean_shift',
-    change_point=60
+    feature_cols=['feature1'],
+    drift_magnitude=0.8,
+    drift_type='shift',
+    start_index=60,
+    auto_report=False
 )
 ```
 
@@ -364,33 +369,51 @@ drifted = injector.inject_sudden_drift(
 
 | Type | Description |
 |------|-------------|
-| `mean_shift` | Shift the mean value |
-| `variance_shift` | Change data spread |
-| `scale` | Multiply by factor |
-| `category_shift` | Change categorical distributions |
+| `gaussian_noise` | Add Gaussian noise scaled by magnitude |
+| `shift` | Shift values by magnitude × mean |
+| `scale` | Scale values by 1 + magnitude |
+| `add_value` | Add specific value (requires `drift_value`) |
+| `subtract_value` | Subtract specific value |
+| `multiply_value` | Multiply by specific value |
 
-### Configuration-Based Drift
+### Label Drift
 
 ```python
-drifted = injector.inject_drift_from_config(
+# Gradual label flips
+drifted = injector.inject_label_drift_gradual(
     df=data,
-    config=[
-        {
-            'columns': ['feature1'],
-            'drift_type': 'mean_shift',
-            'magnitude': 0.3,
-            'start': 40,
-            'end': 80,
-            'transition': 'gradual'
-        },
-        {
-            'columns': ['feature2'],
-            'drift_type': 'variance_shift',
-            'magnitude': 1.5,
-            'start': 60,
-            'transition': 'sudden'
-        }
-    ]
+    target_col='label',
+    drift_magnitude=0.3,     # 30% flip probability
+    start_index=70,
+    auto_report=False
+)
+```
+
+### Conditional Drift
+
+```python
+# Apply drift only to rows meeting conditions
+drifted = injector.inject_conditional_drift(
+    df=data,
+    feature_cols=['feature2'],
+    conditions=[
+        {'column': 'age', 'operator': '>', 'value': 50}
+    ],
+    drift_type='shift',
+    drift_magnitude=0.5,
+    auto_report=False
+)
+```
+
+### Outlier Injection
+
+```python
+drifted = injector.inject_outliers_global(
+    df=data,
+    cols=['feature1', 'feature2'],
+    outlier_prob=0.05,       # 5% of rows
+    factor=3.0,              # Outlier magnitude
+    auto_report=False
 )
 ```
 
@@ -466,54 +489,53 @@ future = injector.project_to_future_period(
 
 ---
 
-## Privacy Module
+## Anonymizer (Privacy Module)
 
 ### Pseudonymization
 
 ```python
-from calm_data_generator.privacy import pseudonymize_columns
+from calm_data_generator.anonymizer import pseudonymize_columns
 
 data = pseudonymize_columns(
     df,
     columns=['patient_id', 'name'],
-    method='hash'  # or 'random'
+    salt='optional_salt_string'  # Recommended for security
 )
 ```
 
 ### Differential Privacy (Laplace Noise)
 
 ```python
-from calm_data_generator.privacy import add_laplace_noise
+from calm_data_generator.anonymizer import add_laplace_noise
 
 data = add_laplace_noise(
     df,
     columns=['age', 'salary'],
-    epsilon=1.0  # Privacy budget
+    epsilon=1.0  # Privacy budget (smaller = more privacy)
 )
 ```
 
 ### Generalization
 
 ```python
-from calm_data_generator.privacy import generalize_numeric_to_ranges
+from calm_data_generator.anonymizer import generalize_numeric_to_ranges
 
 data = generalize_numeric_to_ranges(
     df,
-    column='age',
-    bins=[0, 30, 50, 70, 100],
-    labels=['<30', '30-49', '50-69', '70+']
+    columns=['age'],       # List of columns
+    num_bins=5             # Number of bins/ranges to create
 )
 ```
 
 ### Shuffling
 
 ```python
-from calm_data_generator.privacy import shuffle_columns
+from calm_data_generator.anonymizer import shuffle_columns
 
 data = shuffle_columns(
     df,
     columns=['salary', 'diagnosis'],
-    seed=42
+    random_state=42
 )
 ```
 
@@ -625,5 +647,5 @@ calm_data_generator docs
 ## Support
 
 For issues and questions:
-- GitHub Issues: [https://github.com/yourusername/calm_data_generator/issues](https://github.com/yourusername/calm_data_generator/issues)
+- GitHub Issues: [https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator/issues](https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator/issues)
 - Email: alejandrobeldafernandez@gmail.com

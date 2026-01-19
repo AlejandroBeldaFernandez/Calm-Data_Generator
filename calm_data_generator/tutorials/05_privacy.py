@@ -1,5 +1,5 @@
 """
-Tutorial 5: Privacy Module - Privacy-Preserving Transformations
+Tutorial 5: Anonymizer - Privacy-Preserving Transformations
 ================================================================
 
 This tutorial demonstrates how to apply privacy-preserving
@@ -8,7 +8,7 @@ transformations to protect sensitive data.
 
 import pandas as pd
 import numpy as np
-from calm_data_generator.privacy import (
+from calm_data_generator.anonymizer import (
     pseudonymize_columns,
     add_laplace_noise,
     generalize_numeric_to_ranges,
@@ -58,14 +58,13 @@ print("Original data:")
 print(data)
 
 # ============================================================
-# 2. Pseudonymization - Replace identifiers
+# 2. Pseudonymization - Replace identifiers with hashes
 # ============================================================
 
-# Pseudonymize direct identifiers
 data_pseudo = pseudonymize_columns(
     data.copy(),
     columns=["patient_id", "name"],
-    method="hash",  # or 'random'
+    salt="my_secret_salt",  # Recommended for security
 )
 
 print("\n--- Pseudonymized Data ---")
@@ -75,11 +74,10 @@ print(data_pseudo[["patient_id", "name"]].head())
 # 3. Laplace Noise - Differential Privacy
 # ============================================================
 
-# Add noise to numeric columns for differential privacy
 data_noisy = add_laplace_noise(
     data.copy(),
     columns=["age", "salary"],
-    epsilon=1.0,  # Privacy budget
+    epsilon=1.0,  # Privacy budget (smaller = more privacy)
 )
 
 print("\n--- Laplace Noise (ε=1.0) ---")
@@ -93,9 +91,8 @@ print("Noisy ages:   ", data_noisy["age"].values[:5])
 # Convert exact ages to ranges (k-anonymity style)
 data_gen_numeric = generalize_numeric_to_ranges(
     data.copy(),
-    column="age",
-    bins=[0, 30, 50, 70, 100],
-    labels=["<30", "30-49", "50-69", "70+"],
+    columns=["age"],  # List of columns
+    num_bins=4,  # Number of bins
 )
 
 print("\n--- Generalized Age Ranges ---")
