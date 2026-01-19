@@ -29,9 +29,24 @@ pip install calm-data-generator[full]
 
 **From source:**
 ```bash
-git clone https://github.com/yourusername/calm-data-generator.git
-cd calm-data-generator
+git clone https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator.git
+cd Calm-Data_Generator
 pip install -e .
+```
+
+### Troubleshooting
+
+If you encounter errors installing `river` (C compilation errors):
+
+```bash
+# Ubuntu/Debian
+sudo apt install build-essential python3-dev
+
+# macOS
+xcode-select --install
+
+# Then retry installation
+pip install calm-data-generator
 ```
 
 ---
@@ -89,12 +104,13 @@ from calm_data_generator.generators.drift import DriftInjector
 injector = DriftInjector()
 
 # Inject gradual drift to test model robustness
-drifted_data = injector.inject_gradual_drift(
+drifted_data = injector.inject_feature_drift_gradual(
     df=data,
-    columns=['feature1', 'feature2'],
+    feature_cols=['feature1', 'feature2'],
     drift_magnitude=0.5,
-    drift_type='mean_shift',
-    start_index=50
+    drift_type='shift',  # Options: gaussian_noise, shift, scale
+    start_index=50,
+    auto_report=False
 )
 ```
 
@@ -176,4 +192,4 @@ MIT License - see [LICENSE](LICENSE) file
 
 **Alejandro Belda Fernandez** - alejandrobeldafernandez@gmail.com
 
-Project: [https://github.com/yourusername/calm-data-generator](https://github.com/yourusername/calm-data-generator)
+Project: [https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator](https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator)

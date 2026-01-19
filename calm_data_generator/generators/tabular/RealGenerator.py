@@ -37,7 +37,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 # Model imports
 # Custom logger and reporter
-from calmops.logger.logger import get_logger
+from calm_data_generator.logger import get_logger
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector

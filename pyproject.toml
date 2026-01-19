@@ -25,6 +25,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+stream = [
+    "river>=0.21.0"
+]
 deeplearning = [
     "sdv>=1.0.0",
     "torch>=2.0.0",
@@ -36,7 +39,7 @@ profiling = [
     "sweetviz>=2.3.0"
 ]
 full = [
-    "calm-data-generator[deeplearning,profiling]"
+    "calm-data-generator[stream,deeplearning,profiling]"
 ]
 
 [tool.setuptools]
