@@ -58,6 +58,7 @@ class RealGenerator:
     def __init__(
         self,
         auto_report: bool = True,
+        minimal_report: bool = True,
         logger: Optional[logging.Logger] = None,
         random_state: Optional[int] = None,
     ):
@@ -66,14 +67,16 @@ class RealGenerator:
 
         Args:
             auto_report (bool): If True, automatically generates a quality report after synthesis.
+            minimal_report (bool): If True, generates minimal reports (faster, no correlations/PCA).
             logger (Optional[logging.Logger]): An external logger instance. If None, a new one is created.
             random_state (Optional[int]): Seed for random number generation for reproducibility.
         """
         self.auto_report = auto_report
+        self.minimal_report = minimal_report
         self.logger = logger if logger else get_logger("RealGenerator")
         self.random_state = random_state
         self.rng = np.random.default_rng(random_state)
-        self.reporter = QualityReporter()
+        self.reporter = QualityReporter(minimal=minimal_report)
         self.synthesizer = None
         self.metadata = None
 

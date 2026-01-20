@@ -9,8 +9,9 @@ class ScenarioInjector:
     A standalone module to modify scenarios by evolving features and constructing target variables.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: Optional[int] = None, minimal_report: bool = True):
         self.rng = np.random.default_rng(seed)
+        self.minimal_report = minimal_report
 
     def evolve_features(
         self,
@@ -89,9 +90,11 @@ class ScenarioInjector:
             df_evolved[col] = df_evolved[col] + delta
 
         if auto_report and output_dir:
-            from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
+            from calm_data_generator.generators.tabular.QualityReporter import (
+                QualityReporter,
+            )
 
-            reporter = QualityReporter(verbose=True)
+            reporter = QualityReporter(verbose=True, minimal=self.minimal_report)
             drift_config = {
                 "generator_name": generator_name,
                 "feature_cols": list(evolution_config.keys()),
@@ -327,13 +330,15 @@ class ScenarioInjector:
 
         # 5. Generate report if requested
         if auto_report and output_dir:
-            from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
+            from calm_data_generator.generators.tabular.QualityReporter import (
+                QualityReporter,
+            )
 
             os.makedirs(output_dir, exist_ok=True)
 
             projected_combined = pd.concat(projected_dfs, ignore_index=True)
 
-            reporter = QualityReporter(verbose=True)
+            reporter = QualityReporter(verbose=True, minimal=self.minimal_report)
             reporter.generate_comprehensive_report(
                 real_df=df,
                 synthetic_df=projected_combined,

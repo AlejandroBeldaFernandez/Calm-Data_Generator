@@ -62,10 +62,14 @@ from calm_data_generator.generators.drift import DriftInjector
 ```
 
 **Drift Types:**
-- `inject_gradual_drift()` - Progressive change
-- `inject_sudden_drift()` - Abrupt change
-- `inject_cyclic_drift()` - Periodic patterns
-- `inject_drift_from_config()` - Multi-drift
+- `inject_feature_drift_gradual()` - Progressive feature change
+- `inject_feature_drift_abrupt()` - Abrupt feature change
+- `inject_feature_drift_recurrent()` - Recurring periodic patterns
+- `inject_label_drift()` - Label flipping
+- `inject_label_drift_gradual()` - Gradual label drift
+- `inject_concept_drift()` - Concept drift
+- `inject_conditional_drift()` - Condition-based drift
+- `inject_multiple_types_of_drift()` - Multi-drift orchestration
 
 ---
 

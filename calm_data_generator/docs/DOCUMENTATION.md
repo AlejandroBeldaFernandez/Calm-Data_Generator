@@ -37,12 +37,12 @@ pip install calm_data_generator
 ```
 calm_data_generator/
 ├── generators/
-│   ├── real/       → RealGenerator, QualityReporter
-│   ├── clinic/     → ClinicalDataGenerator
-│   ├── synthetic/  → StreamGenerator
+│   ├── tabular/    → RealGenerator, QualityReporter
+│   ├── clinical/   → ClinicalDataGenerator
+│   ├── stream/     → StreamGenerator
 │   ├── drift/      → DriftInjector
 │   └── dynamics/   → ScenarioInjector
-├── privacy/        → Privacy transformations
+├── anonymizer/     → Privacy transformations
 └── reports/        → Visualization & reporting
 ```
 
@@ -413,6 +413,52 @@ drifted = injector.inject_outliers_global(
     cols=['feature1', 'feature2'],
     outlier_prob=0.05,       # 5% of rows
     factor=3.0,              # Outlier magnitude
+    auto_report=False
+)
+```
+
+### Label Shift (Distribution Change)
+
+```python
+# Change label distribution to 30% class 0, 70% class 1
+drifted = injector.inject_label_shift(
+    df=data,
+    target_col='label',
+    target_distribution={0: 0.3, 1: 0.7},
+    auto_report=False
+)
+```
+
+### Correlation Matrix Drift
+
+```python
+import numpy as np
+
+# Define target correlation structure
+target_corr = np.array([
+    [1.0, 0.8, 0.2],
+    [0.8, 1.0, 0.5],
+    [0.2, 0.5, 1.0]
+])
+
+drifted = injector.inject_correlation_matrix_drift(
+    df=data,
+    feature_cols=['f1', 'f2', 'f3'],
+    target_correlation_matrix=target_corr,
+    auto_report=False
+)
+```
+
+### New Category Drift
+
+```python
+# Introduce a new category "D" that didn't exist before
+drifted = injector.inject_new_category_drift(
+    df=data,
+    feature_col='category',
+    new_category='D',
+    probability=0.15,        # 15% of rows get new category
+    replace_categories=['A', 'B'],  # Only replace A or B
     auto_report=False
 )
 ```

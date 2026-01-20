@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
-from calm_data_generator.generators.dynamics.DynamicsInjector import DynamicsInjector
+from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
 import os
 
 
 def run_tutorial():
-    print("=== DynamicsInjector Tutorial ===")
+    print("=== ScenarioInjector Tutorial ===")
 
     # 1. Create Base Data
     print("\nGenerating base dataset...")
@@ -20,7 +20,7 @@ def run_tutorial():
     print("Original Data Head:\n", df.head())
 
     # 2. Initialize Injector
-    injector = DynamicsInjector(seed=42)
+    injector = ScenarioInjector(seed=42)
 
     # 3. Evolve Features
     print("\nEvolving features...")

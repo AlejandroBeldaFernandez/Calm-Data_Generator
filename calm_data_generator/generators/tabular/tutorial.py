@@ -26,8 +26,6 @@ def run_tutorial():
     try:
         # Initialize Generator with original data and method
         # 'copula' corresponds to GaussianCopula in SDV
-        # Initialize Generator with original data and method
-        # 'copula' corresponds to GaussianCopula in SDV
         generator = RealGenerator()
 
         # 3. Generate Synthetic Data

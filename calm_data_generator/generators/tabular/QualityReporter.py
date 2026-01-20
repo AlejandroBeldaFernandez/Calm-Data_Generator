@@ -66,14 +66,16 @@ class QualityReporter:
     Uses YData Profiling and Plotly for visualizations.
     """
 
-    def __init__(self, verbose: bool = True):
+    def __init__(self, verbose: bool = True, minimal: bool = True):
         """
         Initializes the QualityReporter.
 
         Args:
             verbose (bool): If True, prints progress messages to the console.
+            minimal (bool): If True, skips expensive computations (PCA/UMAP, full correlations).
         """
         self.verbose = verbose
+        self.minimal = minimal
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def generate_comprehensive_report(
@@ -91,10 +93,16 @@ class QualityReporter:
         resample_rule: Optional[Union[str, int]] = None,
         constraints_stats: Optional[Dict[str, int]] = None,
         privacy_check: bool = False,
+        minimal: Optional[bool] = None,
     ) -> None:
         """
         Generates a comprehensive file-based report comparing real and synthetic data.
+
+        Args:
+            minimal: If True, skips expensive computations. Defaults to self.minimal.
         """
+        # Resolve minimal mode
+        use_minimal = self.minimal if minimal is None else minimal
         if self.verbose:
             print("=" * 80)
             print("COMPREHENSIVE REAL DATA GENERATION REPORT")
@@ -201,19 +209,22 @@ class QualityReporter:
             color_col=target_column,
         )
 
-        # Combined PCA + UMAP (real + synthetic merged)
-        combined_df = pd.concat(
-            [
-                real_df_for_report.assign(_source="Real"),
-                synthetic_df_for_report.assign(_source="Synthetic"),
-            ],
-            ignore_index=True,
-        )
-        Visualizer.generate_dimensionality_plot(
-            df=combined_df,
-            output_dir=output_dir,
-            color_col="_source",
-        )
+        # Combined PCA + UMAP (real + synthetic merged) - Skip in minimal mode
+        if not use_minimal:
+            combined_df = pd.concat(
+                [
+                    real_df_for_report.assign(_source="Real"),
+                    synthetic_df_for_report.assign(_source="Synthetic"),
+                ],
+                ignore_index=True,
+            )
+            Visualizer.generate_dimensionality_plot(
+                df=combined_df,
+                output_dir=output_dir,
+                color_col="_source",
+            )
+        elif self.verbose:
+            print("   -> Skipping PCA/UMAP (minimal mode)")
 
         # Drift Analysis (comparing real vs synthetic)
         Visualizer.generate_drift_analysis(
@@ -221,6 +232,7 @@ class QualityReporter:
             drifted_df=synthetic_df_for_report,
             output_dir=output_dir,
             columns=focus_cols,
+            drift_config=drift_config,
         )
 
         # === Generate YData Reports ===
@@ -235,6 +247,7 @@ class QualityReporter:
             curr_name="Generated / Synthetic",
             time_col=final_time_col,
             block_col=block_column,
+            minimal=use_minimal,
         )
 
         # Profile for GENERATED data (renamed to clarify)
@@ -245,6 +258,7 @@ class QualityReporter:
             time_col=final_time_col,
             block_col=block_column,
             title="Generated Data Profile",
+            minimal=use_minimal,
         )
 
         # === Generate Dashboard ===
@@ -297,12 +311,22 @@ class QualityReporter:
             if self.verbose:
                 print("\nRunning SDMetrics Quality Assessment...")
 
+            # Align columns between real and synthetic (only keep common columns)
+            common_cols = list(set(real_df.columns) & set(synthetic_df.columns))
+            if len(common_cols) < len(real_df.columns):
+                if self.verbose:
+                    dropped = set(real_df.columns) - set(common_cols)
+                    print(f"   -> Aligning columns for SDV (dropped: {dropped})")
+
+            real_aligned = real_df[common_cols].copy()
+            synth_aligned = synthetic_df[common_cols].copy()
+
             metadata = SingleTableMetadata()
-            metadata.detect_from_dataframe(real_df)
+            metadata.detect_from_dataframe(real_aligned)
 
             quality_report = evaluate_quality(
-                real_data=real_df,
-                synthetic_data=synthetic_df,
+                real_data=real_aligned,
+                synthetic_data=synth_aligned,
                 metadata=metadata,
             )
 

@@ -15,6 +15,7 @@ authors = [
 dependencies = [
     "numpy>=1.26.0",
     "pandas>=2.0.0",
+    "lightgbm",
     "scipy>=1.10.0",
     "scikit-learn>=1.0.0",
     "matplotlib>=3.7.0",
@@ -24,14 +25,23 @@ dependencies = [
     "sdv>=1.0.0",
     "torch>=2.0.0",
     "smartnoise-synth",
-    "ydata-synthetic",
-    "ydata-profiling>=4.0.0",
-    "sweetviz>=2.3.0"
+    "ydata-profiling"
 ]
 
 [project.optional-dependencies]
 stream = [
     "river>=0.21.0"
+]
+
+timeseries = [
+    "gretel-synthetics",  # For DGAN (DoppelGANger) time series generation
+    "ydata-synthetic",     # For TimeGAN. WARNING: This will install TensorFlow.
+    "tensorflow>=2.10.0"  # Required for some advanced time series methods
+]
+
+full = [
+    "calm-data-generator[stream]",
+    "calm-data-generator[timeseries]"
 ]
 
 [tool.setuptools]

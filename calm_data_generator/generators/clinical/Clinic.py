@@ -16,13 +16,8 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 # tf.get_logger().setLevel("ERROR")
 
 
-from dataclasses import dataclass
-
-
-@dataclass
-class DateConfig:
-    date_col: str = "timestamp"
-    start_date: Optional[str] = None
+from calm_data_generator.generators.stream.StreamReporter import StreamReporter
+from calm_data_generator.generators.configs import DateConfig
 
 
 class ClinicalDataGenerator:
@@ -30,11 +25,18 @@ class ClinicalDataGenerator:
     A class to generate synthetic clinical data including demographic, gene expression, and protein data.
     """
 
-    def __init__(self, seed=42):
+    def __init__(self, seed=42, auto_report=True, minimal_report=True):
         """
         Initializes the ClinicalDataGenerator with a given random seed for reproducibility.
+
+        Args:
+            seed: Random seed for reproducibility.
+            auto_report: If True, automatically generates reports after generation.
+            minimal_report: If True, generates minimal reports (faster, no correlations/PCA).
         """
         np.random.seed(seed)
+        self.auto_report = auto_report
+        self.minimal_report = minimal_report
 
     def generate(
         self,
@@ -107,83 +109,88 @@ class ClinicalDataGenerator:
 
         if save_dataset and output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            demo_df.to_csv(os.path.join(output_dir, "demographics.csv"))
-            genes_df.to_csv(os.path.join(output_dir, "genes.csv"))
-            proteins_df.to_csv(os.path.join(output_dir, "proteins.csv"))
+            if demo_df is not None:
+                demo_df.to_csv(os.path.join(output_dir, "demographics.csv"))
+            if genes_df is not None:
+                genes_df.to_csv(os.path.join(output_dir, "genes.csv"))
+            if proteins_df is not None:
+                proteins_df.to_csv(os.path.join(output_dir, "proteins.csv"))
 
-        # 5. Generate Target Variable
-        target_config = kwargs.get("target_variable_config")
-        if target_config:
-            try:
-                # Assuming omics_dfs can take a list or we combine.
-                # For safety, let's pass a list of non-empty DFs
-                omics_list = [
-                    df
-                    for df in [genes_df, proteins_df]
-                    if df is not None and not df.empty
-                ]
+        # Prepare unified dataset for reporting (and saving if requested)
+        dfs_to_merge = []
+        if demo_df is not None:
+            dfs_to_merge.append(demo_df)
+        if genes_df is not None:
+            dfs_to_merge.append(genes_df)
+        if proteins_df is not None:
+            dfs_to_merge.append(proteins_df)
 
-                config_copy = target_config.copy()
-                tgt_name = config_copy.pop("name", "diagnosis")
+        unified_df = None
+        if dfs_to_merge:
+            unified_df = dfs_to_merge[0]
+            for df_merge in dfs_to_merge[1:]:
+                unified_df = unified_df.join(df_merge, rsuffix="_dup")
 
-                diagnosis = self.generate_target_variable(
-                    demographic_df=raw_demo,
-                    omics_dfs=omics_list[0] if len(omics_list) == 1 else omics_list,
-                    **config_copy,
+        if save_dataset and output_dir and unified_df is not None:
+            unified_df.to_csv(os.path.join(output_dir, "unified_clinical_data.csv"))
+
+        if self.auto_report and output_dir:
+            if demo_df is not None:
+                self._generate_report(
+                    demo_df,
+                    "Demographics",
+                    output_dir,
+                    date_col,
+                    "demographics_report",
+                    **kwargs,
                 )
-                diagnosis.name = tgt_name
-
-                # Append
-                if demo_df is not None:
-                    demo_df[tgt_name] = diagnosis
-                if genes_df is not None:
-                    genes_df[tgt_name] = diagnosis
-                if proteins_df is not None:
-                    proteins_df[tgt_name] = diagnosis
-
-                # Re-save if needed
-                if save_dataset and output_dir:
-                    demo_df.to_csv(os.path.join(output_dir, "demographics.csv"))
-                    genes_df.to_csv(os.path.join(output_dir, "genes.csv"))
-                    proteins_df.to_csv(os.path.join(output_dir, "proteins.csv"))
-            except Exception as e:
-                print(f"Warning: Failed to generate target variable: {e}")
-
-        # 6. Longitudinal Generation (Optional)
-        if longitudinal_config and demo_df is not None:
-            print("Applying longitudinal generation...")
-            # We evolve the 'demographics' based on longitudinal config
-            # Genes/Proteins usually need regeneration at each step or separate evolution.
-            # For simplicity now, we just evolve the main demographic/target DF if requested, or we iterate everything.
-            # The new 'generate_longitudinal_data' method takes a base DF.
-
-            # If genes/proteins present, we might want to join them first or evolve separately.
-            # Simplifying assumption: Longitudinal config applies to the Merged Dataset or just Demographics+Target.
-
-            full_df = demo_df.copy()
-            if genes_df is not None and not genes_df.empty:
-                full_df = full_df.join(genes_df, rsuffix="_gene")
-            if proteins_df is not None and not proteins_df.empty:
-                full_df = full_df.join(proteins_df, rsuffix="_prot")
-
-            long_df = self.generate_longitudinal_data(
-                base_df=full_df,
-                n_visits=longitudinal_config.get("n_visits", 3),
-                time_step_days=longitudinal_config.get("time_step_days", 30),
-                id_col="Patient_ID"
-                if "Patient_ID" in full_df.index.names
-                or "Patient_ID" in full_df.columns
-                else full_df.index.name,
-                time_col=date_col,
-                evolution_config=longitudinal_config.get(
-                    "evolution_config"
-                ),  # Feature evolution rules
-                constraints=constraints,  # Re-verify constraints at each step
-            )
-
-            res["longitudinal"] = long_df
+            if genes_df is not None:
+                self._generate_report(
+                    genes_df, "Genes", output_dir, date_col, "genes_report", **kwargs
+                )
+            if proteins_df is not None:
+                self._generate_report(
+                    proteins_df,
+                    "Proteins",
+                    output_dir,
+                    date_col,
+                    "proteins_report",
+                    **kwargs,
+                )
+            if unified_df is not None:
+                self._generate_report(
+                    unified_df,
+                    "Unified_Clinical_Data",
+                    output_dir,
+                    date_col,
+                    "unified_report",
+                    **kwargs,
+                )
 
         return res
+
+    def _generate_report(self, df, name, base_output_dir, time_col, sub_dir, **kwargs):
+        """Helper to generate a report for a specific dataframe using StreamReporter."""
+        try:
+            reporter = StreamReporter(verbose=True)
+            report_dir = os.path.join(base_output_dir, sub_dir)
+
+            # Extract target column if available
+            target_config = kwargs.get("target_variable_config", {})
+            target_col = target_config.get("name", "diagnosis")
+            if target_col not in df.columns:
+                target_col = None
+
+            reporter.generate_report(
+                synthetic_df=df,
+                generator_name=f"Clinical_{name}",
+                output_dir=report_dir,
+                target_column=target_col,
+                time_col=time_col if time_col in df.columns else None,
+            )
+            print(f"✅ Generated report for {name} in {report_dir}")
+        except Exception as e:
+            print(f"⚠️ Failed to generate report for {name}: {e}")
 
     def _generate_module_data(
         self,

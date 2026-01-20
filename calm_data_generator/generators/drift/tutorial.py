@@ -20,7 +20,6 @@ def run_tutorial():
     print("Original Data Stats:\n", df.describe().loc[["mean", "std"]])
 
     # 2. Initialize Injector
-    # 2. Initialize Injector
     output_dir = "drift_tutorial_output"
     injector = DriftInjector(
         original_df=df, output_dir=output_dir, generator_name="tutorial_drift"
@@ -52,7 +51,6 @@ def run_tutorial():
     )
 
     # 5. Save and Verify
-    output_dir = "drift_tutorial_output"
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, "drifted_data.csv")
     df_drifted.to_csv(output_path, index=False)

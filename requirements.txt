@@ -9,14 +9,15 @@ matplotlib>=3.7.0
 seaborn>=0.12.0
 plotly>=5.0.0
 imbalanced-learn>=0.10.0
-river>=0.21.0
+sdv>=1.0.0
+torch>=2.0.0
+smartnoise-synth
+ydata-profiling
+lightgbm
 
-# Optional: Deep Learning
-# sdv>=1.0.0
-# torch>=2.0.0
-# smartnoise-synth
-# ydata-synthetic
+# Optional dependencies (install manually if needed)
+# river>=0.21.0       # For StreamGenerator (online learning). May require: sudo apt-get install build-essential python3-dev
+# gretel-synthetics   # For DGAN (DoppelGANger) time series generation
+# ydata-synthetic     # For TimeGAN. WARNING: This will install TensorFlow.
+# tensorflow>=2.10.0  # Required for some advanced time series methods
 
-# Optional: Profiling
-# ydata-profiling>=4.0.0
-# sweetviz>=2.3.0

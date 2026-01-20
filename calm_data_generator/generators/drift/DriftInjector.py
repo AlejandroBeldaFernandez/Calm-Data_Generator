@@ -44,6 +44,8 @@ class DriftInjector:
         block_column: Optional[str] = None,
         target_column: Optional[str] = None,
         original_df: Optional[pd.DataFrame] = None,
+        auto_report: bool = True,
+        minimal_report: bool = True,
     ):
         """
         Initializes the DriftInjector.
@@ -52,6 +54,8 @@ class DriftInjector:
             output_dir (str): Default directory to save reports and drifted datasets.
             generator_name (str): Default name for the generator, used in output file names.
             random_state (Optional[int]): Seed for the random number generator for reproducibility.
+            auto_report (bool): If True, automatically generates reports after drift injection.
+            minimal_report (bool): If True, generates minimal reports (faster, no correlations/PCA).
         """
         self.rng = np.random.default_rng(random_state)
         self.output_dir = output_dir
@@ -60,10 +64,14 @@ class DriftInjector:
         self.time_col = time_col
         self.block_column = block_column
         self.target_column = target_column
+        self.auto_report = auto_report
+        self.minimal_report = minimal_report
 
-        from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
+        from calm_data_generator.generators.tabular.QualityReporter import (
+            QualityReporter,
+        )
 
-        self.reporter = QualityReporter()
+        self.reporter = QualityReporter(minimal=minimal_report)
 
         if self.output_dir:
             os.makedirs(self.output_dir, exist_ok=True)
@@ -338,6 +346,51 @@ class DriftInjector:
 
         return w
 
+    def _calculate_drift_probabilities(
+        self,
+        rows: pd.Index,
+        center: int,
+        width: int,
+        profile: str = "sigmoid",
+        speed_k: float = 1.0,
+        direction: str = "up",
+        index_min: Optional[int] = None,
+        index_max: Optional[int] = None,
+    ) -> np.ndarray:
+        """
+        Calculates drift probabilities for a given set of rows based on window parameters.
+
+        Args:
+            rows: The row indices to calculate probabilities for.
+            center: Center of the transition window.
+            width: Width of the transition window.
+            profile: Window profile ("sigmoid", "linear", "cosine").
+            speed_k: Speed factor for the transition.
+            direction: "up" (0->1) or "down" (1->0).
+            index_min: Minimum index for normalization (default: min(rows)).
+            index_max: Maximum index for normalization (default: max(rows)).
+
+        Returns:
+            np.ndarray: Array of probabilities for each row.
+        """
+        n = len(rows)
+        if n == 0:
+            return np.zeros(0, dtype=float)
+
+        # Validate row indices
+        if len(rows) == 0:
+            return np.zeros(0, dtype=float)
+
+        # Compute window weights based on positions
+        return self._window_weights(
+            n,
+            center=float(center),
+            width=int(width),
+            profile=profile,
+            k=speed_k,
+            direction=direction,
+        )
+
     # -------------------------
     # Common engine for features
     # -------------------------
@@ -414,6 +467,13 @@ class DriftInjector:
             factor = 1.0 + w * (target - 1.0)
             x = x * factor
 
+        elif drift_type == "uniform_noise":
+            # Uniform noise in range [-magnitude*std, +magnitude*std]
+            if std == 0:
+                return x
+            noise = rng.uniform(-drift_magnitude * std, drift_magnitude * std, size=n)
+            x = x + noise * w
+
         else:
             raise ValueError(f"Unknown drift_type: {drift_type}")
 
@@ -475,6 +535,7 @@ class DriftInjector:
             "subtract_value",
             "multiply_value",
             "divide_value",
+            "uniform_noise",
         }
         if drift_type not in valid:
             raise ValueError(f"Unknown drift_type: {drift_type}")
@@ -602,6 +663,7 @@ class DriftInjector:
         drift_value: Optional[float] = None,
         drift_values: Optional[Dict[str, float]] = None,
         start_index: Optional[int] = None,
+        end_index: Optional[int] = None,
         block_index: Optional[int] = None,
         block_column: Optional[str] = None,
         blocks: Optional[Sequence] = None,
@@ -632,6 +694,7 @@ class DriftInjector:
         rows = self._get_target_rows(
             df,
             start_index=start_index,
+            end_index=end_index,
             block_index=block_index,
             block_column=block_column,
             blocks=blocks,
@@ -782,13 +845,15 @@ class DriftInjector:
         feature_cols: List[str],
         drift_type: str,
         drift_magnitude: float,
+        drift_value: Optional[float] = None,
+        drift_values: Optional[Dict[str, float]] = None,
         windows: Optional[Sequence[Tuple[int, int]]] = None,
         block_column: Optional[str] = None,
         cycle_blocks: Optional[Sequence] = None,
         repeats: int = 1,
         random_repeat_order: bool = False,
-        center_in_block: Optional[int] = None,
-        width_in_block: Optional[int] = None,
+        center: Optional[int] = None,
+        width: Optional[int] = None,
         profile: str = "sigmoid",
         speed_k: float = 1.0,
         direction: str = "up",
@@ -801,6 +866,7 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
+        auto_report: bool = True,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -828,7 +894,59 @@ class DriftInjector:
         # This is a simplified version.
         if not rows.empty:
             # Apply drift to the selected rows
-            pass
+            n_total = len(rows)
+            chunk_size = n_total // max(1, repeats)
+
+            for i in range(repeats):
+                # Determine start/end of this recurrence window
+                c_start = i * chunk_size
+                c_end = (i + 1) * chunk_size if i < repeats - 1 else n_total
+
+                if c_end <= c_start:
+                    continue
+
+                chunk_indices = rows[c_start:c_end]
+                n_chunk = len(chunk_indices)
+
+                # Determine local center/width for this chunk
+                local_center = n_chunk // 2 if center is None else center
+                local_width = n_chunk if width is None else width
+
+                w = self._window_weights(
+                    n_chunk,
+                    float(local_center),
+                    int(local_width),
+                    profile,
+                    speed_k,
+                    direction,
+                )
+
+                # Apply to each feature
+                for col in feature_cols:
+                    if col not in df_out.columns:
+                        continue
+
+                    column_drift_value = (
+                        drift_values.get(col) if drift_values else drift_value
+                    )
+
+                    if pd.api.types.is_numeric_dtype(df_out[col]):
+                        x = df_out.loc[chunk_indices, col].to_numpy(copy=True)
+                        x2 = self._apply_numeric_op_with_weights(
+                            x,
+                            drift_type,
+                            drift_magnitude,
+                            w,
+                            self.rng,
+                            column_drift_value,
+                        )
+                        df_out.loc[chunk_indices, col] = x2
+                    else:
+                        s = df_out.loc[chunk_indices, col]
+                        s2 = self._apply_categorical_with_weights(
+                            s, w, drift_magnitude, self.rng
+                        )
+                        df_out.loc[chunk_indices, col] = s2
 
         return df_out
 
@@ -977,9 +1095,25 @@ class DriftInjector:
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
         auto_report: bool = True,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Injects random label flips for a specified section.
+
+        Args:
+            df: Input DataFrame.
+            target_cols: List of target columns to apply label drift to.
+            drift_magnitude: Fraction of labels to flip (0.0 to 1.0).
+            drift_magnitudes: Per-column magnitudes (overrides drift_magnitude).
+            start_index, block_index, block_column: Selection parameters.
+            time_start, time_end, time_ranges, specific_times: Time-based selection.
+            auto_report: Whether to generate a report.
+            output_dir: Directory for reports.
+            generator_name: Name for reports.
+
+        Returns:
+            pd.DataFrame: DataFrame with label drift applied.
         """
         df_drift = df.copy()
         rows = self._get_target_rows(
@@ -993,7 +1127,61 @@ class DriftInjector:
             specific_times=specific_times,
         )
 
-        # The rest of the logic remains the same
+        if len(rows) == 0:
+            return df_drift
+
+        for col in target_cols:
+            if col not in df.columns:
+                warnings.warn(f"Target column '{col}' not found")
+                continue
+
+            col_magnitude = (
+                drift_magnitudes.get(col, drift_magnitude)
+                if drift_magnitudes
+                else drift_magnitude
+            )
+            col_magnitude = self._frac(col_magnitude)
+
+            unique_labels = df[col].dropna().unique()
+            if len(unique_labels) <= 1:
+                warnings.warn(f"Column '{col}' has only one unique value, skipping")
+                continue
+
+            # Determine number of rows to flip
+            n_to_flip = int(len(rows) * col_magnitude)
+            if n_to_flip == 0:
+                continue
+
+            # Select random rows to flip
+            flip_indices = self.rng.choice(rows, size=n_to_flip, replace=False)
+
+            # Flip labels
+            for idx in flip_indices:
+                current_val = df_drift.at[idx, col]
+                # Choose a different label
+                possible_vals = [v for v in unique_labels if v != current_val]
+                if possible_vals:
+                    df_drift.at[idx, col] = self.rng.choice(possible_vals)
+
+        if auto_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+            drift_config = {
+                "drift_method": "inject_label_drift",
+                "target_cols": target_cols,
+                "drift_magnitude": drift_magnitude,
+                "start_index": start_index,
+                "block_index": block_index,
+                "time_start": time_start,
+                "generator_name": f"{gen_name}_label_drift",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(df, df_drift, drift_config)
+
         return df_drift
 
     def inject_label_drift_gradual(
@@ -1002,6 +1190,7 @@ class DriftInjector:
         target_col: str,
         drift_magnitude: float = 0.3,
         start_index: Optional[int] = None,
+        end_index: Optional[int] = None,
         block_index: Optional[int] = None,
         block_column: Optional[str] = None,
         time_start: Optional[str] = None,
@@ -1015,12 +1204,40 @@ class DriftInjector:
         direction: str = "up",
         inconsistency: float = 0.0,
         auto_report: bool = True,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
-        """Injects gradual label drift using a transition window."""
+        """
+        Injects gradual label drift using a transition window.
+
+        The probability of flipping a label increases gradually based on the
+        window profile (sigmoid, linear, cosine).
+
+        Args:
+            df: Input DataFrame.
+            target_col: Target column to apply drift to.
+            drift_magnitude: Maximum fraction of labels to flip (0.0 to 1.0).
+            start_index, end_index, block_index, block_column: Selection parameters.
+            time_start, time_end, time_ranges, specific_times: Time-based selection.
+            center: Center of the transition window (default: middle of selected rows).
+            width: Width of the transition window (default: n/5).
+            profile: Window profile ("sigmoid", "linear", "cosine").
+            speed_k: Speed of transition (higher = faster).
+            direction: "up" (increasing flip probability) or "down" (decreasing).
+            inconsistency: Random noise to add to probabilities.
+            auto_report: Whether to generate a report.
+
+        Returns:
+            pd.DataFrame: DataFrame with gradual label drift applied.
+        """
+        if target_col not in df.columns:
+            raise ValueError(f"Target column '{target_col}' not found")
+
         df_drift = df.copy()
         rows = self._get_target_rows(
             df,
             start_index=start_index,
+            end_index=end_index,
             block_index=block_index,
             block_column=block_column,
             time_start=time_start,
@@ -1028,7 +1245,63 @@ class DriftInjector:
             time_ranges=time_ranges,
             specific_times=specific_times,
         )
-        # ... rest of the logic
+
+        n = len(rows)
+        if n == 0:
+            return df_drift
+
+        unique_labels = df[target_col].dropna().unique()
+        if len(unique_labels) <= 1:
+            warnings.warn(f"Column '{target_col}' has only one unique value")
+            return df_drift
+
+        # Calculate transition weights
+        c = int(n // 2) if center is None else int(np.clip(center, 0, n - 1))
+        w_width = max(1, int(width if width is not None else max(1, n // 5)))
+        w = self._window_weights(
+            n,
+            center=c,
+            width=w_width,
+            profile=profile,
+            k=float(speed_k),
+            direction=direction,
+        )
+
+        # Add inconsistency noise
+        if inconsistency > 0:
+            noise = self.rng.normal(0, 0.1 * inconsistency, n)
+            w = np.clip(w + noise, 0.0, 1.0)
+
+        # Calculate flip probability for each row
+        flip_probs = w * self._frac(drift_magnitude)
+
+        # Apply gradual flips
+        for i, idx in enumerate(rows):
+            if self.rng.random() < flip_probs[i]:
+                current_val = df_drift.at[idx, target_col]
+                possible_vals = [v for v in unique_labels if v != current_val]
+                if possible_vals:
+                    df_drift.at[idx, target_col] = self.rng.choice(possible_vals)
+
+        if auto_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+            drift_config = {
+                "drift_method": "inject_label_drift_gradual",
+                "target_col": target_col,
+                "drift_magnitude": drift_magnitude,
+                "profile": profile,
+                "center": center,
+                "width": width,
+                "generator_name": f"{gen_name}_label_gradual",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(df, df_drift, drift_config)
+
         return df_drift
 
     def inject_label_drift_abrupt(
@@ -1338,10 +1611,27 @@ class DriftInjector:
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
         auto_report: bool = True,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
         """
-        Injects label shift by resampling the target column.
+        Injects label shift by resampling the target column to match a target distribution.
+
+        Args:
+            df: Input DataFrame.
+            target_col: Target column to modify.
+            target_distribution: Dict mapping label values to target proportions.
+                                 Example: {0: 0.3, 1: 0.7} for 30% class 0, 70% class 1.
+            start_index, block_index, block_column: Selection parameters.
+            time_start, time_end, time_ranges, specific_times: Time-based selection.
+            auto_report: Whether to generate a report.
+
+        Returns:
+            pd.DataFrame: DataFrame with shifted label distribution.
         """
+        if target_col not in df.columns:
+            raise ValueError(f"Target column '{target_col}' not found")
+
         df_drift = df.copy()
         rows = self._get_target_rows(
             df,
@@ -1353,7 +1643,54 @@ class DriftInjector:
             time_ranges=time_ranges,
             specific_times=specific_times,
         )
-        # ... rest of the logic
+
+        n = len(rows)
+        if n == 0:
+            return df_drift
+
+        # Normalize target distribution
+        total = sum(target_distribution.values())
+        if total <= 0:
+            raise ValueError("Target distribution values must sum to > 0")
+        normalized_dist = {k: v / total for k, v in target_distribution.items()}
+
+        # Calculate target counts for each label
+        target_counts = {k: int(n * v) for k, v in normalized_dist.items()}
+
+        # Adjust for rounding errors - add remainder to largest class
+        remainder = n - sum(target_counts.values())
+        if remainder > 0:
+            max_label = max(normalized_dist, key=normalized_dist.get)
+            target_counts[max_label] += remainder
+
+        # Resample: assign labels to rows based on target distribution
+        new_labels = []
+        for label, count in target_counts.items():
+            new_labels.extend([label] * count)
+
+        # Shuffle and assign
+        self.rng.shuffle(new_labels)
+        df_drift.loc[rows, target_col] = new_labels[:n]
+
+        if auto_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+            drift_config = {
+                "drift_method": "inject_label_shift",
+                "target_col": target_col,
+                "target_distribution": target_distribution,
+                "start_index": start_index,
+                "block_index": block_index,
+                "time_start": time_start,
+                "generator_name": f"{gen_name}_label_shift",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(df, df_drift, drift_config)
+
         return df_drift
 
     # -------------------------
@@ -1643,6 +1980,9 @@ class DriftInjector:
                     # If float (probabilistic output), add noise?
                     # The method name suggests binary drift.
                     pass
+                    warnings.warn(
+                        f"Skipping binary drift on non-binary column '{target_col}'"
+                    )
 
         if auto_report:
             gen_name = generator_name or self.generator_name
@@ -1725,9 +2065,25 @@ class DriftInjector:
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
         auto_report: bool = True,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
         """
-        Injects covariate drift by transforming numeric features.
+        Injects covariate drift by transforming numeric features to match a target correlation matrix.
+
+        Uses Cholesky decomposition to transform standardized features to achieve the
+        desired correlation structure.
+
+        Args:
+            df: Input DataFrame.
+            feature_cols: List of numeric columns to transform.
+            target_correlation_matrix: Target correlation matrix (n_features x n_features).
+            start_index, block_index, block_column: Selection parameters.
+            time_start, time_end, time_ranges, specific_times: Time-based selection.
+            auto_report: Whether to generate a report.
+
+        Returns:
+            pd.DataFrame: DataFrame with modified correlation structure.
         """
         df_drift = df.copy()
         rows = self._get_target_rows(
@@ -1740,7 +2096,83 @@ class DriftInjector:
             time_ranges=time_ranges,
             specific_times=specific_times,
         )
-        # ... rest of the logic
+
+        if len(rows) == 0:
+            return df_drift
+
+        # Validate feature columns
+        valid_cols = [
+            c
+            for c in feature_cols
+            if c in df.columns and pd.api.types.is_numeric_dtype(df[c])
+        ]
+        if len(valid_cols) == 0:
+            warnings.warn("No valid numeric columns found for correlation drift")
+            return df_drift
+
+        # Validate target matrix shape
+        n_features = len(valid_cols)
+        if target_correlation_matrix.shape != (n_features, n_features):
+            raise ValueError(
+                f"Target matrix shape {target_correlation_matrix.shape} doesn't match "
+                f"number of features ({n_features})"
+            )
+
+        # Ensure target matrix is positive semi-definite
+        target_corr = self._ensure_psd_matrix(target_correlation_matrix)
+
+        # Extract and standardize data
+        X = df_drift.loc[rows, valid_cols].values.astype(float)
+        means = np.mean(X, axis=0)
+        stds = np.std(X, axis=0)
+        stds[stds == 0] = 1.0  # Avoid division by zero
+        X_std = (X - means) / stds
+
+        # Cholesky decomposition of target correlation
+        try:
+            L_target = np.linalg.cholesky(target_corr)
+        except np.linalg.LinAlgError:
+            warnings.warn("Target matrix not positive definite, using adjusted version")
+            target_corr = self._ensure_psd_matrix(
+                target_corr + 0.01 * np.eye(n_features)
+            )
+            L_target = np.linalg.cholesky(target_corr)
+
+        # Current correlation and its Cholesky
+        current_corr = np.corrcoef(X_std, rowvar=False)
+        if np.isnan(current_corr).any():
+            current_corr = np.eye(n_features)
+        current_corr = self._ensure_psd_matrix(current_corr)
+
+        try:
+            L_current = np.linalg.cholesky(current_corr)
+            L_current_inv = np.linalg.inv(L_current)
+        except np.linalg.LinAlgError:
+            L_current_inv = np.eye(n_features)
+
+        # Transform: X_new = X_std @ L_current_inv.T @ L_target.T
+        X_transformed = X_std @ L_current_inv.T @ L_target.T
+
+        # De-standardize
+        X_final = X_transformed * stds + means
+
+        df_drift.loc[rows, valid_cols] = X_final
+
+        if auto_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+            drift_config = {
+                "drift_method": "inject_correlation_matrix_drift",
+                "feature_cols": valid_cols,
+                "generator_name": f"{gen_name}_correlation_drift",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(df, df_drift, drift_config)
+
         return df_drift
 
     # -------------------------
@@ -1751,7 +2183,8 @@ class DriftInjector:
         df: pd.DataFrame,
         feature_col: str,
         new_category: object,
-        candidate_logic: dict,
+        probability: float = 0.1,
+        replace_categories: Optional[List] = None,
         start_index: Optional[int] = None,
         block_index: Optional[int] = None,
         block_column: Optional[str] = None,
@@ -1762,13 +2195,38 @@ class DriftInjector:
         center: Optional[int] = None,
         width: Optional[int] = None,
         profile: str = "sigmoid",
+        speed_k: float = 1.0,
+        direction: str = "up",
         auto_report: bool = True,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Injects a new category into a feature column.
+
+        This drift simulates the emergence of a new category value that wasn't
+        present in the original data (e.g., a new product type, region, etc.).
+
+        Args:
+            df: Input DataFrame.
+            feature_col: Categorical column to modify.
+            new_category: The new category value to introduce.
+            probability: Probability of replacing existing values (0.0 to 1.0).
+            replace_categories: Optional list of existing categories to replace.
+                               If None, any existing category can be replaced.
+            start_index, block_index, block_column: Selection parameters.
+            time_start, time_end, time_ranges, specific_times: Time-based selection.
+            center, width, profile, speed_k, direction: Gradual transition parameters.
+            auto_report: Whether to generate a report.
+
+        Returns:
+            pd.DataFrame: DataFrame with new category injected.
         """
+        if feature_col not in df.columns:
+            raise ValueError(f"Feature column '{feature_col}' not found")
+
         df_drift = df.copy()
-        base_rows = self._get_target_rows(
+        rows = self._get_target_rows(
             df,
             start_index=start_index,
             block_index=block_index,
@@ -1778,7 +2236,56 @@ class DriftInjector:
             time_ranges=time_ranges,
             specific_times=specific_times,
         )
-        # ... rest of the logic
+
+        n = len(rows)
+        if n == 0:
+            return df_drift
+
+        # Calculate transition weights if gradual parameters provided
+        if center is not None or width is not None:
+            c = int(n // 2) if center is None else int(np.clip(center, 0, n - 1))
+            w_width = max(1, int(width if width is not None else max(1, n // 5)))
+            w = self._window_weights(
+                n,
+                center=c,
+                width=w_width,
+                profile=profile,
+                k=float(speed_k),
+                direction=direction,
+            )
+            replace_probs = w * self._frac(probability)
+        else:
+            replace_probs = np.full(n, self._frac(probability))
+
+        # Determine which rows to replace
+        for i, idx in enumerate(rows):
+            if self.rng.random() < replace_probs[i]:
+                current_val = df_drift.at[idx, feature_col]
+
+                # Only replace if current value is in replace_categories (if specified)
+                if replace_categories is not None:
+                    if current_val not in replace_categories:
+                        continue
+
+                df_drift.at[idx, feature_col] = new_category
+
+        if auto_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+            drift_config = {
+                "drift_method": "inject_new_category_drift",
+                "feature_col": feature_col,
+                "new_category": str(new_category),
+                "probability": probability,
+                "generator_name": f"{gen_name}_new_category_drift",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(df, df_drift, drift_config)
+
         return df_drift
 
     # -------------------------

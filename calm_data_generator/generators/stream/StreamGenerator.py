@@ -50,14 +50,16 @@ class StreamGenerator:
         """Gets the default directory for saving generated files."""
         return cls.DEFAULT_OUTPUT_DIR
 
-    def __init__(self, random_state: Optional[int] = None):
+    def __init__(self, random_state: Optional[int] = None, auto_report: bool = True):
         """
         Initializes the StreamGenerator.
 
         Args:
             random_state (Optional[int]): Seed for the random number generator for reproducibility.
+            auto_report (bool): Whether to automatically generate a report after generation.
         """
         self.rng = np.random.default_rng(random_state)
+        self.auto_report = auto_report
 
     def generate(
         self,
@@ -71,7 +73,7 @@ class StreamGenerator:
         drift_type: str = "none",  # Kept for backward compat or ease of use if config not passed
         drift_options: Optional[Dict] = None,
         save_dataset: bool = False,  # Changed default to False
-        generate_report: bool = True,
+        generate_report: Optional[bool] = None,
         # ... other specialized args can remain optionally or be grouped later
         constraints: Optional[List[Dict]] = None,
         sequence_config: Optional[Dict] = None,
@@ -241,7 +243,7 @@ class StreamGenerator:
             # We can pick a seed from self.rng or just use self.rng if DynamicsInjector supported it.
             # DynamicsInjector uses a seed int.
             # self.rng is a Generator. We can allow DynamicsInjector to use its own random state.
-            injector = DynamicsInjector()
+            injector = ScenarioInjector()
 
             if "evolve_features" in dynamics_config:
                 logger.info("Evolving features...")
@@ -293,11 +295,14 @@ class StreamGenerator:
                         f"Drift method '{method_name}' not found in DriftInjector."
                     )
 
-        if kwargs.get("generate_report", True):
+        # Resolve generate_report
+        should_report = self.auto_report
+
+        if should_report:
             report_kwargs = {
                 k: v
                 for k, v in kwargs.items()
-                if k not in ["save_dataset", "output_dir"]
+                if k not in ["save_dataset", "output_dir", "generate_report"]
             }
             # Ensure the report gets the actual generator instance, not the iterator
             report_kwargs["generator_instance"] = (
