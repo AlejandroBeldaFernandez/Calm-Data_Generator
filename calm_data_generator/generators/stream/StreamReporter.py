@@ -59,6 +59,7 @@ class StreamReporter:
             print("=" * 80)
             print("SYNTHETIC DATA REPORT")
             print(f"Generator: {generator_name}")
+            print("JSON report saved successfully.")
             print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print("=" * 80)
 
@@ -120,7 +121,7 @@ class StreamReporter:
             and per_block_external_reports
         ):
             if self.verbose:
-                print(f"\nGenerating per-block reports...")
+                print("\nGenerating per-block reports...")
 
             unique_blocks = sorted(synthetic_df[block_column].unique(), key=str)
 

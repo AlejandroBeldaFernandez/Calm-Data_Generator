@@ -2032,7 +2032,7 @@ def replicate_genes_proteins(
     report_title_t1 = f"T1 DATA ({mode.upper()}) - Modules A, B, C"
     df_list_t1 = [
         ("DEMOGRAPHIC T1", df_demo_t1.copy()),
-        (f"GENES T1", df_genes_t1.copy()),
+        ("GENES T1", df_genes_t1.copy()),
         ("PROTEINS T1", df_proteins_t1.copy()),
     ]
     report_t1 = generator._generate_text_report(df_list_t1, report_title_t1)
@@ -2097,8 +2097,8 @@ def replicate_genes_proteins(
     report_title_t2 = f"T2 DATA ({mode.upper()}) - WITH LONGITUDINAL DRIFT"
     df_list_t2 = [
         ("DEMOGRAPHIC T2", df_demo_t2.copy()),
-        (f"GENES T2", df_genes_t2.copy()),
-        (f"PROTEINS T2", df_proteins_t2.copy()),
+        ("GENES T2", df_genes_t2.copy()),
+        ("PROTEINS T2", df_proteins_t2.copy()),
     ]
     report_t2 = generator._generate_text_report(df_list_t2, report_title_t2)
 

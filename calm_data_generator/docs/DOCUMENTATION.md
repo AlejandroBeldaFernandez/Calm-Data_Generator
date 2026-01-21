@@ -6,7 +6,7 @@
 2. [Module Overview](#module-overview)
 3. [RealGenerator](#realgenerator)
 4. [ClinicalDataGenerator](#clinicgenerator)
-5. [StreamGenerator](#syntheticgenerator)
+5. [StreamGenerator](#streamgenerator)
 6. [DriftInjector](#driftinjector)
 7. [ScenarioInjector](#scenarioinjector)
 8. [Privacy Module](#privacy-module)

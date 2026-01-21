@@ -62,14 +62,19 @@ from calm_data_generator.generators.drift import DriftInjector
 ```
 
 **Drift Types:**
-- `inject_feature_drift_gradual()` - Progressive feature change
-- `inject_feature_drift_abrupt()` - Abrupt feature change
-- `inject_feature_drift_recurrent()` - Recurring periodic patterns
-- `inject_label_drift()` - Label flipping
-- `inject_label_drift_gradual()` - Gradual label drift
-- `inject_concept_drift()` - Concept drift
-- `inject_conditional_drift()` - Condition-based drift
-- `inject_multiple_types_of_drift()` - Multi-drift orchestration
+- `inject_feature_drift_gradual()`
+- `inject_feature_drift_abrupt()`
+- `inject_feature_drift_recurrent()`
+- `inject_label_drift_gradual()`
+- `inject_label_drift_abrupt()`
+- `inject_label_drift_incremental()`
+- `inject_concept_drift()`
+- `inject_conditional_drift()`
+- `inject_outliers_global()`
+- `inject_new_category_drift()`
+- `inject_correlation_matrix_drift()`
+- `inject_binary_probabilistic_drift()`
+- `inject_multiple_types_of_drift()`
 
 ---
 
@@ -106,8 +111,11 @@ from calm_data_generator.privacy import (
 # Basic
 pip install calm_data_generator
 
-# With deep learning
-pip install calm_data_generator[deeplearning]
+# Stream (River)
+pip install calm_data_generator[stream]
+
+# Time Series (Gretel)
+pip install calm_data_generator[timeseries]
 
 # Full
 pip install calm_data_generator[full]

@@ -8,15 +8,14 @@ import numpy as np
 from collections import defaultdict
 
 from calm_data_generator.generators.configs import DateConfig
+from .StreamReporter import StreamReporter  # reporter to save JSON reports
+from calm_data_generator.generators.drift.DriftInjector import DriftInjector
+from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
 
 # Suppress common warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-from .StreamReporter import StreamReporter  # reporter to save JSON reports
-from calm_data_generator.generators.drift.DriftInjector import DriftInjector
-from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
 
 
 logger = logging.getLogger(__name__)
@@ -673,7 +672,6 @@ class StreamGenerator:
             # To be fast, we process by group
             df_temp = pd.DataFrame({entity_col: ids})
             groups = df_temp.groupby(entity_col)
-
 
             # Global time or Per-User time?
             # Usually sequences are independent or interleaved.

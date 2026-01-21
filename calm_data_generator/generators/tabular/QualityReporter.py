@@ -26,7 +26,7 @@ try:
 
     # Try importing sequential
     try:
-        from sdmetrics.reports.single_table import QualityReport
+        from sdmetrics.reports.single_table import QualityReport  # noqa: F401
         from sdmetrics.reports.sequential import (
             QualityReport as SequentialQualityReport,
         )
