@@ -78,3 +78,4 @@ output/
 reports/
 *.log
 drift_output/
+test_instalacion.py
