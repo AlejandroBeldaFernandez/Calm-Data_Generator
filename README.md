@@ -1,29 +1,32 @@
-# CALM-Data-Generator 🎲
+# CALM-Data-Generator
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://badge.fury.io/py/calm-data-generator.svg)](https://badge.fury.io/py/calm-data-generator)
 
 **CALM-Data-Generator** is a comprehensive Python library for synthetic data generation with advanced features for:
-- 🏥 **Clinical/Medical Data** - Generate realistic patient demographics, genes, proteins
-- 📊 **Tabular Data Synthesis** - CTGAN, TVAE, Copula, CART, and more
-- 🌊 **Time Series** - TimeGAN, DGAN, PAR, Temporal Copula
-- 🔀 **Drift Injection** - Test ML model robustness with controlled drift
-- 🔒 **Privacy Preservation** - Differential privacy, pseudonymization, generalization
-- 🎯 **Scenario Evolution** - Feature evolution and target construction
+- **Clinical/Medical Data** - Generate realistic patient demographics, genes, proteins
+- **Tabular Data Synthesis** - CTGAN, TVAE, Copula, CART, and more
+- **Time Series** - TimeGAN, DGAN, PAR, Temporal Copula
+- **Drift Injection** - Test ML model robustness with controlled drift
+- **Privacy Preservation** - Differential privacy, pseudonymization, generalization
+- **Scenario Evolution** - Feature evolution and target construction
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 # Basic installation
 pip install calm-data-generator
 
-# With deep learning models (CTGAN, TVAE, TimeGAN)
-pip install calm-data-generator[deeplearning]
+# For Stream Generator (River)
+pip install calm-data-generator[stream]
 
-# Full installation with all features
+# For Time Series (Gretel Synthetics)
+pip install calm-data-generator[timeseries]
+
+# Full installation
 pip install calm-data-generator[full]
 ```
 
@@ -51,7 +54,7 @@ pip install calm-data-generator
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Generate Synthetic Data from Real Dataset
 
@@ -114,9 +117,44 @@ drifted_data = injector.inject_feature_drift_gradual(
 )
 ```
 
+### Stream Data Generation
+
+```python
+from calm_data_generator.generators.stream import StreamGenerator
+
+stream_gen = StreamGenerator()
+
+# Generate a data stream with Concept Drift
+stream_data = stream_gen.generate(
+    n_chunks=10,
+    chunk_size=1000,
+    concept_drift=True,  # Simulate concept drift over time
+    n_features=10
+)
+
+print(f"Generated stream with {len(stream_data)} total samples")
+```
+
+### Quality Reporting
+
+```python
+from calm_data_generator.generators.tabular import QualityReporter
+
+# Generate a quality report comparing real vs synthetic data
+reporter = QualityReporter()
+
+reporter.generate_report(
+    real_data=data,
+    synthetic_data=synthetic,
+    output_dir="./quality_report",
+    target_col="target"
+)
+# Report saved to ./quality_report/report.html
+```
+
 ---
 
-## 📚 Modules
+## Modules
 
 | Module | Import | Description |
 |--------|--------|-------------|
@@ -130,28 +168,28 @@ drifted_data = injector.inject_feature_drift_gradual(
 
 ---
 
-## 🔬 Synthesis Methods
+## Synthesis Methods
 
-| Method | Type | Description |
-|--------|------|-------------|
-| `cart` | ML | CART-based iterative synthesis (fast) |
-| `rf` | ML | Random Forest synthesis |
-| `lgbm` | ML | LightGBM-based synthesis |
-| `ctgan` | DL | Conditional GAN for tabular data |
-| `tvae` | DL | Variational Autoencoder |
-| `copula` | Statistical | Gaussian Copula |
-| `diffusion` | DL | Tabular Diffusion (DDPM) |
-| `smote` | Augmentation | SMOTE oversampling |
-| `adasyn` | Augmentation | ADASYN adaptive sampling |
-| `dp` | Privacy | Differential Privacy (PATE-CTGAN) |
-| `timegan` | Time Series | TimeGAN for sequences |
-| `dgan` | Time Series | DoppelGANger |
-| `par` | Time Series | Probabilistic AutoRegressive |
-| `copula_temporal` | Time Series | Gaussian Copula with temporal lags |
+| Method | Type | Description | Requirements / Notes |
+|--------|------|-------------|----------------------|
+| `cart` | ML | CART-based iterative synthesis (fast) | Base installation |
+| `rf` | ML | Random Forest synthesis | Base installation |
+| `lgbm` | ML | LightGBM-based synthesis | Base installation (Requires `lightgbm`) |
+| `ctgan` | DL | Conditional GAN for tabular data | Requires `sdv` (heavy DL dep) |
+| `tvae` | DL | Variational Autoencoder | Requires `sdv` (heavy DL dep) |
+| `copula` | Statistical | Gaussian Copula | Base installation |
+| `diffusion` | DL | Tabular Diffusion (DDPM) | **Experimental**. Requires `calm-data-generator[deeplearning]` |
+| `smote` | Augmentation | SMOTE oversampling | Base installation |
+| `adasyn` | Augmentation | ADASYN adaptive sampling | Base installation |
+| `dp` | Privacy | Differential Privacy (PATE-CTGAN) | Requires `smartnoise-synth` |
+| `timegan` | Time Series | TimeGAN for sequences | **Manual Install**. Requires `ydata-synthetic` & `tensorflow` (conflicts likely) |
+| `dgan` | Time Series | DoppelGANger | Requires `calm-data-generator[timeseries]` (`gretel-synthetics`) |
+| `par` | Time Series | Probabilistic AutoRegressive | Requires `sdv` |
+| `copula_temporal` | Time Series | Gaussian Copula with temporal lags | Base installation |
 
 ---
 
-## 🖥️ CLI Access
+## CLI Access
 
 ```bash
 # List all tutorials
@@ -169,7 +207,7 @@ calm-data-generator version
 
 ---
 
-## 📖 Tutorials
+## Tutorials
 
 | # | Tutorial | Description |
 |---|----------|-------------|
@@ -182,14 +220,9 @@ calm-data-generator version
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Contact
-
-**Alejandro Belda Fernandez** - alejandrobeldafernandez@gmail.com
-
-Project: [https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator](https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator)
