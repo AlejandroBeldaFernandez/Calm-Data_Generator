@@ -44,8 +44,8 @@ class DriftInjector:
         block_column: Optional[str] = None,
         target_column: Optional[str] = None,
         original_df: Optional[pd.DataFrame] = None,
+        minimal_report: bool = False,
         auto_report: bool = True,
-        minimal_report: bool = True,
     ):
         """
         Initializes the DriftInjector.
@@ -556,7 +556,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         **kwargs,
@@ -623,7 +622,7 @@ class DriftInjector:
                 )
                 df_drift.loc[rows, col] = s2
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
 
@@ -680,7 +679,6 @@ class DriftInjector:
         speed_k: float = 1.0,
         direction: str = "up",
         inconsistency: float = 0.0,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         resample_rule: Optional[Union[str, int]] = None,
@@ -745,7 +743,7 @@ class DriftInjector:
                 )
                 df_drift.loc[rows, col] = s2
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -789,7 +787,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -835,7 +832,6 @@ class DriftInjector:
             profile="sigmoid",
             speed_k=1.0,
             direction="up",
-            auto_report=auto_report,
             **kwargs,
         )
 
@@ -866,7 +862,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -972,7 +967,6 @@ class DriftInjector:
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
         time_step: Optional[Any] = None,
-        auto_report: bool = True,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -1064,7 +1058,7 @@ class DriftInjector:
 
         df_drift.update(drifted_subset)
 
-        if auto_report:
+        if self.auto_report:
             drift_config = {
                 "drift_method": "inject_conditional_drift",
                 "feature_cols": feature_cols,
@@ -1094,7 +1088,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1163,7 +1156,7 @@ class DriftInjector:
                 if possible_vals:
                     df_drift.at[idx, col] = self.rng.choice(possible_vals)
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1203,7 +1196,6 @@ class DriftInjector:
         speed_k: float = 1.0,
         direction: str = "up",
         inconsistency: float = 0.0,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1283,7 +1275,7 @@ class DriftInjector:
                 if possible_vals:
                     df_drift.at[idx, target_col] = self.rng.choice(possible_vals)
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1327,6 +1319,9 @@ class DriftInjector:
         self, df: pd.DataFrame, target_col: str, drift_magnitude: float, **kwargs
     ) -> pd.DataFrame:
         """Applies a constant and smooth label drift over the selected rows."""
+        # Extract auto_report before passing kwargs to avoid duplicate
+        auto_report = kwargs.pop("auto_report", True)
+
         rows = self._get_target_rows(df, **kwargs)
         n = len(rows)
         if n == 0:
@@ -1341,7 +1336,7 @@ class DriftInjector:
             drift_magnitude=drift_magnitude,
             center=int(round(center)),
             width=width,
-            auto_report=kwargs.get("auto_report", True),
+            auto_report=auto_report,
             **kwargs,
         )
 
@@ -1385,7 +1380,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1419,7 +1413,7 @@ class DriftInjector:
             else:
                 warnings.warn(f"Global outliers failed for column {col}.")
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1455,7 +1449,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         **kwargs,
@@ -1485,7 +1478,7 @@ class DriftInjector:
             else:
                 warnings.warn(f"New value injection failed: {col} not found")
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1512,7 +1505,6 @@ class DriftInjector:
         issues: List[Dict],
         block_column: Optional[str] = None,
         time_col: Optional[str] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1547,7 +1539,7 @@ class DriftInjector:
             else:
                 print(f"Method {method_name} not found")
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1577,7 +1569,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1610,7 +1601,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1672,7 +1662,7 @@ class DriftInjector:
         self.rng.shuffle(new_labels)
         df_drift.loc[rows, target_col] = new_labels[:n]
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -1710,7 +1700,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1761,7 +1750,7 @@ class DriftInjector:
                     if possible_vals:
                         df_drift.at[r, target_column] = self.rng.choice(possible_vals)
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
 
@@ -1913,7 +1902,6 @@ class DriftInjector:
         profile: str = "sigmoid",
         speed_k: float = 1.0,
         direction: str = "up",
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -1984,7 +1972,7 @@ class DriftInjector:
                         f"Skipping binary drift on non-binary column '{target_col}'"
                     )
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -2064,7 +2052,6 @@ class DriftInjector:
         time_end: Optional[str] = None,
         time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
         specific_times: Optional[Sequence[str]] = None,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -2158,7 +2145,7 @@ class DriftInjector:
 
         df_drift.loc[rows, valid_cols] = X_final
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -2197,7 +2184,6 @@ class DriftInjector:
         profile: str = "sigmoid",
         speed_k: float = 1.0,
         direction: str = "up",
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -2269,7 +2255,7 @@ class DriftInjector:
 
                 df_drift.at[idx, feature_col] = new_category
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {
@@ -2314,7 +2300,6 @@ class DriftInjector:
         speed_k: float = 1.0,
         direction: str = "up",
         inconsistency: float = 0.0,
-        auto_report: bool = True,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -2404,7 +2389,7 @@ class DriftInjector:
 
             df_drift.loc[rows, target_col] = final_vals
 
-        if auto_report:
+        if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
             drift_config = {

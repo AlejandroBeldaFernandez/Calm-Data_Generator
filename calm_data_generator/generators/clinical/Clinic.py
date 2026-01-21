@@ -25,7 +25,7 @@ class ClinicalDataGenerator:
     A class to generate synthetic clinical data including demographic, gene expression, and protein data.
     """
 
-    def __init__(self, seed=42, auto_report=True, minimal_report=True):
+    def __init__(self, seed=42, auto_report=True, minimal_report=False):
         """
         Initializes the ClinicalDataGenerator with a given random seed for reproducibility.
 

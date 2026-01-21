@@ -6,7 +6,6 @@ This tutorial demonstrates how to generate synthetic data from
 stream-based generators (River library compatible).
 """
 
-import pandas as pd
 import numpy as np
 from calm_data_generator.generators.synthetic import StreamGenerator
 

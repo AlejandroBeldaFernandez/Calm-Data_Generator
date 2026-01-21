@@ -35,8 +35,6 @@ stream = [
 
 timeseries = [
     "gretel-synthetics",  # For DGAN (DoppelGANger) time series generation
-    "ydata-synthetic",     # For TimeGAN. WARNING: This will install TensorFlow.
-    "tensorflow>=2.10.0"  # Required for some advanced time series methods
 ]
 
 full = [

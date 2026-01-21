@@ -7,7 +7,7 @@ import os
 import logging
 import pandas as pd
 import numpy as np
-from typing import Optional, List, Dict
+from typing import Optional, List
 
 try:
     import plotly.graph_objects as go

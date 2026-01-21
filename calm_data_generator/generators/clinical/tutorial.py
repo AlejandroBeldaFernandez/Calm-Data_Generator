@@ -68,7 +68,6 @@ def run_tutorial():
     # Correlations Config
     # We need to pre-calculate dimensions to build matrix, this part remains "advanced"
     # But passing it is now cleaner.
-    cond_cols = ["Age", "Sex"]  # From custom setup knowledge
     # Note: Using indexes requires knowing column order.
     # For tutorial simplicity, we'll verify this order or assume it.
     col_to_idx = {"Age": 0, "Sex": 1}  # Simplified assumption for tutorial

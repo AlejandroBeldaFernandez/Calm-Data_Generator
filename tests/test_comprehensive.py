@@ -22,23 +22,23 @@ import traceback
 results = {"passed": [], "failed": [], "skipped": []}
 
 
-def test_section(name):
+def section(name):
     print(f"\n{'=' * 60}")
     print(f"📋 {name}")
     print(f"{'=' * 60}")
 
 
-def test_passed(name):
+def passed(name):
     results["passed"].append(name)
     print(f"   ✅ {name}")
 
 
-def test_failed(name, error):
+def failed(name, error):
     results["failed"].append((name, str(error)))
     print(f"   ❌ {name}: {error}")
 
 
-def test_skipped(name, reason):
+def skipped(name, reason):
     results["skipped"].append((name, reason))
     print(f"   ⏭️  {name}: {reason}")
 
@@ -67,57 +67,57 @@ def run_comprehensive_test():
     # ============================================================
     # TEST 1: RealGenerator - Multiple Methods
     # ============================================================
-    test_section("RealGenerator - Synthesis Methods")
+    section("RealGenerator - Synthesis Methods")
 
     try:
         from calm_data_generator.generators.tabular import RealGenerator
 
         gen = RealGenerator()
-        test_passed("Import RealGenerator")
+        passed("Import RealGenerator")
     except Exception as e:
-        test_failed("Import RealGenerator", e)
+        failed("Import RealGenerator", e)
         return results
 
     # Test CART method
     try:
         synth = gen.generate(sample_data, 50, method="cart", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"CART synthesis: {len(synth)} samples")
+        passed(f"CART synthesis: {len(synth)} samples")
     except Exception as e:
-        test_failed("CART synthesis", e)
+        failed("CART synthesis", e)
 
     # Test RF method
     try:
         synth = gen.generate(sample_data, 50, method="rf", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"RF synthesis: {len(synth)} samples")
+        passed(f"RF synthesis: {len(synth)} samples")
     except Exception as e:
-        test_failed("RF synthesis", e)
+        failed("RF synthesis", e)
 
     # Test LGBM method
     try:
         synth = gen.generate(sample_data, 50, method="lgbm", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"LGBM synthesis: {len(synth)} samples")
+        passed(f"LGBM synthesis: {len(synth)} samples")
     except Exception as e:
-        test_failed("LGBM synthesis", e)
+        failed("LGBM synthesis", e)
 
     # Test Resample method (simpler than GMM)
     try:
         synth = gen.generate(sample_data, 50, method="resample", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"Resample: {len(synth)} samples")
+        passed(f"Resample: {len(synth)} samples")
     except Exception as e:
-        test_failed("Resample", e)
+        failed("Resample", e)
 
     # Test SMOTE method with numeric-only data
     try:
         numeric_data = sample_data[["age", "income", "score", "target"]].copy()
         synth = gen.generate(numeric_data, 80, method="smote", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"SMOTE: {len(synth)} samples")
+        passed(f"SMOTE: {len(synth)} samples")
     except Exception as e:
-        test_failed("SMOTE synthesis", e)
+        failed("SMOTE synthesis", e)
 
     # Test ADASYN method - needs more imbalanced data
     try:
@@ -132,9 +132,9 @@ def run_comprehensive_test():
         )
         synth = gen.generate(imb_data, 80, method="adasyn", target_col="target")
         assert synth is not None and len(synth) > 0
-        test_passed(f"ADASYN: {len(synth)} samples")
+        passed(f"ADASYN: {len(synth)} samples")
     except Exception as e:
-        test_failed("ADASYN synthesis", e)
+        failed("ADASYN synthesis", e)
 
     # Test Constraints
     try:
@@ -149,54 +149,54 @@ def run_comprehensive_test():
             ],
         )
         assert synth is not None and synth["age"].min() >= 25
-        test_passed(f"Constraints: min_age={synth['age'].min()}")
+        passed(f"Constraints: min_age={synth['age'].min()}")
     except Exception as e:
-        test_failed("Constraints", e)
+        failed("Constraints", e)
 
     # ============================================================
     # TEST 2: ClinicalDataGenerator
     # ============================================================
-    test_section("ClinicalDataGenerator - Clinical Data")
+    section("ClinicalDataGenerator - Clinical Data")
 
     try:
         from calm_data_generator.generators.clinical import ClinicalDataGenerator
 
         clin_gen = ClinicalDataGenerator()
-        test_passed("Import ClinicalDataGenerator")
+        passed("Import ClinicalDataGenerator")
     except Exception as e:
-        test_failed("Import ClinicalDataGenerator", e)
+        failed("Import ClinicalDataGenerator", e)
         clin_gen = None
 
     if clin_gen:
         try:
             result = clin_gen.generate(n_samples=20, n_genes=50, n_proteins=30)
             assert "demographics" in result
-            test_passed(f"Generate clinical: {result['demographics'].shape}")
+            passed(f"Generate clinical: {result['demographics'].shape}")
         except Exception as e:
-            test_failed("Generate clinical data", e)
+            failed("Generate clinical data", e)
 
         try:
             result = clin_gen.generate_longitudinal_data(
                 n_samples=10, longitudinal_config={"n_visits": 3}
             )
-            test_passed(
+            passed(
                 f"Longitudinal data: {result.get('longitudinal', pd.DataFrame()).shape}"
             )
         except Exception as e:
-            test_failed("Longitudinal data", e)
+            failed("Longitudinal data", e)
 
     # ============================================================
     # TEST 3: DriftInjector
     # ============================================================
-    test_section("DriftInjector - Drift Injection")
+    section("DriftInjector - Drift Injection")
 
     try:
         from calm_data_generator.generators.drift import DriftInjector
 
         injector = DriftInjector()
-        test_passed("Import DriftInjector")
+        passed("Import DriftInjector")
     except Exception as e:
-        test_failed("Import DriftInjector", e)
+        failed("Import DriftInjector", e)
         injector = None
 
     if injector:
@@ -210,11 +210,10 @@ def run_comprehensive_test():
                 start_index=50,
                 center=25,  # Center of transition window
                 width=20,  # Width of transition
-                auto_report=False,
             )
-            test_passed("Gradual drift injection")
+            passed("Gradual drift injection")
         except Exception as e:
-            test_failed("Gradual drift", e)
+            failed("Gradual drift", e)
 
         # Feature drift - CORRECT METHOD: inject_feature_drift
         try:
@@ -224,24 +223,23 @@ def run_comprehensive_test():
                 drift_magnitude=0.3,
                 drift_type="shift",  # Valid: gaussian_noise, shift, scale
                 start_index=60,
-                auto_report=False,
             )
-            test_passed("Feature drift injection")
+            passed("Feature drift injection")
         except Exception as e:
-            test_failed("Feature drift", e)
+            failed("Feature drift", e)
 
     # ============================================================
     # TEST 4: ScenarioInjector
     # ============================================================
-    test_section("ScenarioInjector - Feature Evolution")
+    section("ScenarioInjector - Feature Evolution")
 
     try:
         from calm_data_generator.generators.dynamics import ScenarioInjector
 
         scenario = ScenarioInjector(seed=42)
-        test_passed("Import ScenarioInjector")
+        passed("Import ScenarioInjector")
     except Exception as e:
-        test_failed("Import ScenarioInjector", e)
+        failed("Import ScenarioInjector", e)
         scenario = None
 
     if scenario:
@@ -257,9 +255,9 @@ def run_comprehensive_test():
                 evolution_config={"score": {"type": "trend", "rate": 0.05}},
                 time_col="timestamp",
             )
-            test_passed("Feature evolution")
+            passed("Feature evolution")
         except Exception as e:
-            test_failed("Feature evolution", e)
+            failed("Feature evolution", e)
 
         try:
             result = scenario.construct_target(
@@ -269,14 +267,14 @@ def run_comprehensive_test():
                 task_type="regression",
             )
             assert "new_target" in result.columns
-            test_passed("Target construction")
+            passed("Target construction")
         except Exception as e:
-            test_failed("Target construction", e)
+            failed("Target construction", e)
 
     # ============================================================
     # TEST 5: Anonymizer
     # ============================================================
-    test_section("Anonymizer - Privacy Transformations")
+    section("Anonymizer - Privacy Transformations")
 
     try:
         from calm_data_generator.anonymizer import (
@@ -286,9 +284,9 @@ def run_comprehensive_test():
             shuffle_columns,
         )
 
-        test_passed("Import anonymizer functions")
+        passed("Import anonymizer functions")
     except Exception as e:
-        test_failed("Import anonymizer", e)
+        failed("Import anonymizer", e)
         pseudonymize_columns = None
 
     if pseudonymize_columns:
@@ -296,15 +294,15 @@ def run_comprehensive_test():
             priv_data = sample_data.copy()
             priv_data["id"] = [f"P{i}" for i in range(len(priv_data))]
             result = pseudonymize_columns(priv_data, columns=["id"])
-            test_passed("Pseudonymization")
+            passed("Pseudonymization")
         except Exception as e:
-            test_failed("Pseudonymization", e)
+            failed("Pseudonymization", e)
 
         try:
             result = add_laplace_noise(sample_data.copy(), columns=["age"], epsilon=1.0)
-            test_passed("Laplace noise (DP)")
+            passed("Laplace noise (DP)")
         except Exception as e:
-            test_failed("Laplace noise", e)
+            failed("Laplace noise", e)
 
         # CORRECT API: generalize_numeric_to_ranges uses 'columns' (list) and 'num_bins'
         try:
@@ -313,20 +311,20 @@ def run_comprehensive_test():
                 columns=["age"],  # CORRECT: columns as list
                 num_bins=5,  # CORRECT: num_bins not bins
             )
-            test_passed("Generalization")
+            passed("Generalization")
         except Exception as e:
-            test_failed("Generalization", e)
+            failed("Generalization", e)
 
         try:
             result = shuffle_columns(sample_data.copy(), columns=["income"])
-            test_passed("Column shuffling")
+            passed("Column shuffling")
         except Exception as e:
-            test_failed("Column shuffling", e)
+            failed("Column shuffling", e)
 
     # ============================================================
     # TEST 6: Single-Call Workflow (Generate + Drift + Report)
     # ============================================================
-    test_section("Single-Call Workflow - Generate + Drift + Report")
+    section("Single-Call Workflow - Generate + Drift + Report")
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -357,24 +355,24 @@ def run_comprehensive_test():
 
             if result is not None:
                 files = os.listdir(tmpdir)
-                test_passed(f"Single-call: {len(result)} samples, {len(files)} files")
+                passed(f"Single-call: {len(result)} samples, {len(files)} files")
             else:
-                test_failed("Single-call workflow", "Result is None")
+                failed("Single-call workflow", "Result is None")
     except Exception as e:
-        test_failed("Single-call workflow", e)
+        failed("Single-call workflow", e)
 
     # ============================================================
     # TEST 7: QualityReporter
     # ============================================================
-    test_section("QualityReporter - Report Generation")
+    section("QualityReporter - Report Generation")
 
     try:
         from calm_data_generator.generators.tabular import QualityReporter
 
         reporter = QualityReporter()
-        test_passed("Import QualityReporter")
+        passed("Import QualityReporter")
     except Exception as e:
-        test_failed("Import QualityReporter", e)
+        failed("Import QualityReporter", e)
 
     # ============================================================
     # SUMMARY

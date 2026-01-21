@@ -29,7 +29,6 @@ from typing import Optional, Dict, Any, List
 import os
 import math
 import tempfile
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
 
 # SDV and DataSynthesizer imports are now lazy-loaded
@@ -58,7 +57,7 @@ class RealGenerator:
     def __init__(
         self,
         auto_report: bool = True,
-        minimal_report: bool = True,
+        minimal_report: bool = False,
         logger: Optional[logging.Logger] = None,
         random_state: Optional[int] = None,
     ):

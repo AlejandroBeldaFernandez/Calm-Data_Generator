@@ -6,8 +6,6 @@ This tutorial demonstrates how to generate realistic clinical data
 including demographics, genes, proteins, and longitudinal studies.
 """
 
-import pandas as pd
-import numpy as np
 from calm_data_generator.generators.clinic import ClinicalDataGenerator, DateConfig
 
 # ============================================================

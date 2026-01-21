@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 from .StreamReporter import StreamReporter  # reporter to save JSON reports
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
-# Removed unused river import
 
 
 logger = logging.getLogger(__name__)
@@ -50,16 +49,23 @@ class StreamGenerator:
         """Gets the default directory for saving generated files."""
         return cls.DEFAULT_OUTPUT_DIR
 
-    def __init__(self, random_state: Optional[int] = None, auto_report: bool = True):
+    def __init__(
+        self,
+        random_state: Optional[int] = None,
+        auto_report: bool = True,
+        minimal_report: bool = False,
+    ):
         """
         Initializes the StreamGenerator.
 
         Args:
             random_state (Optional[int]): Seed for the random number generator for reproducibility.
             auto_report (bool): Whether to automatically generate a report after generation.
+            minimal_report (bool): If True, generates minimal reports (faster, no correlations/PCA).
         """
         self.rng = np.random.default_rng(random_state)
         self.auto_report = auto_report
+        self.minimal_report = minimal_report
 
     def generate(
         self,
@@ -133,8 +139,7 @@ class StreamGenerator:
         n_samples = kwargs["n_samples"]
         generator_instance = kwargs["generator_instance"]
         balance = kwargs["balance"]
-        target_col = kwargs["target_col"]
-        target_col = kwargs["target_col"]
+        kwargs["target_col"]
         drift_type = kwargs["drift_type"]
 
         # Extract date config
@@ -642,7 +647,7 @@ class StreamGenerator:
             avg_events = sequence_config.get("events_per_entity", 10)
 
             # Approximate number of entities
-            n_entities = max(1, n_rows // avg_events)
+            max(1, n_rows // avg_events)
 
             # Assign IDs
             ids = []
@@ -662,14 +667,13 @@ class StreamGenerator:
             # We assume users start at random times within a window, or all at start_date
             base_start = pd.to_datetime(date_start)
 
-            timestamps = np.zeros(n_rows, dtype="datetime64[ns]")
+            np.zeros(n_rows, dtype="datetime64[ns]")
 
             # Group by ID (simple iteration for now, optimized vectorization possible but complex)
             # To be fast, we process by group
             df_temp = pd.DataFrame({entity_col: ids})
             groups = df_temp.groupby(entity_col)
 
-            all_dates = []
 
             # Global time or Per-User time?
             # Usually sequences are independent or interleaved.
@@ -816,7 +820,7 @@ class StreamGenerator:
                 resample_rule=resample_rule,
             )
         try:
-            StreamReporter(verbose=True).generate_report(
+            StreamReporter(verbose=True, minimal=self.minimal_report).generate_report(
                 synthetic_df=df,
                 generator_name=kwargs["generator_instance"].__class__.__name__,
                 output_dir=output_dir,

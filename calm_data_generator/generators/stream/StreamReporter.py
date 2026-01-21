@@ -25,7 +25,7 @@ class StreamReporter:
     Uses YData Profiling for detailed analysis and Plotly for interactive visualizations.
     """
 
-    def __init__(self, verbose: bool = True, minimal: bool = True):
+    def __init__(self, verbose: bool = True, minimal_report: bool = False):
         """
         Initializes the StreamReporter.
 
@@ -34,7 +34,7 @@ class StreamReporter:
             minimal (bool): If True, generates minimal reports (faster, no correlations).
         """
         self.verbose = verbose
-        self.minimal = minimal
+        self.minimal = minimal_report
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def generate_report(

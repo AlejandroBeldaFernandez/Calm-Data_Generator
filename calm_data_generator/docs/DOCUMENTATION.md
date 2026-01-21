@@ -17,6 +17,15 @@
 
 ## Installation
 
+### System Requirements (Linux/Ubuntu)
+
+For optional dependencies that require compilation (like `river`), you may need build tools:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential python3-dev
+```
+
 ### Basic Installation
 ```bash
 pip install calm_data_generator
@@ -26,9 +35,20 @@ pip install calm_data_generator
 
 | Extra | Command | Includes |
 |-------|---------|----------|
-| deeplearning | `pip install calm_data_generator[deeplearning]` | SDV, PyTorch, smartnoise-synth, ydata-synthetic |
-| profiling | `pip install calm_data_generator[profiling]` | ydata-profiling, sweetviz |
-| full | `pip install calm_data_generator[full]` | All optional dependencies |
+| stream | `pip install calm_data_generator[stream]` | River (streaming ML) |
+| timeseries | `pip install calm_data_generator[timeseries]` | gretel-synthetics (DGAN) |
+| full | `pip install calm_data_generator[full]` | All optional dependencies above |
+
+> **Note:** If `river` fails to build, try installing the binary wheel first:
+> ```bash
+> pip install river --only-binary :all:
+> pip install calm_data_generator[stream]
+> ```
+
+> **Advanced Time Series:** For `TimeGAN` support, please install `ydata-synthetic` manually. It is excluded from default installation due to heavy dependencies (TensorFlow) and potential conflicts:
+> ```bash
+> pip install ydata-synthetic tensorflow>=2.10.0
+> ```
 
 ---
 

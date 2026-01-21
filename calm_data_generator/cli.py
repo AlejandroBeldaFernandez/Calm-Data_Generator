@@ -3,8 +3,6 @@ CalmGenerator CLI - Command Line Interface
 """
 
 import argparse
-import os
-import sys
 from pathlib import Path
 
 
@@ -179,10 +177,10 @@ def main():
     )
 
     # Docs command
-    docs_parser = subparsers.add_parser("docs", help="Access documentation")
+    subparsers.add_parser("docs", help="Access documentation")
 
     # Version command
-    version_parser = subparsers.add_parser("version", help="Show version")
+    subparsers.add_parser("version", help="Show version")
 
     args = parser.parse_args()
 

@@ -9,7 +9,7 @@ class ScenarioInjector:
     A standalone module to modify scenarios by evolving features and constructing target variables.
     """
 
-    def __init__(self, seed: Optional[int] = None, minimal_report: bool = True):
+    def __init__(self, seed: Optional[int] = None, minimal_report: bool = False):
         self.rng = np.random.default_rng(seed)
         self.minimal_report = minimal_report
 
