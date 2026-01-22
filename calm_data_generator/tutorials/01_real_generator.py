@@ -15,6 +15,8 @@ from calm_data_generator.generators.real import RealGenerator
 # ============================================================
 
 # Create sample dataset
+# NOTE: In a real-world scenario, you would load your own dataset here.
+# Example: data = pd.read_csv("path/to/your_real_data.csv")
 np.random.seed(42)
 data = pd.DataFrame(
     {
