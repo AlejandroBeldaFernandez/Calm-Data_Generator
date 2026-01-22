@@ -12,6 +12,17 @@
 - **Privacy Preservation** - Differential privacy, pseudonymization, generalization
 - **Scenario Evolution** - Feature evolution and target construction
 
+## Core Technologies
+
+This library leverages and unifies best-in-class open-source tools to provide a seamless data generation experience:
+
+- **SDV (Synthetic Data Vault)**: The core engine for tabular deep learning models (CTGAN, TVAE) and statistical methods (Copula). **Included by default** in the base installation.
+- **River**: Powers the streaming generation capabilities (`[stream]` extra).
+- **Gretel Synthetics**: Provides advanced time-series generation via DoppelGANger (`[timeseries]` extra).
+- **YData Profiling**: Generates comprehensive automated quality reports.
+- **SmartNoise**: Enables differential privacy mechanisms.
+
+
 ---
 
 ## Installation
