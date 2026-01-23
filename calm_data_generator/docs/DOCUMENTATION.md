@@ -16,6 +16,7 @@
 
 > **Detailed Module References:**
 > - [RealGenerator](./REAL_GENERATOR_REFERENCE.md)
+> - [ClinicalDataGenerator](./CLINICAL_GENERATOR_REFERENCE.md)
 > - [DriftInjector](./DRIFT_INJECTOR_REFERENCE.md)
 > - [ScenarioInjector](./SCENARIO_INJECTOR_REFERENCE.md)
 
