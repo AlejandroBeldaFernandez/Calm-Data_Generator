@@ -9,9 +9,16 @@
 5. [StreamGenerator](#streamgenerator)
 6. [DriftInjector](#driftinjector)
 7. [ScenarioInjector](#scenarioinjector)
-8. [Privacy Module](#privacy-module)
-9. [Configuration Options](#configuration-options)
-10. [Best Practices](#best-practices)
+8. [Block Generators](#block-generators)
+9. [Privacy Module](#privacy-module)
+10. [Configuration Options](#configuration-options)
+11. [Best Practices](#best-practices)
+
+> **Detailed Module References:**
+> - [RealGenerator](./REAL_GENERATOR_REFERENCE.md)
+> - [DriftInjector](./DRIFT_INJECTOR_REFERENCE.md)
+> - [ScenarioInjector](./SCENARIO_INJECTOR_REFERENCE.md)
+
 
 ---
 
@@ -605,6 +612,25 @@ data = shuffle_columns(
 )
 ```
 
+### Privacy Reporting (DCR Analysis)
+
+To measure the effectiveness of your anonymization (risk of re-identification), use the `QualityReporter` with `privacy_check=True`. This calculates the **Distance to Closest Record (DCR)**.
+
+```python
+from calm_data_generator.generators.tabular import QualityReporter
+
+reporter = QualityReporter()
+
+reporter.generate_comprehensive_report(
+    real_df=original_df,
+    synthetic_df=anonymized_df,
+    generator_name="Anonymization_Process",
+    output_dir="./privacy_report",
+    privacy_check=True  # Calculates DCR metrics
+)
+```
+
+
 ---
 
 ## Configuration Options
@@ -685,6 +711,58 @@ private_data = add_laplace_noise(private_data, ['salary'], epsilon=1.0)
 ```
 
 ---
+
+## Block Generators
+
+Block Generators allow you to create datasets composed of multiple distinct parts ("blocks"), where each block can represent a different time period, location, or concept. This is essential for:
+- Simulating **Time Series** data (chunks of time).
+- Simulating **Multi-Center** studies (hospitals, regions).
+- Injecting **Concept Drift** (changing patterns between blocks).
+
+### Supported Generators
+
+| Generator | Description | Use Case |
+|-----------|-------------|----------|
+| `RealBlockGenerator` | Splits a real dataset into blocks (or learns from one) and generates synthetic data per block. | Retaining temporal evolution or group diversity. |
+| `SyntheticBlockGenerator` | Chains multiple stream generators (River) to create a single dataset with changing concepts. | Creating pure synthetic drift scenarios. |
+| `ClinicalDataGeneratorBlock` | Generates multi-block clinical data (e.g. multi-hospital simulation). | Healthcare studies with site heterogeneity. |
+
+### Example: RealBlockGenerator
+
+```python
+from calm_data_generator.generators.tabular import RealBlockGenerator
+
+gen = RealBlockGenerator()
+
+# Generate data split by "Year"
+synthetic_blocks = gen.generate(
+    data=data,
+    output_dir="./output",
+    block_column="Year",
+    target_col="Churn"
+)
+```
+
+### Example: SyntheticBlockGenerator (Drift)
+
+```python
+from calm_data_generator.generators.stream import SyntheticBlockGenerator
+
+gen = SyntheticBlockGenerator()
+
+# Generate with scheduled concept drift
+gen.generate_blocks_simple(
+    output_dir="./output",
+    filename="drift.csv",
+    n_blocks=2,
+    total_samples=1000,
+    methods=['sea', 'sea'],
+    method_params=[{'variant': 0}, {'variant': 1}]  # Different concepts
+)
+```
+
+---
+
 
 ## CLI Commands
 

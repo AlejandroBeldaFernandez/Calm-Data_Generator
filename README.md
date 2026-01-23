@@ -16,14 +16,32 @@
 
 This library leverages and unifies best-in-class open-source tools to provide a seamless data generation experience:
 
-- **SDV (Synthetic Data Vault)**: The core engine for tabular deep learning models (CTGAN, TVAE) and statistical methods (Copula). **Included by default** in the base installation.
+- **SDV (Synthetic Data Vault)**: The core engine for tabular deep learning models (CTGAN, TVAE) and statistical methods (Copula). **Included by default**.
+  > **Note:** SDV versions 1.0+ use the Business Source License (BSL). While free for development and research, commercial production use may require a license from DataCebo. Please review their terms.
 - **River**: Powers the streaming generation capabilities (`[stream]` extra).
 - **Gretel Synthetics**: Provides advanced time-series generation via DoppelGANger (`[timeseries]` extra).
 - **YData Profiling**: Generates comprehensive automated quality reports.
 - **SmartNoise**: Enables differential privacy mechanisms.
 
+## Safe Data Sharing
+
+A key advantage of **Calm-Data-Generator** is enabling the use of private data in public or collaborative environments:
+
+1.  **Private Origin**: You start with sensitive data (e.g., GDPR/HIPAA restricted) that cannot leave your secure environment.
+2.  **Synthetic Twin**: The library generates a synthetic dataset that statistically mirrors the original but contains **no real individuals**.
+3.  **Safe Distribution**: Once validated (using `QualityReporter`'s privacy checks), this synthetic dataset allows for **risk-free sharing**, model training, and testing without exposing confidential information.
+
+## Key Use Cases
+
+- **MLOps Monitoring Validation**: Use **StreamGenerator** and **DriftInjector** to simulate data drift (gradual, abrupt) and verify if your monitoring alerts trigger correctly before deployment.
+- **Biomedical Research (HealthTech)**: Generate synthetic patient cohorts with **ClinicalDataGenerator** that preserve complex biological correlations (e.g., gene-age relationships) for collaborative studies without compromising patient privacy.
+- **Stress Testing ("What-If" Analysis)**: Use **ScenarioInjector** to simulate future scenarios (e.g., "What if the customer age base increases by 10 years?") and measure model performance degradation under stress.
+- **Development Data**: Provide developers with high-fidelity synthetic replicas of production databases, allowing them to build and test features safely without accessing sensitive real-world data.
 
 ---
+
+
+
 
 ## Installation
 
@@ -170,8 +188,9 @@ reporter.generate_report(
 | Module | Import | Description |
 |--------|--------|-------------|
 | **Tabular** | `generators.tabular` | RealGenerator, QualityReporter |
-| **Clinical** | `generators.clinical` | ClinicalDataGenerator |
-| **Stream** | `generators.stream` | StreamGenerator |
+| **Clinical** | `generators.clinical` | ClinicalDataGenerator, ClinicalDataGeneratorBlock |
+| **Stream** | `generators.stream` | StreamGenerator, SyntheticBlockGenerator |
+| **Blocks** | `generators.tabular` | RealBlockGenerator |
 | **Drift** | `generators.drift` | DriftInjector |
 | **Dynamics** | `generators.dynamics` | ScenarioInjector |
 | **Anonymizer** | `anonymizer` | Privacy transformations |

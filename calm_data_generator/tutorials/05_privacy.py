@@ -147,4 +147,31 @@ data_private = apply_privacy_pipeline(data.copy())
 print("\n--- Full Privacy Pipeline Applied ---")
 print(data_private.head())
 
+
+# ============================================================
+# 8. Privacy Reporting (DCR Analysis)
+# ============================================================
+
+# You can use QualityReporter to assess privacy risks (re-identification)
+try:
+    from calm_data_generator.generators.tabular import QualityReporter
+
+    print("\n--- Generating Privacy Report (DCR Metrics) ---")
+    reporter = QualityReporter(verbose=True)
+
+    # Compare original vs private data to see if distance to closest record is safe
+    # Note: For demo purposes, we treat 'data_private' as the synthetic/anonymized version
+    reporter.generate_comprehensive_report(
+        real_df=data,
+        synthetic_df=data_private,
+        generator_name="Anonymizer_Demo",
+        output_dir="privacy_report_output",
+        privacy_check=True,  # <--- Vital flag for privacy metrics
+        minimal=True,
+    )
+    print("Privacy report generated in 'privacy_report_output/'")
+
+except ImportError:
+    print("QualityReporter not available (check dependencies)")
+
 print("\n✅ Privacy tutorial completed!")

@@ -235,7 +235,7 @@ class QualityReporter:
             drift_config=drift_config,
         )
 
-        # === Generate YData Reports ===
+        # === Generate YData Reports (Global) ===
         if self.verbose:
             print("\nGenerating YData Reports...")
 
@@ -250,7 +250,6 @@ class QualityReporter:
             minimal=use_minimal,
         )
 
-        # Profile for GENERATED data (renamed to clarify)
         ExternalReporter.generate_profile(
             df=synthetic_df_for_report,
             output_dir=output_dir,
@@ -260,6 +259,41 @@ class QualityReporter:
             title="Generated Data Profile",
             minimal=use_minimal,
         )
+
+        # === Generate Per-Block Reports (as requested) ===
+        if block_column and block_column in real_df_for_report.columns:
+            if self.verbose:
+                print(f"\nGenerating Per-Block Reports (Block Col: {block_column})...")
+
+            blocks = sorted(real_df_for_report[block_column].unique(), key=str)
+            blocks_dir = os.path.join(output_dir, "blocks_reports")
+            os.makedirs(blocks_dir, exist_ok=True)
+
+            for block_id in blocks:
+                # Filter data for this block
+                real_blk = real_df_for_report[
+                    real_df_for_report[block_column] == block_id
+                ]
+                synth_blk = synthetic_df_for_report[
+                    synthetic_df_for_report[block_column] == block_id
+                ]
+
+                if real_blk.empty or synth_blk.empty:
+                    continue
+
+                # Generate comparison for this block
+                block_out_dir = os.path.join(blocks_dir, f"block_{str(block_id)}")
+                os.makedirs(block_out_dir, exist_ok=True)
+
+                ExternalReporter.generate_comparison(
+                    ref_df=real_blk,
+                    curr_df=synth_blk,
+                    output_dir=block_out_dir,
+                    ref_name=f"Block {block_id} (Real)",
+                    curr_name=f"Block {block_id} (Synth)",
+                    time_col=final_time_col,  # Time series mode active if this is set
+                    minimal=use_minimal,
+                )
 
         # === Generate Dashboard ===
         LocalIndexGenerator.create_index(output_dir)

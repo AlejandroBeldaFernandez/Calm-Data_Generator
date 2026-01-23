@@ -20,6 +20,7 @@ import numpy as np
 from typing import List, Optional, Dict, Sequence, Tuple, Any, Union
 import warnings
 import os
+from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
 
 # Suppress common warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -66,10 +67,6 @@ class DriftInjector:
         self.target_column = target_column
         self.auto_report = auto_report
         self.minimal_report = minimal_report
-
-        from calm_data_generator.generators.tabular.QualityReporter import (
-            QualityReporter,
-        )
 
         self.reporter = QualityReporter(minimal=minimal_report)
 
@@ -952,6 +949,7 @@ class DriftInjector:
         conditions: List[Dict[str, Any]],
         drift_type: str,
         drift_magnitude: float,
+        drift_method: str = "abrupt",  # New parameter: abrupt, gradual, incremental
         start_index: Optional[int] = None,
         end_index: Optional[int] = None,
         index_step: Optional[int] = None,
@@ -970,30 +968,20 @@ class DriftInjector:
         **kwargs,
     ) -> pd.DataFrame:
         """
-        Injects abrupt feature drift on a subset of data based on a set of conditions.
+        Injects drift (abrupt, gradual, etc.) on a data subset defined by conditions.
 
         Args:
             df (pd.DataFrame): The input DataFrame.
             feature_cols (List[str]): Columns to apply drift to.
-            conditions (List[Dict[str, Any]]): A list of dictionaries, where each dictionary defines a condition.
-                                                Example:
-                                                [
-                                                    {"column": "age", "operator": ">", "value": 50},
-                                                    {"column": "city", "operator": "==", "value": "New York"}
-                                                ]
-            drift_type (str): Type of numeric drift.
+            conditions (List[Dict[str, Any]]): A list of dicts defining filters (e.g. [{"column": "age", "operator": ">", "value": 50}]).
+            drift_type (str): Type of numeric/categorical drift.
             drift_magnitude (float): Magnitude of the drift.
-            start_index, end_index, index_step: Index-based selection.
-            block_index, block_column, blocks, block_start, n_blocks, block_step: Block-based selection.
-            time_col, time_start, time_end, time_ranges, specific_times, time_step: Time-based selection.
-            auto_report (bool): Whether to generate a report automatically.
-            **kwargs: Additional arguments for inject_feature_drift.
-
-        Returns:
-            pd.DataFrame: The DataFrame with conditional drift injected.
+            drift_method (str): Method of injection: "abrupt" (default), "gradual", "incremental".
+            **kwargs: Additional args passed to the underlying injection method (e.g. center, width, profile for gradual).
         """
         df_drift = df.copy()
 
+        # 1. Select initial candidate rows based on index/block/time
         base_rows = self._get_target_rows(
             df,
             start_index=start_index,
@@ -1013,7 +1001,7 @@ class DriftInjector:
             time_step=time_step,
         )
 
-        # Apply conditions to the base rows
+        # 2. Apply filtering conditions
         final_mask = pd.Series(True, index=base_rows)
         for condition in conditions:
             col = condition["column"]
@@ -1023,20 +1011,23 @@ class DriftInjector:
             if col not in df.columns:
                 raise ValueError(f"Condition column '{col}' not found in dataframe")
 
+            # Safe access to column series
+            series = df.loc[base_rows, col]
+
             if op == ">":
-                final_mask &= df.loc[base_rows, col] > val
+                final_mask &= series > val
             elif op == ">=":
-                final_mask &= df.loc[base_rows, col] >= val
+                final_mask &= series >= val
             elif op == "<":
-                final_mask &= df.loc[base_rows, col] < val
+                final_mask &= series < val
             elif op == "<=":
-                final_mask &= df.loc[base_rows, col] <= val
+                final_mask &= series <= val
             elif op == "==":
-                final_mask &= df.loc[base_rows, col] == val
+                final_mask &= series == val
             elif op == "!=":
-                final_mask &= df.loc[base_rows, col] != val
+                final_mask &= series != val
             elif op == "in":
-                final_mask &= df.loc[base_rows, col].isin(val)
+                final_mask &= series.isin(val)
             else:
                 raise ValueError(f"Unsupported operator: {op}")
 
@@ -1046,26 +1037,61 @@ class DriftInjector:
             warnings.warn("No rows matched the conditions. No drift injected.")
             return df
 
-        # Apply abrupt drift on the filtered rows
-        drifted_subset = self.inject_feature_drift(
-            df=df.loc[target_rows_idx].copy(),
-            feature_cols=feature_cols,
-            drift_type=drift_type,
-            drift_magnitude=drift_magnitude,
-            auto_report=False,
-            **kwargs,
-        )
+        # 3. Dynamic Dispatch based on drift_method
+        subset_df = df.loc[target_rows_idx].copy()
 
+        # Prepare common kwargs
+        method_kwargs = {
+            "feature_cols": feature_cols,
+            "drift_type": drift_type,
+            "drift_magnitude": drift_magnitude,
+            **kwargs,
+        }
+
+        if drift_method == "abrupt":
+            # Uses standard feature drift (supports auto_report)
+            method_kwargs["auto_report"] = False
+            drifted_subset = self.inject_feature_drift(df=subset_df, **method_kwargs)
+
+        elif drift_method == "gradual":
+            # Ensure center/width relate to the subset size if not provided
+            if "width" not in kwargs:
+                method_kwargs["width"] = len(subset_df)
+
+            drifted_subset = self.inject_feature_drift_gradual(
+                df=subset_df, **method_kwargs
+            )
+
+        elif drift_method == "incremental":
+            drifted_subset = self.inject_feature_drift_incremental(
+                df=subset_df, **method_kwargs
+            )
+
+        elif drift_method == "recurrent":
+            # Recurrent requires 'repeats' parameter
+            if "repeats" not in method_kwargs:
+                method_kwargs["repeats"] = 2  # Default to 2 cycles
+            drifted_subset = self.inject_feature_drift_recurrent(
+                df=subset_df, **method_kwargs
+            )
+
+        else:
+            raise ValueError(
+                f"Unknown drift_method: {drift_method}. Use 'abrupt', 'gradual', 'incremental', or 'recurrent'."
+            )
+
+        # 4. Update and Report
         df_drift.update(drifted_subset)
 
         if self.auto_report:
             drift_config = {
                 "drift_method": "inject_conditional_drift",
+                "sub_method": drift_method,
                 "feature_cols": feature_cols,
                 "conditions": conditions,
                 "drift_type": drift_type,
                 "drift_magnitude": drift_magnitude,
-                "generator_name": f"{self.generator_name}_conditional_drift",
+                "generator_name": f"{self.generator_name}_conditional_{drift_method}",
                 **kwargs,
             }
             self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
@@ -2389,23 +2415,274 @@ class DriftInjector:
 
             df_drift.loc[rows, target_col] = final_vals
 
-        if self.auto_report:
-            gen_name = generator_name or self.generator_name
-            out_dir = output_dir or self.output_dir
-            drift_config = {
-                "drift_method": "inject_concept_drift_gradual",
-                "target_col": target_col,
-                "magnitude": concept_drift_magnitude,
-                "profile": profile,
-                "center": center,
-                "width": width,
-                "generator_name": f"{gen_name}_concept_gradual",
-            }
-            if out_dir:
-                df_drift.to_csv(
-                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
-                    index=False,
+    # -------------------------
+    # Categorical & Boolean Drift
+    # -------------------------
+    def inject_categorical_frequency_drift(
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        drift_magnitude: float = 0.3,
+        perturbation: str = "uniform",  # 'uniform', 'invert', 'random'
+        start_index: Optional[int] = None,
+        block_index: Optional[int] = None,
+        block_column: Optional[str] = None,
+        time_col: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Changes the frequency distribution of categories in a column.
+        e.g. Makes rare categories more frequent, or inverts the distribution.
+        """
+        df_drift = df.copy()
+        rows = self._get_target_rows(
+            df,
+            start_index=start_index,
+            block_index=block_index,
+            block_column=block_column,
+            time_col=time_col,
+            **kwargs,
+        )
+
+        for col in feature_cols:
+            if col not in df.columns:
+                warnings.warn(f"Column '{col}' not found")
+                continue
+
+            original_series = df.loc[rows, col]
+            if original_series.empty:
+                continue
+
+            unique_vals = original_series.unique()
+            if len(unique_vals) < 2:
+                continue
+
+            # Calculate target probabilities
+            n_rows = len(rows)
+
+            if perturbation == "uniform":
+                # Tends towards uniform distribution (max entropy)
+                probs = np.ones(len(unique_vals)) / len(unique_vals)
+            elif perturbation == "random":
+                probs = self.rng.random(len(unique_vals))
+                probs /= probs.sum()
+            elif perturbation == "invert":
+                # Inverts current frequencies
+                counts = original_series.value_counts(normalize=True).reindex(
+                    unique_vals, fill_value=0
                 )
-                self._generate_reports(df, df_drift, drift_config, time_col=time_col)
+                inv_counts = 1.0 - counts
+                if inv_counts.sum() == 0:
+                    probs = np.ones(len(unique_vals)) / len(unique_vals)
+                else:
+                    probs = inv_counts / inv_counts.sum()
+            else:
+                probs = np.ones(len(unique_vals)) / len(unique_vals)
+
+            # Apply drift based on magnitude: mix original distribution with target distribution
+            # Implementation: For 'magnitude' % of rows, resample from NEW distribution.
+
+            mask = self.rng.random(n_rows) < drift_magnitude
+            n_drift = mask.sum()
+
+            if n_drift > 0:
+                new_values = self.rng.choice(unique_vals, size=n_drift, p=probs)
+                # Map back to dataframe indices
+                drift_indices = rows[mask]
+                df_drift.loc[drift_indices, col] = new_values
+
+        if self.auto_report:
+            drift_config = {
+                "drift_method": "inject_categorical_frequency_drift",
+                "feature_cols": feature_cols,
+                "drift_magnitude": drift_magnitude,
+                "perturbation": perturbation,
+                "generator_name": f"{self.generator_name}_freq_drift",
+            }
+            self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
+
+        return df_drift
+
+    def inject_typos_drift(
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        drift_magnitude: float = 0.1,  # Probability of a row having a typo
+        typo_density: int = 1,  # Number of typos per string
+        typo_type: str = "random",  # 'swap', 'delete', 'duplicate', 'random'
+        start_index: Optional[int] = None,
+        block_index: Optional[int] = None,
+        block_column: Optional[str] = None,
+        time_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Injects typos into string columns.
+        """
+
+        def apply_typo(text, n_errors, method):
+            if not isinstance(text, str) or len(text) < 2:
+                return text
+
+            chars = list(text)
+            for _ in range(n_errors):
+                if len(chars) < 2:
+                    break
+                idx = self.rng.integers(0, len(chars))
+
+                op = method
+                if op == "random":
+                    op = self.rng.choice(["swap", "delete", "duplicate"])
+
+                if op == "swap" and len(chars) > 1:
+                    idx2 = (idx + 1) % len(chars)
+                    chars[idx], chars[idx2] = chars[idx2], chars[idx]
+                elif op == "delete":
+                    chars.pop(idx)
+                elif op == "duplicate":
+                    chars.insert(idx, chars[idx])
+
+            return "".join(chars)
+
+        df_drift = df.copy()
+        rows = self._get_target_rows(
+            df,
+            start_index=start_index,
+            block_index=block_index,
+            block_column=block_column,
+            time_col=time_col,
+            **kwargs,
+        )
+
+        for col in feature_cols:
+            if col not in df.columns:
+                continue
+
+            # Filter for rows to affect
+            mask = self.rng.random(len(rows)) < drift_magnitude
+            target_indices = rows[mask]
+
+            if not target_indices.empty:
+                # Vectorized apply is hard for random typos, using list comprehension
+                original_vals = df_drift.loc[target_indices, col].astype(str).tolist()
+                drifted_vals = [
+                    apply_typo(x, typo_density, typo_type) for x in original_vals
+                ]
+                df_drift.loc[target_indices, col] = drifted_vals
+
+        if self.auto_report:
+            drift_config = {
+                "drift_method": "inject_typos_drift",
+                "feature_cols": feature_cols,
+                "drift_magnitude": drift_magnitude,
+                "typo_type": typo_type,
+                "generator_name": f"{self.generator_name}_typos",
+            }
+            self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
+
+        return df_drift
+
+    def inject_category_merge_drift(
+        self,
+        df: pd.DataFrame,
+        col: str,
+        categories_to_merge: List[Any],
+        new_category_name: Any,
+        start_index: Optional[int] = None,
+        block_index: Optional[int] = None,
+        block_column: Optional[str] = None,
+        time_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Merges specific categories into one (e.g. 'Cat' + 'Dog' -> 'Pet').
+        """
+        df_drift = df.copy()
+        rows = self._get_target_rows(
+            df,
+            start_index=start_index,
+            block_index=block_index,
+            block_column=block_column,
+            time_col=time_col,
+            **kwargs,
+        )
+
+        if col in df.columns:
+            mask = df_drift.loc[rows, col].isin(categories_to_merge)
+            drift_indices = rows[mask]
+            df_drift.loc[drift_indices, col] = new_category_name
+
+        if self.auto_report:
+            drift_config = {
+                "drift_method": "inject_category_merge_drift",
+                "col": col,
+                "merged": str(categories_to_merge),
+                "new_name": str(new_category_name),
+                "generator_name": f"{self.generator_name}_merge",
+            }
+            self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
+
+        return df_drift
+
+    def inject_boolean_drift(
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        drift_magnitude: float = 0.3,  # Probability of flipping
+        start_index: Optional[int] = None,
+        block_index: Optional[int] = None,
+        block_column: Optional[str] = None,
+        time_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Specific drift for boolean columns: flips True <-> False.
+        """
+        df_drift = df.copy()
+        rows = self._get_target_rows(
+            df,
+            start_index=start_index,
+            block_index=block_index,
+            block_column=block_column,
+            time_col=time_col,
+            **kwargs,
+        )
+
+        for col in feature_cols:
+            if col not in df.columns:
+                continue
+
+            # Check if boolean-like
+            if not pd.api.types.is_bool_dtype(df[col]) and not set(
+                df[col].dropna().unique()
+            ).issubset({0, 1, 0.0, 1.0, True, False}):
+                warnings.warn(
+                    f"Column '{col}' does not appear to be boolean. Skipping."
+                )
+                continue
+
+            mask = self.rng.random(len(rows)) < drift_magnitude
+            flip_indices = rows[mask]
+
+            if not flip_indices.empty:
+                # Logical NOT for booleans
+                if pd.api.types.is_bool_dtype(df[col]):
+                    df_drift.loc[flip_indices, col] = ~df_drift.loc[flip_indices, col]
+                else:
+                    # For 0/1 integers
+                    df_drift.loc[flip_indices, col] = (
+                        1 - df_drift.loc[flip_indices, col]
+                    )
+
+        if self.auto_report:
+            drift_config = {
+                "drift_method": "inject_boolean_drift",
+                "feature_cols": feature_cols,
+                "drift_magnitude": drift_magnitude,
+                "generator_name": f"{self.generator_name}_boolean",
+            }
+            self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
 
         return df_drift

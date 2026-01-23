@@ -125,22 +125,46 @@ class ExternalReporter:
             return None
 
         try:
-            # For comparison, we exclude block/time columns to avoid type mismatch
-            # YData has issues comparing when the same column is detected as different types
+            # Determine Time Series Mode for Comparison
+            tsmode = False
+            sortby = None
+
+            if time_col and time_col in ref_df.columns and time_col in curr_df.columns:
+                tsmode = True
+                sortby = time_col
+                logger.info(
+                    f"Comparison Time Series Mode ENABLED (using time_col: {time_col})"
+                )
+            elif (
+                block_col
+                and block_col in ref_df.columns
+                and block_col in curr_df.columns
+            ):
+                tsmode = True
+                sortby = block_col
+                logger.info(
+                    f"Comparison Time Series Mode ENABLED (using block_col: {block_col})"
+                )
+
+            # NOTE: usage of tsmode in compare() requires columns to be present.
+            # We do NOT drop them if we are in tsmode.
             cols_to_exclude = []
-            if block_col and block_col in ref_df.columns:
-                cols_to_exclude.append(block_col)
-            if time_col and time_col in ref_df.columns:
-                cols_to_exclude.append(time_col)
+            if not tsmode:
+                # Only exclude if NOT in time series mode (to avoid confusion in static comparison)
+                if block_col and block_col in ref_df.columns:
+                    cols_to_exclude.append(block_col)
+                if time_col and time_col in ref_df.columns:
+                    cols_to_exclude.append(time_col)
 
             ref_df_clean = ref_df.drop(columns=cols_to_exclude, errors="ignore")
             curr_df_clean = curr_df.drop(columns=cols_to_exclude, errors="ignore")
 
-            # Generate individual profiles (without tsmode for comparison)
+            # Generate individual profiles
             ref_report = ProfileReport(
                 ref_df_clean,
                 title=ref_name,
-                tsmode=False,
+                tsmode=tsmode,
+                sortby=sortby,
                 html={"style": {"full_width": True}},
                 progress_bar=False,
                 minimal=minimal,
@@ -149,7 +173,8 @@ class ExternalReporter:
             curr_report = ProfileReport(
                 curr_df_clean,
                 title=curr_name,
-                tsmode=False,
+                tsmode=tsmode,
+                sortby=sortby,
                 html={"style": {"full_width": True}},
                 progress_bar=False,
                 minimal=minimal,
