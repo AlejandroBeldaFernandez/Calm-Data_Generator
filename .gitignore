@@ -79,3 +79,5 @@ output/
 drift_output/
 test_instalacion.py
 tests/
+tutorial_drifts_output/
+tutorial_reports_output/

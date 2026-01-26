@@ -47,12 +47,12 @@ A key advantage of **Calm-Data-Generator** is enabling the use of private data i
 ### Technical Architecture
 Minimalist view of the system's core components and data flow.
 
-![Architecture Diagram](docs/assets/architecture.png)
+![Architecture Diagram](calm_data_generator/docs/assets/architecture.png)
 
 ### Ecosystem Integration
 How **Calm Data Generator** integrates with foundational libraries to provide enhanced value (Drift, Clinical Logic, Reporting).
 
-![Ecosystem Diagram](docs/assets/ecosystem.png)
+![Ecosystem Diagram](calm_data_generator/docs/assets/ecosystem.png)
 
 ---
 
