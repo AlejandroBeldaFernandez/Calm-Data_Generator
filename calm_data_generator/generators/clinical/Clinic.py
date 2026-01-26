@@ -18,9 +18,10 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 from calm_data_generator.generators.stream.StreamReporter import StreamReporter
 from calm_data_generator.generators.configs import DateConfig
+from calm_data_generator.generators.base import BaseGenerator
 
 
-class ClinicalDataGenerator:
+class ClinicalDataGenerator(BaseGenerator):
     """
     A class to generate synthetic clinical data including demographic, gene expression, and protein data.
     """
@@ -34,9 +35,13 @@ class ClinicalDataGenerator:
             auto_report: If True, automatically generates reports after generation.
             minimal_report: If True, generates minimal reports (faster, no correlations/PCA).
         """
+        super().__init__(
+            random_state=seed,
+            auto_report=auto_report,
+            minimal_report=minimal_report,
+        )
+        # ClinicalDataGenerator also uses np.random.seed globally for scipy dependencies
         np.random.seed(seed)
-        self.auto_report = auto_report
-        self.minimal_report = minimal_report
 
     def generate(
         self,

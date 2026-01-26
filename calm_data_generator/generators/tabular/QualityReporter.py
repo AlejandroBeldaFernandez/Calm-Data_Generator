@@ -18,6 +18,7 @@ import json
 from calm_data_generator.reports.ExternalReporter import ExternalReporter
 from calm_data_generator.reports.Visualizer import Visualizer
 from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
+from calm_data_generator.reports.base import BaseReporter
 
 # Try to import SDV for quality metrics
 try:
@@ -60,7 +61,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-class QualityReporter:
+class QualityReporter(BaseReporter):
     """
     Generates a static, file-based report comparing a real dataset and its synthetic counterpart.
     Uses YData Profiling and Plotly for visualizations.
@@ -74,9 +75,7 @@ class QualityReporter:
             verbose (bool): If True, prints progress messages to the console.
             minimal (bool): If True, skips expensive computations (PCA/UMAP, full correlations).
         """
-        self.verbose = verbose
-        self.minimal = minimal
-        self.logger = logging.getLogger(self.__class__.__name__)
+        super().__init__(verbose=verbose, minimal=minimal)
 
     def generate_comprehensive_report(
         self,

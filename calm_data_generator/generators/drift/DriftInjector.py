@@ -73,7 +73,8 @@ class DriftInjector:
         if self.output_dir:
             os.makedirs(self.output_dir, exist_ok=True)
 
-    def _frac(self, x: float) -> float:
+    @staticmethod
+    def _frac(x: float) -> float:
         """Clips a float to the [0.0, 1.0] range."""
         return float(np.clip(x, 0.0, 1.0))
 
@@ -96,7 +97,8 @@ class DriftInjector:
             resample_rule=resample_rule,
         )
 
-    def _ensure_psd_matrix(self, matrix: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _ensure_psd_matrix(matrix: np.ndarray) -> np.ndarray:
         """Ensures a matrix is positive semi-definite (PSD) by adjusting its eigenvalues."""
         eigenvalues, eigenvectors = np.linalg.eigh(matrix)
         eigenvalues[eigenvalues < 1e-6] = 1e-6  # Clamp small eigenvalues
@@ -263,7 +265,8 @@ class DriftInjector:
     # -------------------------
     # Windows (profiles + speed)
     # -------------------------
-    def _sigmoid_weights(self, n: int, center: float, width: int) -> np.ndarray:
+    @staticmethod
+    def _sigmoid_weights(n: int, center: float, width: int) -> np.ndarray:
         """
         Creates weights w in [0,1] over n positions with a sigmoid transition.
 
@@ -285,8 +288,8 @@ class DriftInjector:
         w = 1.0 / (1.0 + np.exp(-z))
         return w
 
+    @staticmethod
     def _window_weights(
-        self,
         n: int,
         center: float,
         width: int,

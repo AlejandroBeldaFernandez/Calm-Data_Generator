@@ -18,10 +18,10 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-logger = logging.getLogger(__name__)
+from calm_data_generator.generators.base import BaseGenerator
 
 
-class StreamGenerator:
+class StreamGenerator(BaseGenerator):
     """
     Synthetic data generator using River-backed generators with detailed configuration and reporting.
 
@@ -62,9 +62,11 @@ class StreamGenerator:
             auto_report (bool): Whether to automatically generate a report after generation.
             minimal_report (bool): If True, generates minimal reports (faster, no correlations/PCA).
         """
-        self.rng = np.random.default_rng(random_state)
-        self.auto_report = auto_report
-        self.minimal_report = minimal_report
+        super().__init__(
+            random_state=random_state,
+            auto_report=auto_report,
+            minimal_report=minimal_report,
+        )
 
     def generate(
         self,
@@ -129,7 +131,7 @@ class StreamGenerator:
         if save_dataset and out_dir:
             full_csv_path = os.path.join(out_dir, filename)
             df.to_csv(full_csv_path, index=False)
-            logger.info(f"Data generated and saved at: {full_csv_path}")
+            self.logger.info(f"Data generated and saved at: {full_csv_path}")
 
         return df
 
@@ -221,7 +223,7 @@ class StreamGenerator:
                 )
 
         except Exception as e:
-            logger.warning(
+            self.logger.warning(
                 f"Could not infer feature names from generator: {e}. Falling back to generic names."
             )
             if data:
@@ -242,7 +244,7 @@ class StreamGenerator:
         # --- Dynamics Injection ---
         dynamics_config = kwargs.get("dynamics_config")
         if dynamics_config:
-            logger.info("Applying dynamics injection...")
+            self.logger.info("Applying dynamics injection...")
             # For StreamGenerator, random_state is initialized in __init__ -> self.rng
             # We can pick a seed from self.rng or just use self.rng if DynamicsInjector supported it.
             # DynamicsInjector uses a seed int.
@@ -250,7 +252,7 @@ class StreamGenerator:
             injector = ScenarioInjector()
 
             if "evolve_features" in dynamics_config:
-                logger.info("Evolving features...")
+                self.logger.info("Evolving features...")
                 evolve_args = dynamics_config["evolve_features"]
                 # Use the injected date column if applicable
                 df = injector.evolve_features(
@@ -258,7 +260,7 @@ class StreamGenerator:
                 )
 
             if "construct_target" in dynamics_config:
-                logger.info("Constructing dynamic target...")
+                self.logger.info("Constructing dynamic target...")
                 target_args = dynamics_config["construct_target"]
                 df = injector.construct_target(df, **target_args)
 
@@ -267,7 +269,7 @@ class StreamGenerator:
             "drift_injection_config"
         )
         if drift_config:
-            logger.info("Applying drift injection...")
+            self.logger.info("Applying drift injection...")
             injector = DriftInjector(
                 original_df=df,
                 output_dir=kwargs.get("output_dir") or ".",
@@ -282,7 +284,7 @@ class StreamGenerator:
                 params = drift_conf.get("params", {})
 
                 if hasattr(injector, method_name):
-                    logger.info(f"Injecting drift: {method_name}")
+                    self.logger.info(f"Injecting drift: {method_name}")
                     drift_method = getattr(injector, method_name)
                     try:
                         if "df" not in params:
@@ -292,10 +294,10 @@ class StreamGenerator:
                         if isinstance(res, pd.DataFrame):
                             df = res
                     except Exception as e:
-                        logger.error(f"Failed to apply drift {method_name}: {e}")
+                        self.logger.error(f"Failed to apply drift {method_name}: {e}")
                         raise e
                 else:
-                    logger.warning(
+                    self.logger.warning(
                         f"Drift method '{method_name}' not found in DriftInjector."
                     )
 
@@ -744,7 +746,7 @@ class StreamGenerator:
         initial_count = len(df)
         valid_mask = pd.Series(True, index=df.index)
 
-        logger.info(f"Applying {len(constraints)} constraints...")
+        self.logger.info(f"Applying {len(constraints)} constraints...")
 
         for const in constraints:
             col = const.get("col")
@@ -770,7 +772,7 @@ class StreamGenerator:
         filtered_df = df[valid_mask].copy()
         dropped = initial_count - len(filtered_df)
         if dropped > 0:
-            logger.warning(
+            self.logger.warning(
                 f"Constraints dropped {dropped} samples ({dropped / initial_count:.1%})."
             )
 
@@ -825,7 +827,7 @@ class StreamGenerator:
                 **report_kwargs_filtered,
             )
         except Exception as e:
-            logger.error(f"Could not generate report: {e}", exc_info=True)
+            self.logger.error(f"Could not generate report: {e}", exc_info=True)
 
     def validate_params(self, **kwargs):
         """Validates input parameters for the generate method."""

@@ -47,9 +47,10 @@ from calm_data_generator.generators.configs import DateConfig
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+from calm_data_generator.generators.base import BaseGenerator
 
 
-class RealGenerator:
+class RealGenerator(BaseGenerator):
     """
     A class for advanced data synthesis from a real dataset, offering multiple generation methods and detailed reporting.
     """
@@ -70,11 +71,12 @@ class RealGenerator:
             logger (Optional[logging.Logger]): An external logger instance. If None, a new one is created.
             random_state (Optional[int]): Seed for random number generation for reproducibility.
         """
-        self.auto_report = auto_report
-        self.minimal_report = minimal_report
-        self.logger = logger if logger else get_logger("RealGenerator")
-        self.random_state = random_state
-        self.rng = np.random.default_rng(random_state)
+        super().__init__(
+            random_state=random_state,
+            auto_report=auto_report,
+            minimal_report=minimal_report,
+            logger=logger,
+        )
         self.reporter = QualityReporter(minimal=minimal_report)
         self.synthesizer = None
         self.metadata = None

@@ -1,0 +1,22 @@
+{
+  "generator_name": "Tutorial_Synthetic_Gen",
+  "generation_timestamp": "2026-01-26T09:11:38.119003",
+  "real_rows": 500,
+  "synthetic_rows": 500,
+  "sdv_quality": {
+    "overall_quality_score": 0.8512,
+    "weighted_quality_score": 0.8512
+  },
+  "sdv_by_block": null,
+  "compared_data_files": {
+    "original": "real_data",
+    "generated": "synthetic_data"
+  },
+  "sequential_quality": null,
+  "privacy_metrics": {
+    "dcr_5th_percentile": 0.0023753830275105563,
+    "dcr_mean": 0.030722694417236605,
+    "interpretation": "Lower 5th percentile means higher risk of re-identification (records too close to real data)."
+  },
+  "constraints_stats": null
+}

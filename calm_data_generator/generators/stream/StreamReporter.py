@@ -15,11 +15,12 @@ import os
 from calm_data_generator.reports.ExternalReporter import ExternalReporter
 from calm_data_generator.reports.Visualizer import Visualizer
 from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
+from calm_data_generator.reports.base import BaseReporter
 
 logger = logging.getLogger("StreamReporter")
 
 
-class StreamReporter:
+class StreamReporter(BaseReporter):
     """
     Generates a static, file-based report analyzing the properties of a synthetic dataset.
     Uses YData Profiling for detailed analysis and Plotly for interactive visualizations.
@@ -33,9 +34,7 @@ class StreamReporter:
             verbose (bool): If True, prints progress messages to the console.
             minimal (bool): If True, generates minimal reports (faster, no correlations).
         """
-        self.verbose = verbose
-        self.minimal = minimal_report
-        self.logger = logging.getLogger(self.__class__.__name__)
+        super().__init__(verbose=verbose, minimal=minimal_report)
 
     def generate_report(
         self,

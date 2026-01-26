@@ -7,6 +7,7 @@ from calm_data_generator.anonymizer.privacy import (
     generalize_categorical_by_mapping,
     shuffle_columns,
 )
+from calm_data_generator.anonymizer.PrivacyReporter import PrivacyReporter
 
 __all__ = [
     "pseudonymize_columns",
@@ -14,4 +15,5 @@ __all__ = [
     "generalize_numeric_to_ranges",
     "generalize_categorical_by_mapping",
     "shuffle_columns",
+    "PrivacyReporter",
 ]

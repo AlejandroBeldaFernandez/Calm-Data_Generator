@@ -16,7 +16,13 @@
 
 > **Detailed Module References:**
 > - [RealGenerator](./REAL_GENERATOR_REFERENCE.md)
+> - [RealBlockGenerator](./REAL_BLOCK_GENERATOR_REFERENCE.md)
+> - [StreamGenerator](./STREAM_GENERATOR_REFERENCE.md)
+> - [StreamBlockGenerator](./STREAM_BLOCK_GENERATOR_REFERENCE.md)
 > - [ClinicalDataGenerator](./CLINICAL_GENERATOR_REFERENCE.md)
+> - [ClinicalBlockGenerator](./CLINICAL_BLOCK_GENERATOR_REFERENCE.md)
+> - [Anonymizer](./ANONYMIZER_REFERENCE.md)
+> - [Reports](./REPORTS_REFERENCE.md)
 > - [DriftInjector](./DRIFT_INJECTOR_REFERENCE.md)
 > - [ScenarioInjector](./SCENARIO_INJECTOR_REFERENCE.md)
 
