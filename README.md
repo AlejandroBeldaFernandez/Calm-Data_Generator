@@ -1,5 +1,7 @@
 # CALM-Data-Generator
 
+![Calm Data Generator Logo](docs/assets/logo.png)
+
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://badge.fury.io/py/calm-data-generator.svg)](https://badge.fury.io/py/calm-data-generator)
@@ -40,8 +42,19 @@ A key advantage of **Calm-Data-Generator** is enabling the use of private data i
 
 ---
 
+## Architecture & Design
 
+### Technical Architecture
+Minimalist view of the system's core components and data flow.
 
+![Architecture Diagram](docs/assets/architecture.png)
+
+### Ecosystem Integration
+How **Calm Data Generator** integrates with foundational libraries to provide enhanced value (Drift, Clinical Logic, Reporting).
+
+![Ecosystem Diagram](docs/assets/ecosystem.png)
+
+---
 
 ## Installation
 
