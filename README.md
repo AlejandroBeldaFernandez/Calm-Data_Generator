@@ -75,7 +75,7 @@ pip install calm-data-generator[full]
 ```bash
 git clone https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator.git
 cd Calm-Data_Generator
-pip install -e .
+pip install .
 ```
 
 ### Troubleshooting
