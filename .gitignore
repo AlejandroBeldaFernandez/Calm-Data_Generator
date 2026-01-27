@@ -77,7 +77,11 @@ Thumbs.db
 output/
 *.log
 drift_output/
-test_instalacion.py
-tests/
 tutorial_drifts_output/
 tutorial_reports_output/
+
+# Documentation builds
+docs/site/
+
+# Type checking
+.mypy_cache/
