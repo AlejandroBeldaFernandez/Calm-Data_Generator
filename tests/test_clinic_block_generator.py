@@ -2,12 +2,21 @@ import unittest
 import pandas as pd
 import shutil
 import os
-from river import synth
+import pytest
+
+try:
+    from river import synth
+except ImportError:
+    synth = None
+
 from calm_data_generator.generators.clinical.ClinicGeneratorBlock import (
     ClinicalDataGeneratorBlock,
 )
 
 
+@pytest.mark.skipif(
+    synth is None, reason="River/Synth not installed (requires 'stream' extra)"
+)
 class TestClinicalBlockGenerator(unittest.TestCase):
     def setUp(self):
         self.output_dir = "test_output_clinic_block"
