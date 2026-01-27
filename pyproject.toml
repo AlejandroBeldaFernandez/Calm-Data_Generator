@@ -15,7 +15,7 @@ authors = [
 dependencies = [
     "numpy>=1.26.0",
     "pandas>=2.0.0",
-    "lightgbm",
+    "lightgbm>=4.0.0",
     "scipy>=1.10.0",
     "scikit-learn>=1.0.0",
     "matplotlib>=3.7.0",
@@ -24,8 +24,8 @@ dependencies = [
     "imbalanced-learn>=0.10.0",
     "sdv>=1.0.0",
     "torch>=2.0.0",
-    "smartnoise-synth",
-    "ydata-profiling"
+    "smartnoise-synth>=1.0.0",
+    "ydata-profiling>=4.0.0"
 ]
 
 [project.optional-dependencies]
@@ -34,7 +34,7 @@ stream = [
 ]
 
 timeseries = [
-    "gretel-synthetics",  # For DGAN (DoppelGANger) time series generation
+    "gretel-synthetics>=0.20.0",  # For DGAN (DoppelGANger) time series generation
 ]
 
 full = [
