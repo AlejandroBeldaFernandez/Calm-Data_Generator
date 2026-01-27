@@ -110,11 +110,17 @@ data = pd.read_csv("your_data.csv")
 gen = RealGenerator()
 
 # Generate 1000 synthetic samples using CTGAN
+# model_params accepts any hyperparameter supported by the underlying model
 synthetic = gen.generate(
     data=data,
     n_samples=1000,
     method='ctgan',
-    target_col='label'
+    target_col='label',
+    model_params={
+        'epochs': 300,           # Training epochs
+        'batch_size': 500,       # Batch size
+        'discriminator_steps': 1 # CTGAN-specific parameter
+    }
 )
 
 print(f"Generated {len(synthetic)} samples")

@@ -74,7 +74,7 @@ synthetic_df = gen.generate(
 | `date_every` | int | `1` | Increment date every N rows |
 | `drift_injection_config` | List[Dict] | `None` | Post-generation drift configuration |
 | `dynamics_config` | Dict | `None` | Dynamic evolution configuration |
-| `model_params` | Dict | `None` | Specific model parameters |
+| `model_params` | Dict | `None` | Specific model hyperparameters (passes `**kwargs` to the model) |
 | `constraints` | List[Dict] | `None` | Integrity constraints |
 
 ---
@@ -85,109 +85,125 @@ The `model_params` dictionary allows fine-tuning internal parameters for each sy
 
 ### Deep Learning (SDV)
 
-| Parameter | Default | Methods | Description |
-|-----------|---------|---------|-------------|
-| `sdv_epochs` | 300 | ctgan, tvae, copula | Number of training epochs |
-| `sdv_batch_size` | 100 | ctgan, tvae, copula | Training batch size |
+| Parameter | Methods | Description |
+|-----------|---------|-------------|
+| `epochs` | All SDV | Number of training epochs |
+| `batch_size` | All SDV | Training batch size |
+| `verbose` | All SDV | Enable detailed training logs |
+| `**kwargs` | All | Any parameter supported by the underlying model (e.g., `discriminator_steps` for CTGAN) |
 
 **Example:**
 ```python
-model_params={"sdv_epochs": 500, "sdv_batch_size": 256}
+model_params={
+    "epochs": 500, 
+    "batch_size": 256,
+    "discriminator_steps": 5  # Specific to CTGAN
+}
 ```
 
 ### CART (Decision Trees)
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `cart_iterations` | 10 | Number of FCS iterations |
-| `cart_min_samples_leaf` | None | Minimum samples per leaf (auto if None) |
+| Parameter | Description |
+|-----------|-------------|
+| `iterations` | Number of FCS iterations (default: 10) |
+| `min_samples_leaf` | Minimum samples per leaf (auto if None) |
+| `**kwargs` | Any parameter supported by sklearn's DecisionTree |
 
 **Example:**
 ```python
-model_params={"cart_iterations": 20, "cart_min_samples_leaf": 5}
+model_params={"iterations": 20, "min_samples_leaf": 5, "max_depth": 10}
 ```
 
 ### Random Forest
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `rf_n_estimators` | None | Number of trees (auto if None) |
-| `rf_min_samples_leaf` | None | Minimum samples per leaf |
+| Parameter | Description |
+|-----------|-------------|
+| `iterations` | Number of FCS iterations (default: 10) |
+| `n_estimators` | Number of trees |
+| `min_samples_leaf` | Minimum samples per leaf |
+| `**kwargs` | Any parameter supported by sklearn's RandomForest |
 
 **Example:**
 ```python
-model_params={"rf_n_estimators": 100, "rf_min_samples_leaf": 3}
+model_params={"n_estimators": 100, "min_samples_leaf": 3, "max_depth": 15}
 ```
 
 ### LightGBM
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `lgbm_n_estimators` | None | Number of trees |
-| `lgbm_learning_rate` | None | Learning rate |
+| Parameter | Description |
+|-----------|-------------|
+| `iterations` | Number of FCS iterations (default: 10) |
+| `n_estimators` | Number of boosting rounds |
+| `learning_rate` | Learning rate |
+| `**kwargs` | Any parameter supported by LightGBM |
 
 **Example:**
 ```python
-model_params={"lgbm_n_estimators": 200, "lgbm_learning_rate": 0.05}
+model_params={"n_estimators": 200, "learning_rate": 0.05, "max_depth": 8}
 ```
 
 ### Gaussian Mixture Models
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `gmm_n_components` | 5 | Number of Gaussian components |
-| `gmm_covariance_type` | "full" | Covariance type: "full", "tied", "diag", "spherical" |
+| Parameter | Description |
+|-----------|-------------|
+| `n_components` | Number of Gaussian components (default: 5) |
+| `covariance_type` | Covariance type: "full", "tied", "diag", "spherical" (default: "full") |
+| `**kwargs` | Any parameter supported by sklearn's GaussianMixture |
 
 **Example:**
 ```python
-model_params={"gmm_n_components": 10, "gmm_covariance_type": "diag"}
+model_params={"n_components": 10, "covariance_type": "diag"}
 ```
 
 ### SMOTE / ADASYN
 
-| Parameter | Default | Methods | Description |
-|-----------|---------|---------|-------------|
-| `smote_neighbors` | 5 | smote | Number of k-NN neighbors |
-| `adasyn_neighbors` | 5 | adasyn | Number of k-NN neighbors |
+| Parameter | Description |
+|-----------|-------------|
+| `k_neighbors` | Number of k-NN neighbors for SMOTE (default: 5) |
+| `n_neighbors` | Number of k-NN neighbors for ADASYN (default: 5) |
+| `**kwargs` | Any parameter supported by imbalanced-learn's SMOTE/ADASYN |
 
 **Example:**
 ```python
-model_params={"smote_neighbors": 7}
+model_params={"k_neighbors": 7}  # For SMOTE
+model_params={"n_neighbors": 5}  # For ADASYN
 ```
 
 ### Differential Privacy
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `dp_epsilon` | 1.0 | Privacy ε parameter (lower = more private) |
-| `dp_delta` | 1e-5 | Privacy δ parameter |
+| Parameter | Description |
+|-----------|-------------|
+| `epsilon` | Privacy ε parameter (default: 1.0, lower = more private) |
+| `delta` | Privacy δ parameter (default: 1e-5) |
+| `synth_type` | Synthesizer type: "pate_ctgan", "mwem", etc. (default: "pate_ctgan") |
 
 **Example:**
 ```python
-model_params={"dp_epsilon": 0.5, "dp_delta": 1e-6}
+model_params={"epsilon": 0.5, "delta": 1e-6, "synth_type": "pate_ctgan"}
 ```
 
 ### DataSynthesizer
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `ds_k` | 5 | Bayesian network degree (dependency complexity) |
+| Parameter | Description |
+|-----------|-------------|
+| `k` | Bayesian network degree (default: 5, k=1 is independent) |
 
 **Example:**
 ```python
-model_params={"ds_k": 3}  # k=1 is independent, higher k captures more correlations
+model_params={"k": 3}  # Higher k captures more correlations
 ```
 
 ### Time Series (PAR)
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `par_epochs` | 100 | PAR training epochs |
-| `sequence_index` | None | Column identifying each sequence/entity |
+| Parameter | Description |
+|-----------|-------------|
+| `epochs` | PAR training epochs (default: 100) |
+| `sequence_key` | Column identifying each sequence/entity |
+| `**kwargs` | Any parameter supported by SDV's PARSynthesizer |
 
 **Example:**
 ```python
-model_params={"par_epochs": 200, "sequence_index": "patient_id"}
+model_params={"epochs": 200, "sequence_key": "patient_id"}
 ```
 
 ### Diffusion Models

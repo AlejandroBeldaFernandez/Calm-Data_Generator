@@ -33,10 +33,9 @@ import tempfile
 
 # SDV and DataSynthesizer imports are now lazy-loaded
 
-
 # Model imports
 # Custom logger and reporter
-from calm_data_generator.logger import get_logger
+from calm_data_generator.generators.base import BaseGenerator
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
@@ -47,7 +46,6 @@ from calm_data_generator.generators.configs import DateConfig
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-from calm_data_generator.generators.base import BaseGenerator
 
 
 class RealGenerator(BaseGenerator):
@@ -85,25 +83,28 @@ class RealGenerator(BaseGenerator):
         self, method: str, user_params: Optional[Dict] = None
     ) -> Dict:
         """Merges user parameters with defaults based on the method."""
+        # Standard parameter names (matching sklearn/lightgbm/SDV APIs)
         defaults = {
-            "cart_iterations": 10,
-            "cart_min_samples_leaf": None,
-            "rf_n_estimators": None,
-            "rf_min_samples_leaf": None,
-            "lgbm_n_estimators": None,
-            "lgbm_learning_rate": None,
-            "gmm_n_components": 5,
-            "gmm_covariance_type": "full",
-            "sdv_epochs": 300,
-            "sdv_batch_size": 100,
-            "ds_k": 5,
-            "smote_neighbors": 5,
-            "adasyn_neighbors": 5,
-            "dp_epsilon": 1.0,
-            "dp_delta": 1e-5,
-            "par_epochs": 100,
-            "sequence_index": None,
-            "diffusion_steps": 50,
+            # FCS methods (CART, RF, LGBM)
+            "iterations": 10,
+            # GMM
+            "n_components": 5,
+            "covariance_type": "full",
+            # SDV (CTGAN, TVAE, Copula)
+            "epochs": 300,
+            "batch_size": 100,
+            # DataSynthesizer
+            "k": 5,
+            # SMOTE/ADASYN
+            "k_neighbors": 5,  # SMOTE
+            "n_neighbors": 5,  # ADASYN
+            # Differential Privacy
+            "epsilon": 1.0,
+            "delta": 1e-5,
+            # Time Series
+            "sequence_key": None,
+            # Diffusion
+            "steps": 50,
         }
         params = defaults.copy()
         if user_params:
@@ -152,8 +153,7 @@ class RealGenerator(BaseGenerator):
     def _get_synthesizer(
         self,
         method: str,
-        sdv_epochs: int,
-        sdv_batch_size: int,
+        **model_kwargs,
     ):
         """Initializes and returns the appropriate SDV synthesizer based on the method."""
         try:
@@ -174,22 +174,19 @@ class RealGenerator(BaseGenerator):
         if method == "ctgan":
             return CTGANSynthesizer(
                 metadata=self.metadata,
-                epochs=sdv_epochs,
-                batch_size=sdv_batch_size,
                 verbose=True,
+                **model_kwargs,
             )
         elif method == "tvae":
             return TVAESynthesizer(
                 metadata=self.metadata,
-                epochs=sdv_epochs,
-                batch_size=sdv_batch_size,
+                **model_kwargs,
             )
         elif method == "copula":
             return CopulaGANSynthesizer(
                 metadata=self.metadata,
-                epochs=sdv_epochs,
-                batch_size=sdv_batch_size,
                 verbose=True,
+                **model_kwargs,
             )
         else:
             raise ValueError(f"No SDV synthesizer for method '{method}'")
@@ -232,17 +229,17 @@ class RealGenerator(BaseGenerator):
         data: pd.DataFrame,
         n_samples: int,
         method: str,
-        sdv_epochs: int,
-        sdv_batch_size: int,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
+        **model_kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using an SDV model, with support for conditional sampling."""
         self.logger.info(f"Starting conditional SDV synthesis with method: {method}...")
         # Always rebuild/refit for stateless operation on new data.
         # (Optimization: could cache if data/method matches, but keeping it simple/safe first)
         self.metadata = self._build_metadata(data)
-        self.synthesizer = self._get_synthesizer(method, sdv_epochs, sdv_batch_size)
+        self.metadata = self._build_metadata(data)
+        self.synthesizer = self._get_synthesizer(method, **model_kwargs)
         self.synthesizer.fit(data)
 
         if not custom_distributions:
@@ -346,14 +343,13 @@ class RealGenerator(BaseGenerator):
         data: pd.DataFrame,
         n_samples: int,
         target_col: str,
-        n_neighbors: int,
         custom_distributions: Optional[Dict] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using SMOTE (Synthetic Minority Over-sampling Technique)."""
         self.logger.info("Starting SMOTE synthesis...")
         try:
             from imblearn.over_sampling import SMOTE
-            from imblearn.pipeline import Pipeline as ImblearnPipeline
         except ImportError:
             raise ImportError(
                 "imbalanced-learn is required for SMOTE. Please install it."
@@ -382,7 +378,8 @@ class RealGenerator(BaseGenerator):
 
         # Simplified approach: Use SMOTE to balance, then sample n_samples.
         try:
-            smote = SMOTE(k_neighbors=n_neighbors, random_state=self.random_state)
+            k_neighbors = kwargs.get("k_neighbors", 5)
+            smote = SMOTE(k_neighbors=k_neighbors, random_state=self.random_state)
             X_res, y_res = smote.fit_resample(X, y)
             data_res = pd.concat([X_res, y_res], axis=1)
 
@@ -405,8 +402,8 @@ class RealGenerator(BaseGenerator):
         data: pd.DataFrame,
         n_samples: int,
         target_col: str,
-        n_neighbors: int,
         custom_distributions: Optional[Dict] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using ADASYN (Adaptive Synthetic Sampling)."""
         self.logger.info("Starting ADASYN synthesis...")
@@ -424,6 +421,7 @@ class RealGenerator(BaseGenerator):
         y = data[target_col]
 
         try:
+            n_neighbors = kwargs.get("n_neighbors", 5)
             adasyn = ADASYN(n_neighbors=n_neighbors, random_state=self.random_state)
             X_res, y_res = adasyn.fit_resample(X, y)
             data_res = pd.concat([X_res, y_res], axis=1)
@@ -444,31 +442,32 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        epsilon: float,
-        delta: float,
         target_col: Optional[str] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes data using Differential Privacy (via SmartNoise/SNSynth).
         """
-        self.logger.info(
-            f"Starting Differential Privacy synthesis (epsilon={epsilon})..."
-        )
+        eps = kwargs.get("epsilon", 1.0)
+        self.logger.info(f"Starting Differential Privacy synthesis (epsilon={eps})...")
         try:
             from snsynth import Synthesizer
         except ImportError:
             # Try alternate import or raise
             try:
-                from smartnoise.synthesizers import PATECTGAN
+                import smartnoise.synthesizers  # noqa: F401 - Verify package availability
             except ImportError:
                 raise ImportError(
                     "smartnoise-synth (snsynth) is required for DP synthesis."
                 )
 
         try:
+            epsilon = kwargs.get("epsilon", 1.0)
+            _delta = kwargs.get("delta", 1e-5)  # noqa: F841 - Reserved for future use
             # We'll use PATE-CTGAN or MWEM as default. Let's try PATE-CTGAN for deep learning quality.
             # SNSynth wrapper
-            synth = Synthesizer.create("pate_ctgan", epsilon=epsilon, verbose=True)
+            synth_type = kwargs.get("synth_type", "pate_ctgan")
+            synth = Synthesizer.create(synth_type, epsilon=epsilon, verbose=True)
             synth.fit(data, preprocessor_eps=epsilon / 2.0)  # Split budget
             return synth.sample(n_samples)
         except Exception as e:
@@ -479,18 +478,17 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        epochs: int,
-        sequence_key: str,
         target_col: Optional[str] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes data using Probabilistic AutoRegressive (PAR) model for Time Series.
         Uses SDV's PARSynthesizer.
         """
         self.logger.info("Starting PAR (Time Series) synthesis...")
+        sequence_key = kwargs.get("sequence_key")
         try:
             from sdv.sequential import PARSynthesizer
-            from sdv.metadata import SingleTableMetadata
             # Note: PAR requires MultiTableMetadata usually or different setup in SDV 1.0+
             # Actually SDV 1.0+ wraps PAR in 'Sequential' module but expects metadata compatible with it.
         except ImportError:
@@ -514,11 +512,15 @@ class RealGenerator(BaseGenerator):
             metadata.update_column(column_name=sequence_key, sdtype="id")
 
             # Simple PAR usage
+            epochs = kwargs.get("epochs", 100)
             synthesizer = PARSynthesizer(
                 metadata=metadata,
                 context_columns=[],  # Can add if needed
                 epochs=epochs,
                 verbose=True,
+                **{
+                    k: v for k, v in kwargs.items() if k not in ["epochs", "par_epochs"]
+                },
             )
 
             synthesizer.fit(data)
@@ -540,18 +542,23 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        sequence_key: str,
-        epochs: int = 100,
-        seq_len: int = 24,
         target_col: Optional[str] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes time series data using TimeGAN.
         Requires ydata-synthetic library.
         """
+        epochs = kwargs.get("epochs", 100)
+        seq_len = kwargs.get("seq_len", 24)
+        sequence_key = kwargs.get("sequence_key")
+
         self.logger.info(
             f"Starting TimeGAN synthesis (epochs={epochs}, seq_len={seq_len})..."
         )
+
+        if not sequence_key:
+            raise ValueError("sequence_key is required for TimeGAN synthesis.")
 
         try:
             from ydata_synthetic.synthesizers.timeseries import TimeSeriesSynthesizer
@@ -559,7 +566,12 @@ class RealGenerator(BaseGenerator):
         except ImportError:
             self.logger.warning("ydata-synthetic not available. Falling back to PAR.")
             return self._synthesize_par(
-                data, n_samples, epochs, sequence_key, target_col
+                data,
+                n_samples,
+                target_col=target_col,
+                sequence_key=sequence_key,
+                epochs=epochs,
+                **kwargs,
             )
 
         try:
@@ -630,16 +642,21 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        sequence_key: str,
-        epochs: int = 100,
-        seq_len: int = 24,
         target_col: Optional[str] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes time series data using DGAN (DoppelGANger-style).
         Requires ydata-synthetic library.
         """
+        epochs = kwargs.get("epochs", 100)
+        seq_len = kwargs.get("seq_len", 24)
+        sequence_key = kwargs.get("sequence_key")
+
         self.logger.info(f"Starting DGAN synthesis (epochs={epochs})...")
+
+        if not sequence_key:
+            raise ValueError("sequence_key is required for DGAN synthesis.")
 
         try:
             from ydata_synthetic.synthesizers.timeseries import TimeSeriesSynthesizer
@@ -649,7 +666,13 @@ class RealGenerator(BaseGenerator):
                 "ydata-synthetic not available. Falling back to TimeGAN."
             )
             return self._synthesize_timegan(
-                data, n_samples, sequence_key, epochs, seq_len, target_col
+                data,
+                n_samples,
+                target_col=target_col,
+                sequence_key=sequence_key,
+                epochs=epochs,
+                seq_len=seq_len,
+                **kwargs,
             )
 
         try:
@@ -717,9 +740,8 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        sequence_key: str,
-        time_col: Optional[str] = None,
         target_col: Optional[str] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes time series data using Gaussian Copula with temporal correlations.
@@ -727,9 +749,14 @@ class RealGenerator(BaseGenerator):
         """
         self.logger.info("Starting Temporal Copula synthesis...")
 
+        sequence_key = kwargs.get("sequence_key")
+        time_col = kwargs.get("time_col")
+
+        if not sequence_key:
+            raise ValueError("sequence_key is required for Temporal Copula synthesis.")
+
         try:
             from sdv.single_table import GaussianCopulaSynthesizer
-            from scipy.stats import spearmanr
         except ImportError:
             raise ImportError("sdv is required for Copula synthesis.")
 
@@ -790,15 +817,13 @@ class RealGenerator(BaseGenerator):
             raise e
 
     def _synthesize_diffusion(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        steps: int,
+        self, data: pd.DataFrame, n_samples: int, **kwargs
     ) -> pd.DataFrame:
         """
         Synthesizes data using Tabular Diffusion (simple DDPM-like approach).
         Uses PyTorch for a basic denoising diffusion implementation.
         """
+        steps = kwargs.get("steps", 1000)  # Retrieve steps from kwargs
         self.logger.info(f"Starting Tabular Diffusion synthesis ({steps} steps)...")
 
         try:
@@ -923,10 +948,9 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        gmm_n_components: int,
-        gmm_covariance_type: str,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using Gaussian Mixture Models. Only supports numeric data."""
         self.logger.info("Starting GMM synthesis...")
@@ -940,11 +964,23 @@ class RealGenerator(BaseGenerator):
             raise ValueError(
                 f"The 'gmm' method only supports numeric data, but found non-numeric columns: {list(non_numeric_cols)}."
             )
-        gmm = GaussianMixture(
-            n_components=gmm_n_components,
-            covariance_type=gmm_covariance_type,
-            random_state=self.random_state,
+        model_params = {
+            "n_components": kwargs.get("n_components", 5),
+            "covariance_type": kwargs.get("covariance_type", "full"),
+            "random_state": self.random_state,
+        }
+        # Filter kwargs to only include what GaussianMixture expects if necessary,
+        # but for now let's just update with what's provided.
+        model_p = model_params.copy()
+        model_p.update(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["n_components", "covariance_type"]
+            }
         )
+
+        gmm = GaussianMixture(**model_p)
         gmm.fit(data)
         synth_data, _ = gmm.sample(n_samples)
         synth = pd.DataFrame(synth_data, columns=data.columns)
@@ -1141,38 +1177,6 @@ class RealGenerator(BaseGenerator):
             self.logger.error(f"{method_name} synthesis failed: {e}", exc_info=True)
             return None
 
-    def _synthesize_cart(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        custom_distributions: Optional[Dict] = None,
-    ) -> pd.DataFrame:
-        """Synthesizes data using a Fully Conditional Specification (FCS) approach with Decision Trees."""
-
-        def model_factory(is_classification):
-            try:
-                from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-            except ImportError:
-                raise ImportError("scikit-learn is required for CART synthesis.")
-
-            model_params = {"random_state": self.random_state}
-            if self.cart_min_samples_leaf is not None:
-                model_params["min_samples_leaf"] = self.cart_min_samples_leaf
-            return (
-                DecisionTreeClassifier(**model_params)
-                if is_classification
-                else DecisionTreeRegressor(**model_params)
-            )
-
-        return self._synthesize_fcs_generic(
-            data,
-            n_samples,
-            custom_distributions,
-            model_factory,
-            "CART",
-            self.cart_iterations,
-        )
-
     def _apply_resampling_strategy(self, X, y, custom_dist, n_samples):
         """Applies over/under-sampling to match a custom distribution before model training."""
         try:
@@ -1240,8 +1244,8 @@ class RealGenerator(BaseGenerator):
         n_samples: int,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
-        min_samples_leaf: Optional[int] = None,
         iterations: int = 10,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using a Fully Conditional Specification (FCS) approach with Decision Trees."""
 
@@ -1252,8 +1256,7 @@ class RealGenerator(BaseGenerator):
                 raise ImportError("scikit-learn is required for CART synthesis.")
 
             model_params = {"random_state": self.random_state}
-            if min_samples_leaf is not None:
-                model_params["min_samples_leaf"] = min_samples_leaf
+            model_params.update(kwargs)
             return (
                 DecisionTreeClassifier(**model_params)
                 if is_classification
@@ -1276,9 +1279,8 @@ class RealGenerator(BaseGenerator):
         n_samples: int,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
-        n_estimators: Optional[int] = None,
-        min_samples_leaf: Optional[int] = None,
         iterations: int = 10,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using a Fully Conditional Specification (FCS) approach with Random Forests."""
 
@@ -1292,10 +1294,7 @@ class RealGenerator(BaseGenerator):
                 raise ImportError("scikit-learn is required for RF synthesis.")
 
             model_params = {"random_state": self.random_state, "n_jobs": 1}
-            if n_estimators is not None:
-                model_params["n_estimators"] = n_estimators
-            if min_samples_leaf is not None:
-                model_params["min_samples_leaf"] = min_samples_leaf
+            model_params.update(kwargs)
             return (
                 RandomForestClassifier(**model_params)
                 if is_classification
@@ -1318,9 +1317,8 @@ class RealGenerator(BaseGenerator):
         n_samples: int,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
-        n_estimators: Optional[int] = None,
-        learning_rate: Optional[float] = None,
         iterations: int = 10,
+        **kwargs,
     ) -> pd.DataFrame:
         """Synthesizes data using a Fully Conditional Specification (FCS) approach with LightGBM."""
 
@@ -1330,15 +1328,8 @@ class RealGenerator(BaseGenerator):
             except ImportError:
                 raise ImportError("lightgbm is required for LGBM synthesis.")
 
-            model_params = {
-                "random_state": self.random_state,
-                "n_jobs": 1,
-                "verbose": -1,
-            }
-            if n_estimators is not None:
-                model_params["n_estimators"] = n_estimators
-            if learning_rate is not None:
-                model_params["learning_rate"] = learning_rate
+            model_params = {"random_state": self.random_state, "verbose": -1}
+            model_params.update(kwargs)
             return (
                 lgb.LGBMClassifier(**model_params)
                 if is_classification
@@ -1359,9 +1350,9 @@ class RealGenerator(BaseGenerator):
         self,
         data: pd.DataFrame,
         n_samples: int,
-        k: int,
         target_col: Optional[str] = None,
         custom_distributions: Optional[Dict] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Synthesizes data using DataSynthesizer in correlated attribute mode.
@@ -1388,6 +1379,7 @@ class RealGenerator(BaseGenerator):
                 data.to_csv(temp_csv_path, index=False)
 
                 # Describe the dataset
+                k = kwargs.get("k", 5)
                 describer = DataDescriber()
                 describer.describe_dataset_in_correlated_attribute_mode(
                     dataset_file=temp_csv_path, k=k
@@ -1532,7 +1524,7 @@ class RealGenerator(BaseGenerator):
             Optional[pd.DataFrame]: The generated synthetic DataFrame, or None if synthesis fails.
         """
         self._validate_method(method)
-        params = self._get_model_params(method, model_params)
+        # Note: params was used for default values, now all methods use **kwargs from model_params
         self.logger.info(
             f"Starting generation of {n_samples} samples using method '{method}'..."
         )
@@ -1569,14 +1561,17 @@ class RealGenerator(BaseGenerator):
         try:
             synth = None
             if method in ["ctgan", "tvae", "copula"]:
+                # Pass model_params as kwargs, filtering out non-SDV params if needed
+                sdv_params = model_params.copy() if model_params else {}
+                # Ensure we don't pass sdv_epochs/sdv_batch_size if they were already in params
+                # but sdv_params should just be the kwargs
                 synth = self._synthesize_sdv(
                     data,
                     n_samples,
                     method,
-                    params["sdv_epochs"],
-                    params["sdv_batch_size"],
                     target_col=target_col,
                     custom_distributions=custom_distributions,
+                    **sdv_params,
                 )
             elif method == "resample":
                 synth = self._synthesize_resample(
@@ -1591,8 +1586,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    min_samples_leaf=params["cart_min_samples_leaf"],
-                    iterations=params["cart_iterations"],
+                    **(model_params or {}),
                 )
             elif method == "rf":
                 synth = self._synthesize_rf(
@@ -1600,9 +1594,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    n_estimators=params["rf_n_estimators"],
-                    min_samples_leaf=params["rf_min_samples_leaf"],
-                    iterations=params["cart_iterations"],
+                    **(model_params or {}),
                 )
             elif method == "lgbm":
                 synth = self._synthesize_lgbm(
@@ -1610,88 +1602,63 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    n_estimators=params["lgbm_n_estimators"],
-                    learning_rate=params["lgbm_learning_rate"],
-                    iterations=params["cart_iterations"],
+                    **(model_params or {}),
                 )
             elif method == "gmm":
                 synth = self._synthesize_gmm(
                     data,
                     n_samples,
-                    gmm_n_components=params["gmm_n_components"],
-                    gmm_covariance_type=params["gmm_covariance_type"],
                     target_col=target_col,
                     custom_distributions=custom_distributions,
+                    **(model_params or {}),
                 )
+            elif method == "datasynth":
                 synth = self._synthesize_datasynth(
                     data,
                     n_samples,
-                    k=params["ds_k"],
                     target_col=target_col,
                     custom_distributions=custom_distributions,
+                    **(model_params or {}),
                 )
             elif method == "smote":
                 synth = self._synthesize_smote(
                     data,
                     n_samples,
                     target_col=target_col,
-                    n_neighbors=params["smote_neighbors"],
                     custom_distributions=custom_distributions,
+                    **(model_params or {}),
                 )
             elif method == "adasyn":
                 synth = self._synthesize_adasyn(
                     data,
                     n_samples,
                     target_col=target_col,
-                    n_neighbors=params["adasyn_neighbors"],
                     custom_distributions=custom_distributions,
+                    **(model_params or {}),
                 )
             elif method == "dp":
                 synth = self._synthesize_dp(
-                    data,
-                    n_samples,
-                    epsilon=params["dp_epsilon"],
-                    delta=params["dp_delta"],
-                    target_col=target_col,
+                    data, n_samples, target_col=target_col, **(model_params or {})
                 )
             elif method == "par":
                 synth = self._synthesize_par(
-                    data,
-                    n_samples,
-                    epochs=params["par_epochs"],
-                    sequence_key=params.get("sequence_index")
-                    or block_column,  # Use block_column as default sequence key
-                    target_col=target_col,
+                    data, n_samples, target_col=target_col, **(model_params or {})
                 )
             elif method == "diffusion":
                 synth = self._synthesize_diffusion(
-                    data, n_samples, steps=params["diffusion_steps"]
+                    data, n_samples, **(model_params or {})
                 )
             elif method == "timegan":
                 synth = self._synthesize_timegan(
-                    data,
-                    n_samples,
-                    sequence_key=params.get("sequence_index") or block_column,
-                    epochs=params.get("timegan_epochs", 100),
-                    seq_len=params.get("seq_len", 24),
-                    target_col=target_col,
+                    data, n_samples, target_col=target_col, **(model_params or {})
                 )
             elif method == "dgan":
                 synth = self._synthesize_dgan(
-                    data,
-                    n_samples,
-                    sequence_key=params.get("sequence_index") or block_column,
-                    epochs=params.get("dgan_epochs", 100),
-                    seq_len=params.get("seq_len", 24),
-                    target_col=target_col,
+                    data, n_samples, target_col=target_col, **(model_params or {})
                 )
             elif method == "copula_temporal":
                 synth = self._synthesize_copula_temporal(
-                    data,
-                    n_samples,
-                    sequence_key=params.get("sequence_index") or block_column,
-                    time_col=params.get("time_col"),
-                    target_col=target_col,
+                    data, n_samples, target_col=target_col, **(model_params or {})
                 )
 
             # --- Constraints Application ---
