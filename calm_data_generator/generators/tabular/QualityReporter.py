@@ -77,6 +77,10 @@ class QualityReporter(BaseReporter):
         """
         super().__init__(verbose=verbose, minimal=minimal)
 
+    def generate_report(self, *args, **kwargs):
+        """Wrapper for generate_comprehensive_report to satisfy BaseReporter contract."""
+        return self.generate_comprehensive_report(*args, **kwargs)
+
     def generate_comprehensive_report(
         self,
         real_df: pd.DataFrame,
