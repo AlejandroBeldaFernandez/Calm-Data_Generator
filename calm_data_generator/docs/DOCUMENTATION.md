@@ -692,111 +692,39 @@ reporter.generate_comprehensive_report(
 
 ### DateConfig
 
+Control how date/time columns are generated or incremented.
+
 ```python
 from calm_data_generator.generators.configs import DateConfig
 
 config = DateConfig(
     start_date="2024-01-01",
     date_col="timestamp",
-    date_every=1,  # Every N rows
-    date_step={'days': 1}
+    date_every=1,         # Increment date every N rows
+    date_step={'days': 1} # Amount to increment
 )
 ```
 
-### Model Parameters
-
-```python
-model_params = {
-    # SDV methods
-    'sdv_epochs': 300,
-    'batch_size': 500,
-    
-    # Diffusion
-    'diffusion_steps': 50,
-    
-    # Time Series
-    'par_epochs': 100,
-    'timegan_epochs': 100,
-    'seq_len': 24,
-    
-    # Privacy
-    'dp_epsilon': 1.0,
-    'dp_delta': 1e-5,
-    
-    # Augmentation
-    'smote_neighbors': 5,
-    'adasyn_neighbors': 5
-}
-```
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `start_date` | str | req | Initial date (YYYY-MM-DD or datetime string) |
+| `date_col` | str | `"date"` | Name of the date column to create |
+| `date_every` | int | `1` | Number of rows to generate before incrementing the date. Use this to simulate multiple events per day. |
+| `date_step` | dict | `{'days': 1}` | Increment step. Keys match `relativedelta` args (days, hours, minutes). |
 
 ---
-
-## Best Practices
-
-### 1. Start with Fast Methods
-```python
-# Try CART first for quick iteration
-synthetic = gen.generate(df, 1000, method='cart')
-```
-
-### 2. Validate Synthetic Data
-```python
-from calm_data_generator.generators.tabular import QualityReporter
-
-reporter = QualityReporter()
-report = reporter.generate_report(original_df, synthetic_df)
-```
-
-### 3. Use Constraints for Business Rules
-```python
-# Always validate domain constraints
-constraints = [
-    {'col': 'probability', 'op': '>=', 'val': 0},
-    {'col': 'probability', 'op': '<=', 'val': 1}
-]
-```
-
-### 4. Privacy First for Sensitive Data
-```python
-# Apply privacy transformations before sharing
-from calm_data_generator.privacy import pseudonymize_columns, add_laplace_noise
-
-private_data = pseudonymize_columns(df, ['id', 'name'])
-private_data = add_laplace_noise(private_data, ['salary'], epsilon=1.0)
-```
-
----
-
 ## Block Generators
 
-Block Generators allow you to create datasets composed of multiple distinct parts ("blocks"), where each block can represent a different time period, location, or concept. This is essential for:
-- Simulating **Time Series** data (chunks of time).
-- Simulating **Multi-Center** studies (hospitals, regions).
-- Injecting **Concept Drift** (changing patterns between blocks).
+Block Generators allow you to create datasets composed of multiple distinct parts ("blocks").
 
-### Supported Generators
+### How it Works
 
-| Generator | Description | Use Case |
-|-----------|-------------|----------|
-| `RealBlockGenerator` | Splits a real dataset into blocks (or learns from one) and generates synthetic data per block. | Retaining temporal evolution or group diversity. |
-| `SyntheticBlockGenerator` | Chains multiple stream generators (River) to create a single dataset with changing concepts. | Creating pure synthetic drift scenarios. |
-| `ClinicalDataGeneratorBlock` | Generates multi-block clinical data (e.g. multi-hospital simulation). | Healthcare studies with site heterogeneity. |
+1.  **Partitioning**: The input data (if real) is split into chunks based on the `block_column` (e.g., Year, Region).
+2.  **Independent Modeling**: A separate generative model is trained (or instantiated) for **each block**. This captures the specific statistical properties (distributions, correlations) of that block, preserving local patterns.
+3.  **Generation**: Synthetic data is generated for each block independently.
+4.  **Assembly**: The synthetic blocks are saved individually or concatenated to form the final dataset.
 
-### Example: RealBlockGenerator
-
-```python
-from calm_data_generator.generators.tabular import RealBlockGenerator
-
-gen = RealBlockGenerator()
-
-# Generate data split by "Year"
-synthetic_blocks = gen.generate(
-    data=data,
-    output_dir="./output",
-    block_column="Year",
-    target_col="Churn"
-)
-```
+This approach is superior to global modeling when data has distinct regimes (e.g., pre-COVID vs post-COVID, or Hospital A vs Hospital B).
 
 ### Example: SyntheticBlockGenerator (Drift)
 

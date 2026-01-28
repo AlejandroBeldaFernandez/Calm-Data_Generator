@@ -1,0 +1,195 @@
+# ClinicalDataGenerator - Referencia Completa
+
+**Ubicación:** `calm_data_generator.generators.clinical.ClinicalDataGenerator`
+
+El `ClinicalDataGenerator` es un simulador de alta fidelidad para datasets sanitarios multimodales. Orquestra la generación de:
+1.  **Demografía de Pacientes**: Edad, género, IMC, etc., con interdependencias.
+2.  **Datos Ómicos**: Expresión génica (RNA-Seq/Microarray) y proteínas, correlacionados con la demografía.
+3.  **Registros Longitudinales**: Trayectorias de visitas múltiples.
+
+---
+
+## Inicialización
+
+```python
+from calm_data_generator.generators.clinical import ClinicalDataGenerator
+
+gen = ClinicalDataGenerator(
+    seed=42,                # Semilla para reproducibilidad
+    auto_report=True,       # Generar informes automáticamente
+    minimal_report=False    # Informes detallados completos
+)
+```
+
+## Método Principal: `generate()`
+
+Genera una cohorte estática (un solo punto temporal) con demografía y datos ómicos.
+
+```python
+data = gen.generate(
+    n_samples=100,
+    n_genes=500,
+    n_proteins=200,
+    control_disease_ratio=0.5,
+    date_config=DateConfig(start_date="2024-01-01"),
+    # Configuraciones detalladas
+    demographic_correlations=None,
+    gene_correlations=None,
+    disease_effects_config=[...],
+    custom_demographic_columns={...}
+)
+```
+
+### Parámetros
+
+| Parámetro | Tipo | Defecto | Descripción |
+|-----------|------|---------|-------------|
+| `n_samples` | int | 100 | Número de pacientes (muestras) |
+| `n_genes` | int | 200 | Número de variables génicas |
+| `n_proteins` | int | 50 | Número de variables de proteínas |
+| `control_disease_ratio` | float | 0.5 | Proporción del grupo "Control" (0-1) |
+| `gene_type` | str | "RNA-Seq" | "RNA-Seq" (enteros) o "Microarray" (flotantes) |
+| `demographic_correlations` | array | None | Matriz de correlación personalizada NxN para demografía |
+| `custom_demographic_columns`| dict | None | Definiciones para features personalizadas (ver Casos de Uso) |
+| `disease_effects_config` | list | None | Lista de definiciones de efectos (ver abajo) |
+| `date_config` | DateConfig | None | Configuración para la columna `timestamp` |
+
+### Estructura de Retorno
+
+Retorna un diccionario `Dict[str, pd.DataFrame]` con las claves:
+*   `"demographics"`: Metadatos del paciente (ID, Grupo, Edad, Género, etc.)
+*   `"genes"`: Matriz de expresión (Filas=Pacientes, Cols=Genes)
+*   `"proteins"`: Matriz de expresión (Filas=Pacientes, Cols=Proteínas)
+
+---
+
+## Configuración de Efectos de Enfermedad
+
+El `disease_effects_config` permite un control preciso sobre señales biológicas. Puedes modificar genes/proteínas específicos para el grupo "Disease" usando varias transformaciones matemáticas.
+
+### Formato de Configuración
+
+```python
+{
+    "target_type": "gene",          # "gene" o "protein"
+    "index": [0, 5, 12],            # Entero o lista de índices a afectar
+    "effect_type": "fold_change",   # Tipo de transformación (ver tabla)
+    "effect_value": 2.0,            # Magnitud del efecto
+    "group": "Disease"              # Grupo objetivo (usualmente "Disease")
+}
+```
+
+### Tipos de Efecto Soportados
+
+| Tipo de Efecto | Fórmula | Descripción |
+|----------------|---------|-------------|
+| `fold_change` | $x_{new} = x \cdot value$ | Escalado multiplicativo (ej. sobreexpresión) |
+| `additive_shift` | $x_{new} = x + value$ | Añade señal de fondo constante |
+| `power_transform` | $x_{new} = x^{value}$ | Distorsión no lineal |
+| `log_transform` | $x_{new} = \ln(x + \epsilon)$ | Normalización logarítmica |
+| `variance_scale` | $x_{new} = \mu + (x-\mu)\cdot value$ | Aumenta/disminuye dispersión |
+| `polynomial_transform`| $x_{new} = P(x)$ | Mapeo polinómico (coeffs en value) |
+| `sigmoid_transform` | $x_{new} = \frac{1}{1 + e^{-k(x-x_0)}}$ | Saturación en curva S |
+
+---
+
+## Datos Longitudinales: `generate_longitudinal_data()`
+
+Genera datos multi-visita (trayectorias).
+
+```python
+longitudinal_data = gen.generate_longitudinal_data(
+    n_samples=50,
+    longitudinal_config={
+        "n_visits": 5,          # Número total de visitas por paciente
+        "time_step_days": 30,   # Días promedio entre visitas
+    },
+    # Argumentos estándar de generate()
+    n_genes=100
+)
+```
+
+---
+
+## Configuración Avanzada
+
+### Inyección de Drift y Dinámicas
+
+Puedes pasar diccionarios de configuración directamente a los inyectores internos:
+
+*   `demographics_drift_config`: Lista de definiciones de drift para demografía.
+*   `genes_drift_config`: Lista de definiciones de drift para genes.
+*   `proteins_drift_config`: Lista de definiciones de drift para proteínas.
+*   `genes_dynamics_config`: Escenarios para evolución de genes.
+
+---
+
+## Casos de Uso Exhaustivos
+
+### Caso 1: Simulación para Descubrimiento de Biomarcadores
+
+**Escenario:** Quieres simular un ensayo clínico donde 5 genes específicos están altamente sobreexpresados en pacientes enfermos.
+
+**Solución:** Usa el efecto `fold_change`.
+
+```python
+# Sobreexpresar primeros 5 genes por 4x en grupo Disease
+biomarker_config = [{
+    "target_type": "gene",
+    "indices": [0, 1, 2, 3, 4],    # Clave correcta es 'indices'
+    "effect_type": "fold_change",
+    "effect_value": 4.0,
+    "group": "Disease"
+}]
+
+data = gen.generate(
+    n_samples=200,
+    n_genes=1000,
+    control_disease_ratio=0.5,
+    disease_effects_config=biomarker_config
+)
+```
+
+### Caso 2: Progresión de Enfermedad Longitudinal
+
+**Escenario:** Simular progresión de Alzheimer donde un nivel de proteína decae con el tiempo.
+
+```python
+cohort = gen.generate_longitudinal_data(
+    n_samples=100,
+    longitudinal_config={
+        "n_visits": 12,        # 1 año de datos mensuales
+        "time_step_days": 30
+    },
+    n_proteins=50
+)
+# Retorna un diccionario con estructuras de datos longitudinales
+```
+
+### Caso 3: Modelado de Población Diversa
+
+**Escenario:** Generar un estudio con correlaciones demográficas complejas (ej. Edad altamente correlacionada con IMC).
+
+**Solución:** Inyectar una matriz personalizada `demographic_correlations`.
+
+```python
+import numpy as np
+
+# Matriz 3x3: [Age, BMI, BloodPressure]
+# Alta correlación (0.8) entre Edad e IMC
+corr_matrix = np.array([
+    [1.0, 0.8, 0.5],
+    [0.8, 1.0, 0.4],
+    [0.5, 0.4, 1.0]
+])
+
+data = gen.generate(
+    n_samples=500,
+    custom_demographic_columns={
+        "Age": {"dist": "normal", "loc": 60, "scale": 10},
+        "BMI": {"dist": "normal", "loc": 25, "scale": 5},
+        "BP":  {"dist": "normal", "loc": 120, "scale": 15}
+    },
+    demographic_correlations=corr_matrix
+)
+```

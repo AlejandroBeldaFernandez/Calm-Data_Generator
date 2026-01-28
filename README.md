@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI version](https://badge.fury.io/py/calm-data-generator.svg)](https://badge.fury.io/py/calm-data-generator)
 
+> 🇪🇸 **[Versión en Español](README_ES.md)**
+
 **CALM-Data-Generator** is a comprehensive Python library for synthetic data generation with advanced features for:
 - **Clinical/Medical Data** - Generate realistic patient demographics, genes, proteins
 - **Tabular Data Synthesis** - CTGAN, TVAE, Copula, CART, and more
@@ -388,6 +390,21 @@ calm-data-generator version
 | 4 | Stream Generator | Stream-based generation |
 | 5 | Privacy | Privacy transformations |
 | 6 | Scenario Injector | Feature evolution |
+
+---
+
+## Documentation Index
+
+Explore the full documentation in the `calm_data_generator/docs/` directory:
+
+| Document | Description |
+|----------|-------------|
+| **[DOCUMENTATION.md](calm_data_generator/docs/DOCUMENTATION.md)** | **Main User Guide**. Comprehensive manual covering all modules, concepts, and advanced usage. |
+| **[REAL_GENERATOR_REFERENCE.md](calm_data_generator/docs/REAL_GENERATOR_REFERENCE.md)** | **API Reference for `RealGenerator`**. Detailed parameters for all synthesis methods (`ctgan`, `lgbm`, `scvi`, etc.). |
+| **[DRIFT_INJECTOR_REFERENCE.md](calm_data_generator/docs/DRIFT_INJECTOR_REFERENCE.md)** | **API Reference for `DriftInjector`**. Guide to using `inject_drift` and specialized drift capabilities. |
+| **[STREAM_GENERATOR_REFERENCE.md](calm_data_generator/docs/STREAM_GENERATOR_REFERENCE.md)** | **API Reference for `StreamGenerator`**. Details on stream simulation and drift integration. |
+| **[CLINICAL_GENERATOR_REFERENCE.md](calm_data_generator/docs/CLINICAL_GENERATOR_REFERENCE.md)** | **API Reference for `ClinicalGenerator`**. Configuration for genes, proteins, and patient data. |
+| **[API.md](calm_data_generator/docs/API.md)** | **Technical API Index**. High-level index of classes and functions. |
 
 ---
 

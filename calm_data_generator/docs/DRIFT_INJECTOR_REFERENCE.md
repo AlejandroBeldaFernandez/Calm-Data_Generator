@@ -184,6 +184,17 @@ synthetic = gen.generate(
         }
     ]
 )
+
+# Preventing Negative Values (e.g., Salary, Age)
+# Use 'scale' (multiplication) instead of 'shift' (addition) to ensure values stay positive.
+# Shift could subtract enough to make low values negative.
+drifted = injector.inject_drift(
+    df=data,
+    columns=['salary', 'age'],
+    drift_mode='gradual',
+    drift_magnitude=0.2,       # Increases values by ~20%
+    numeric_operation='scale'  # Safe for non-negative data
+)
 ```
 
 ---
@@ -203,7 +214,20 @@ For **numeric** columns:
 | `multiply_value` | Multiply by factor | `x * drift_value` |
 | `divide_value` | Divide by factor | `x / drift_value` |
 
-For **categorical** columns: Random replacement by another existing category.
+For **categorical** columns:
+
+| Type | Description | Mechanism |
+|------|-------------|-----------|
+| `frequency` | Change frequency distribution | Resamples values favoring rare categories or inverting frequencies. |
+| `new_category` | Introduce new value | Replaces values with a new category (e.g. `NEW_CAT`) with prob `magnitude`. |
+| `typos` | Simulate typos | Introduces character-level noise (typos) into string values. |
+
+For **boolean/label** columns:
+
+| Type | Description | Mechanism |
+|------|-------------|-----------|
+| `flip` | Flip value | Inverts boolean value (`True` -> `False`, `1` -> `0`) with prob `magnitude`. |
+
 
 ---
 
