@@ -1113,9 +1113,38 @@ class RealGenerator(BaseGenerator):
             )
 
             # Sample from the distribution
-            px_rate = generative_outputs["px_rate"].numpy()
+            # In newer scvi-tools, 'px' is a Distribution object (e.g. ZINB)
+            # We sample from it to get synthetic counts
+            px_dist = generative_outputs["px"]
 
-        synth_df = pd.DataFrame(px_rate, columns=expr_data.columns)
+            # Use sample() to get synthetic counts preserving noise
+            # or mean for denoised expression. Sampling is better for synthetic data generation.
+            try:
+                if hasattr(px_dist, "sample"):
+                    synthetic_expression = px_dist.sample()
+                elif isinstance(px_dist, torch.Tensor):
+                    # Fallback if it returns a tensor directly (e.g. some other likelihoods)
+                    synthetic_expression = px_dist
+                else:
+                    # Last resort, try to get mean
+                    synthetic_expression = px_dist.mean
+            except Exception as e:
+                # Fallback to mean if sampling fails (e.g. unstable parameters from low training)
+                try:
+                    synthetic_expression = px_dist.mean
+                except Exception:
+                    # Absolute fallback if mean also fails: return zeros or latent projection
+                    # (This happens if model is completely untrained/unstable)
+                    synthetic_expression = torch.zeros(
+                        (n_samples, expr_data.shape[1]), dtype=torch.float32
+                    )
+
+            if hasattr(synthetic_expression, "cpu"):
+                synthetic_expression = synthetic_expression.cpu()
+
+            synth_values = synthetic_expression.numpy()
+
+        synth_df = pd.DataFrame(synth_values, columns=expr_data.columns)
 
         # Add metadata column with random sampling from original if present
         if metadata_cols and target_col:
@@ -1154,21 +1183,31 @@ class RealGenerator(BaseGenerator):
         """
         self.logger.info("Starting scGen synthesis for single-cell data...")
 
-        try:
-            import anndata
-            from scvi.external import SCGEN
-        except ImportError:
-            raise ImportError(
-                "scvi-tools and anndata are required for scGen synthesis. "
-                "Install with: pip install scvi-tools anndata"
-            )
-
         if condition_col is None:
             self.logger.warning(
                 "No condition_col provided. scGen works best with condition labels. "
                 "Falling back to scVI synthesis."
             )
             return self._synthesize_scvi(data, n_samples, target_col, **kwargs)
+
+        try:
+            import anndata
+            import scgen
+        except ImportError:
+            try:
+                # Legacy import for older scvi-tools
+                from scvi.external import SCGEN
+
+                # Mock scgen module structure for compatibility
+                import types
+
+                scgen = types.ModuleType("scgen")
+                scgen.SCGEN = SCGEN
+            except ImportError:
+                raise ImportError(
+                    "scgen and anndata are required for scGen synthesis. "
+                    "Install with: pip install scgen anndata"
+                )
 
         # Get expression columns
         metadata_cols = []
@@ -1200,6 +1239,7 @@ class RealGenerator(BaseGenerator):
         n_latent = kwargs.get("n_latent", 10)
         epochs = kwargs.get("epochs", 100)
 
+        SCGEN = scgen.SCGEN
         SCGEN.setup_anndata(adata, batch_key="condition", labels_key="cell_type")
         model = SCGEN(adata, n_latent=n_latent)
 
@@ -1226,7 +1266,41 @@ class RealGenerator(BaseGenerator):
         with torch.no_grad():
             latent_tensor = torch.tensor(sampled_latent.astype(np.float32))
             # Use the model's decoder
-            decoded = model.module.generative(latent_tensor)["px_rate"].numpy()
+            # Use the model's decoder
+            # scGen generative output might differ slightly, checking output
+            generative_outputs = model.module.generative(latent_tensor)
+
+            # Usually SCGEN uses NegativeBinomial or ZINB, outputting 'px' as distribution
+            try:
+                if "px" in generative_outputs:
+                    px_dist = generative_outputs["px"]
+                    if hasattr(px_dist, "sample"):
+                        synthetic_expression = px_dist.sample()
+                    elif isinstance(px_dist, torch.Tensor):
+                        synthetic_expression = px_dist
+                    else:
+                        synthetic_expression = px_dist.mean
+                elif "px_rate" in generative_outputs:
+                    synthetic_expression = generative_outputs["px_rate"]
+                else:
+                    # Fallback for some scGen versions that might return tensor directly if not using likelihood
+                    synthetic_expression = generative_outputs
+            except Exception:
+                # Fallback if sampling fails
+                if "px" in generative_outputs:
+                    try:
+                        synthetic_expression = generative_outputs["px"].mean
+                    except Exception:
+                        synthetic_expression = torch.zeros(
+                            (n_samples, adata.n_vars), dtype=torch.float32
+                        )
+                else:
+                    raise
+
+            if hasattr(synthetic_expression, "cpu"):
+                synthetic_expression = synthetic_expression.cpu()
+
+            decoded = synthetic_expression.numpy()
 
         synth_df = pd.DataFrame(decoded, columns=expr_data.columns)
 

@@ -169,3 +169,19 @@ Aunque `inject_drift` es recomendado, puedes usar métodos específicos para con
 **Otros:**
 - `inject_missing_values_drift` (Introduce NaNs)
 - `inject_conditional_drift` (Drift basado en filtros SQL-like)
+
+## Ejemplo: Drift Numérico No-Negativo
+
+Para inyectar drift en columnas numéricas que deben permanecer positivas (ej. precios, edad), usa la operación `scale`. Esto multiplica los valores en lugar de sumar, preservando el signo (si el factor es positivo).
+
+```python
+# Evitar valores negativos (ej. Salario, Edad)
+# Usa 'scale' (multiplicación) en lugar de 'shift' (suma).
+drifted = injector.inject_drift(
+    df=data,
+    columns=['salary', 'age'],
+    drift_mode='gradual',
+    drift_magnitude=0.2,       # Aumenta valores un ~20%
+    numeric_operation='scale'  # Seguro para datos no negativos
+)
+```
