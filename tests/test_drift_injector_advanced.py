@@ -137,5 +137,163 @@ class TestDriftInjectorCategorical(unittest.TestCase):
         pd.testing.assert_series_equal(non_a_original, non_a_drifted)
 
 
+class TestUnifiedInjectDrift(unittest.TestCase):
+    """Tests for the unified inject_drift() method."""
+
+    def setUp(self):
+        """Create sample data with mixed column types."""
+        np.random.seed(42)
+        n = 200
+        self.df = pd.DataFrame(
+            {
+                # Numeric columns
+                "age": np.random.randint(18, 80, n),
+                "income": np.random.normal(50000, 15000, n),
+                # Categorical columns
+                "gender": np.random.choice(["M", "F", "Other"], n),
+                "city": np.random.choice(["Madrid", "Barcelona", "Valencia"], n),
+                # Boolean columns
+                "is_active": np.random.choice([True, False], n),
+                "flag": np.random.choice([0, 1], n),
+            }
+        )
+        self.injector = DriftInjector(auto_report=False, random_state=42)
+
+    def test_unified_drift_abrupt(self):
+        """Test unified drift with abrupt mode."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["age", "income"],
+            drift_mode="abrupt",
+            drift_magnitude=0.3,
+            start_index=100,
+        )
+
+        # Check that drift was applied to second half
+        first_half_age = drifted_df.iloc[:100]["age"]
+        second_half_age = drifted_df.iloc[100:]["age"]
+
+        # First half should be unchanged
+        pd.testing.assert_series_equal(
+            first_half_age, self.df.iloc[:100]["age"], check_names=False
+        )
+
+        # Second half should be different (on average)
+        self.assertNotEqual(second_half_age.mean(), self.df.iloc[100:]["age"].mean())
+
+    def test_unified_drift_gradual(self):
+        """Test unified drift with gradual mode."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["income"],
+            drift_mode="gradual",
+            drift_magnitude=0.5,
+            center=100,
+            width=50,
+            profile="sigmoid",
+        )
+
+        # Values should change gradually around the center
+        self.assertEqual(len(drifted_df), len(self.df))
+        # Income values should be modified
+        self.assertFalse(self.df["income"].equals(drifted_df["income"]))
+
+    def test_unified_drift_incremental(self):
+        """Test unified drift with incremental mode."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["age"],
+            drift_mode="incremental",
+            drift_magnitude=0.2,
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+        self.assertFalse(self.df["age"].equals(drifted_df["age"]))
+
+    def test_unified_drift_recurrent(self):
+        """Test unified drift with recurrent mode."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["income"],
+            drift_mode="recurrent",
+            drift_magnitude=0.4,
+            repeats=3,
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+        self.assertFalse(self.df["income"].equals(drifted_df["income"]))
+
+    def test_unified_drift_mixed_column_types(self):
+        """Test that unified drift handles all column types correctly."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["age", "gender", "is_active"],  # Numeric, categorical, boolean
+            drift_mode="abrupt",
+            drift_magnitude=0.3,
+            start_index=100,
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+        # All three columns should potentially be affected
+        self.assertFalse(self.df["age"].iloc[100:].equals(drifted_df["age"].iloc[100:]))
+
+    def test_unified_drift_auto_detects_types(self):
+        """Test that column types are correctly auto-detected."""
+        # This should work without specifying operations
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["age", "income", "gender", "city", "is_active", "flag"],
+            drift_mode="abrupt",
+            drift_magnitude=0.2,
+            start_index=150,
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+
+    def test_unified_drift_custom_operations(self):
+        """Test that custom operations per column type work."""
+        drifted_df = self.injector.inject_drift(
+            df=self.df,
+            columns=["age", "gender"],
+            drift_mode="abrupt",
+            drift_magnitude=0.3,
+            numeric_operation="scale",
+            categorical_operation="frequency",
+            start_index=100,
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+
+    def test_unified_drift_invalid_mode_raises_error(self):
+        """Test that invalid drift_mode raises ValueError."""
+        with self.assertRaises(ValueError):
+            self.injector.inject_drift(
+                df=self.df,
+                columns=["age"],
+                drift_mode="invalid_mode",
+                drift_magnitude=0.3,
+            )
+
+    def test_unified_drift_missing_column_warning(self):
+        """Test that missing columns generate warnings but don't fail."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            drifted_df = self.injector.inject_drift(
+                df=self.df,
+                columns=["age", "nonexistent_column"],
+                drift_mode="abrupt",
+                drift_magnitude=0.3,
+            )
+
+            # Should have generated a warning
+            self.assertTrue(
+                any("nonexistent_column" in str(warning.message) for warning in w)
+            )
+            # But should still return valid data
+            self.assertEqual(len(drifted_df), len(self.df))
+
+
 if __name__ == "__main__":
     unittest.main()

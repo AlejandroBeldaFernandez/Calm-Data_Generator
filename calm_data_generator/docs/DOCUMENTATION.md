@@ -217,6 +217,36 @@ synthetic = gen.generate(
 )
 ```
 
+#### Single-Cell / Gene Expression Methods
+
+```python
+# scVI - Variational Autoencoder for single-cell data
+synthetic = gen.generate(
+    expression_df, 1000,
+    method='scvi',
+    target_col='cell_type',  # Optional metadata column
+    model_params={
+        'epochs': 100,
+        'n_latent': 10,   # Latent space dimensions
+        'n_layers': 1     # Encoder/decoder depth
+    }
+)
+
+# scGen - Perturbation prediction and batch effect removal
+synthetic = gen.generate(
+    expression_df, 1000,
+    method='scgen',
+    target_col='cell_type',
+    model_params={
+        'epochs': 100,
+        'n_latent': 10,
+        'condition_col': 'treatment'  # Required for scGen
+    }
+)
+```
+
+> **Note:** Single-cell methods expect data where rows are cells/samples and columns are genes/features. Requires `scvi-tools` and `anndata` packages.
+
 ### Constraints
 
 Apply post-hoc filtering with business rules:
@@ -364,13 +394,31 @@ synthetic = gen.generate(
 
 Inject controlled drift into datasets for ML testing.
 
-### Gradual Feature Drift
+### Unified Drift Injection (Recommended)
+
+Use `inject_drift()` to apply drift across multiple column types automatically.
 
 ```python
 from calm_data_generator.generators.drift import DriftInjector
 
 injector = DriftInjector(time_col='timestamp')
 
+# Gradual drift on mixed column types
+drifted = injector.inject_drift(
+    df=data,
+    columns=['income', 'age', 'status', 'group'],
+    drift_mode='gradual',
+    drift_magnitude=0.5,
+    center=500,
+    width=200
+)
+```
+
+### Specialized Methods
+You can still use specialized methods for granular control:
+
+**Gradual Feature Drift:**
+```python
 # Gradual drift with smooth transition window
 drifted = injector.inject_feature_drift_gradual(
     df=data,
@@ -378,9 +426,9 @@ drifted = injector.inject_feature_drift_gradual(
     drift_magnitude=0.5,
     drift_type='shift',          # gaussian_noise, shift, scale
     start_index=50,
-    center=25,                   # Center of transition
-    width=20,                    # Width of transition
-    profile='sigmoid',           # sigmoid, linear, cosine
+    center=25,
+    width=20,
+    profile='sigmoid',
     auto_report=False
 )
 ```

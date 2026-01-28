@@ -131,6 +131,8 @@ class RealGenerator(BaseGenerator):
             "timegan",
             "dgan",
             "copula_temporal",
+            "scvi",
+            "scgen",
         ]
         if method not in valid_methods:
             raise ValueError(
@@ -1017,6 +1019,232 @@ class RealGenerator(BaseGenerator):
             synth[col_to_condition] = new_values[:n_synth_samples]
         return synth
 
+    def _synthesize_scvi(
+        self,
+        data: pd.DataFrame,
+        n_samples: int,
+        target_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Synthesizes single-cell-like data using scVI (Variational Autoencoder).
+
+        This method treats the DataFrame as a gene expression matrix where:
+        - Rows are cells/samples
+        - Columns are genes/features
+
+        Args:
+            data: DataFrame with numeric expression values
+            n_samples: Number of synthetic samples to generate
+            target_col: Optional column to preserve as metadata (will be excluded from training)
+            **kwargs: Additional parameters passed to scVI model (n_latent, n_layers, etc.)
+
+        Returns:
+            DataFrame with synthetic samples
+        """
+        self.logger.info("Starting scVI synthesis for single-cell data...")
+
+        try:
+            import anndata
+            import scvi
+        except ImportError:
+            raise ImportError(
+                "scvi-tools and anndata are required for scVI synthesis. "
+                "Install with: pip install scvi-tools anndata"
+            )
+
+        # Separate metadata from expression data
+        metadata_cols = []
+        if target_col and target_col in data.columns:
+            metadata_cols.append(target_col)
+
+        # Get expression columns (numeric only, excluding metadata)
+        expr_cols = [c for c in data.columns if c not in metadata_cols]
+        expr_data = data[expr_cols].select_dtypes(include=[np.number])
+
+        if expr_data.empty:
+            raise ValueError("No numeric columns found for scVI synthesis.")
+
+        # Create AnnData object
+        adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
+        adata.obs_names = [f"cell_{i}" for i in range(len(data))]
+        adata.var_names = list(expr_data.columns)
+
+        # Add metadata to obs if present
+        if metadata_cols:
+            for col in metadata_cols:
+                adata.obs[col] = data[col].values
+
+        # Setup and train scVI model
+        n_latent = kwargs.get("n_latent", 10)
+        n_layers = kwargs.get("n_layers", 1)
+        epochs = kwargs.get("epochs", 100)
+
+        scvi.model.SCVI.setup_anndata(adata)
+        model = scvi.model.SCVI(
+            adata,
+            n_latent=n_latent,
+            n_layers=n_layers,
+        )
+
+        self.logger.info(f"Training scVI model with {epochs} epochs...")
+        model.train(max_epochs=epochs, train_size=0.9, early_stopping=True)
+
+        # Generate synthetic samples by sampling from prior
+        self.logger.info(f"Generating {n_samples} synthetic samples...")
+
+        # Sample latent codes from prior (standard normal)
+        latent_samples = np.random.randn(n_samples, n_latent).astype(np.float32)
+
+        # Decode latent codes to get synthetic expression
+        # We'll use the generative outputs
+        import torch
+
+        with torch.no_grad():
+            latent_tensor = torch.tensor(latent_samples)
+            # Get library size from training data
+            library_size = torch.tensor([[adata.X.sum(axis=1).mean()]] * n_samples)
+
+            # Generate from decoder
+            generative_outputs = model.module.generative(
+                z=latent_tensor,
+                library=library_size,
+                batch_index=torch.zeros(n_samples, 1, dtype=torch.long),
+            )
+
+            # Sample from the distribution
+            px_rate = generative_outputs["px_rate"].numpy()
+
+        synth_df = pd.DataFrame(px_rate, columns=expr_data.columns)
+
+        # Add metadata column with random sampling from original if present
+        if metadata_cols and target_col:
+            synth_df[target_col] = np.random.choice(
+                data[target_col].values, size=n_samples, replace=True
+            )
+
+        self.logger.info(f"scVI synthesis complete. Generated {len(synth_df)} samples.")
+        return synth_df
+
+    def _synthesize_scgen(
+        self,
+        data: pd.DataFrame,
+        n_samples: int,
+        target_col: Optional[str] = None,
+        condition_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Synthesizes single-cell-like data using scGen (perturbation prediction).
+
+        scGen is particularly useful for:
+        - Generating cells under different conditions
+        - Batch effect removal
+        - Perturbation response prediction
+
+        Args:
+            data: DataFrame with numeric expression values
+            n_samples: Number of synthetic samples to generate
+            target_col: Column identifying cell types/labels
+            condition_col: Column identifying conditions/batches (required for scGen)
+            **kwargs: Additional parameters (n_latent, epochs, etc.)
+
+        Returns:
+            DataFrame with synthetic samples
+        """
+        self.logger.info("Starting scGen synthesis for single-cell data...")
+
+        try:
+            import anndata
+            from scvi.external import SCGEN
+        except ImportError:
+            raise ImportError(
+                "scvi-tools and anndata are required for scGen synthesis. "
+                "Install with: pip install scvi-tools anndata"
+            )
+
+        if condition_col is None:
+            self.logger.warning(
+                "No condition_col provided. scGen works best with condition labels. "
+                "Falling back to scVI synthesis."
+            )
+            return self._synthesize_scvi(data, n_samples, target_col, **kwargs)
+
+        # Get expression columns
+        metadata_cols = []
+        if target_col and target_col in data.columns:
+            metadata_cols.append(target_col)
+        if condition_col and condition_col in data.columns:
+            metadata_cols.append(condition_col)
+
+        expr_cols = [c for c in data.columns if c not in metadata_cols]
+        expr_data = data[expr_cols].select_dtypes(include=[np.number])
+
+        if expr_data.empty:
+            raise ValueError("No numeric columns found for scGen synthesis.")
+
+        # Create AnnData object
+        adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
+        adata.obs_names = [f"cell_{i}" for i in range(len(data))]
+        adata.var_names = list(expr_data.columns)
+
+        # Add metadata
+        if target_col and target_col in data.columns:
+            adata.obs["cell_type"] = data[target_col].astype(str).values
+        else:
+            adata.obs["cell_type"] = "unknown"
+
+        adata.obs["condition"] = data[condition_col].astype(str).values
+
+        # Setup and train scGen
+        n_latent = kwargs.get("n_latent", 10)
+        epochs = kwargs.get("epochs", 100)
+
+        SCGEN.setup_anndata(adata, batch_key="condition", labels_key="cell_type")
+        model = SCGEN(adata, n_latent=n_latent)
+
+        self.logger.info(f"Training scGen model with {epochs} epochs...")
+        model.train(max_epochs=epochs, early_stopping=True)
+
+        # Generate synthetic samples
+        self.logger.info(f"Generating {n_samples} synthetic samples...")
+
+        # Get latent representation and sample
+        latent = model.get_latent_representation()
+
+        # Sample random latent codes (mixing existing ones)
+        indices = np.random.choice(len(latent), size=n_samples, replace=True)
+        sampled_latent = latent[indices]
+
+        # Add noise for diversity
+        noise_scale = kwargs.get("noise_scale", 0.1)
+        sampled_latent += np.random.randn(*sampled_latent.shape) * noise_scale
+
+        # Decode
+        import torch
+
+        with torch.no_grad():
+            latent_tensor = torch.tensor(sampled_latent.astype(np.float32))
+            # Use the model's decoder
+            decoded = model.module.generative(latent_tensor)["px_rate"].numpy()
+
+        synth_df = pd.DataFrame(decoded, columns=expr_data.columns)
+
+        # Add metadata with random sampling
+        if target_col and target_col in data.columns:
+            synth_df[target_col] = np.random.choice(
+                data[target_col].values, size=n_samples, replace=True
+            )
+        if condition_col:
+            synth_df[condition_col] = np.random.choice(
+                data[condition_col].values, size=n_samples, replace=True
+            )
+
+        self.logger.info(
+            f"scGen synthesis complete. Generated {len(synth_df)} samples."
+        )
+        return synth_df
+
     def _synthesize_fcs_generic(
         self,
         data: pd.DataFrame,
@@ -1658,6 +1886,14 @@ class RealGenerator(BaseGenerator):
                 )
             elif method == "copula_temporal":
                 synth = self._synthesize_copula_temporal(
+                    data, n_samples, target_col=target_col, **(model_params or {})
+                )
+            elif method == "scvi":
+                synth = self._synthesize_scvi(
+                    data, n_samples, target_col=target_col, **(model_params or {})
+                )
+            elif method == "scgen":
+                synth = self._synthesize_scgen(
                     data, n_samples, target_col=target_col, **(model_params or {})
                 )
 

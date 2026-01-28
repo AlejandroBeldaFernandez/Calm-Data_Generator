@@ -6,6 +6,47 @@ A module to inject various types of drift (data shift) into datasets.
 
 ---
 
+## Quick Start: Drift from `generate()`
+
+You can inject drift directly when generating synthetic data using `RealGenerator.generate()`:
+
+```python
+from calm_data_generator.generators.tabular import RealGenerator
+
+gen = RealGenerator()
+
+synthetic = gen.generate(
+    data=real_data,
+    n_samples=1000,
+    method='ctgan',
+    drift_injection_config=[
+        {
+            "method": "inject_feature_drift_gradual",
+            "params": {
+                "feature_cols": ["age", "income"],
+                "drift_type": "shift",
+                "drift_magnitude": 0.3,
+                "center": 500,
+                "width": 200
+            }
+        },
+        {
+            "method": "inject_label_drift",
+            "params": {
+                "target_cols": ["label"],
+                "drift_magnitude": 0.1
+            }
+        }
+    ]
+)
+```
+
+Each item in `drift_injection_config` requires:
+- `method`: Name of the DriftInjector method (see below)
+- `params`: Dictionary of parameters for that method
+
+---
+
 ## Initialization
 
 ```python
@@ -35,6 +76,115 @@ injector = DriftInjector(
 | `target_column` | str | `None` | Default target column |
 | `auto_report` | bool | `True` | Automatically generate a quality report |
 | `minimal_report` | bool | `False` | Simplified reports |
+
+---
+
+## Unified Drift Injection: `inject_drift()`
+
+**NEW!** A single method that auto-detects column types and applies appropriate drift operations.
+
+```python
+drifted = injector.inject_drift(
+    df=data,
+    columns=['age', 'income', 'gender', 'is_active'],  # Any column types
+    drift_mode='gradual',          # 'abrupt', 'gradual', 'incremental', 'recurrent'
+    drift_magnitude=0.3,
+    center=500,                    # For gradual mode
+    width=200,
+)
+```
+
+### Auto-Detected Column Types
+
+| Column Type | Detection | Default Operation |
+|-------------|-----------|-------------------|
+| **Numeric** | `int`, `float` dtypes | `shift` |
+| **Categorical** | `object`, `category` dtypes | `frequency` |
+| **Boolean** | `bool` dtype or 2 unique values | `flip` |
+
+### Drift Modes
+
+| Mode | Description |
+|------|-------------|
+| `abrupt` | Immediate change from `start_index` |
+| `gradual` | Smooth transition using window function (sigmoid, linear, cosine) |
+| `incremental` | Constant smooth drift over entire range |
+| `recurrent` | Multiple drift windows (controlled by `repeats`) |
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `columns` | List[str] | - | Columns to apply drift (any type) |
+| `drift_magnitude` | float | `0.3` | Intensity of drift (0.0 to 1.0) |
+| `drift_mode` | str | `"abrupt"` | Type of drift pattern |
+| `numeric_operation` | str | `"shift"` | Operation for numeric columns |
+| `categorical_operation` | str | `"frequency"` | Operation for categorical columns |
+| `boolean_operation` | str | `"flip"` | Operation for boolean columns |
+| `center` | int | auto | Center of transition window (gradual) |
+| `width` | int | auto | Width of transition window (gradual) |
+| `profile` | str | `"sigmoid"` | Transition profile: `sigmoid`, `linear`, `cosine` |
+| `repeats` | int | `3` | Number of windows (recurrent) |
+| `start_index` | int | `None` | Row index where drift starts |
+| `conditions` | List[Dict] | `None` | Conditional drift filters |
+
+### Available Operations
+
+**Numeric**: `shift`, `scale`, `gaussian_noise`, `uniform_noise`, `add_value`, `subtract_value`, `multiply_value`
+
+**Categorical**: `frequency`, `new_category`, `typos`
+
+**Boolean**: `flip`
+
+### Examples
+
+```python
+# Abrupt drift on mixed columns
+drifted = injector.inject_drift(
+    df=data,
+    columns=['age', 'income', 'category', 'is_active'],
+    drift_mode='abrupt',
+    drift_magnitude=0.3,
+    start_index=500,
+)
+
+# Gradual drift with custom operations
+drifted = injector.inject_drift(
+    df=data,
+    columns=['temperature', 'humidity', 'sensor_status'],
+    drift_mode='gradual',
+    drift_magnitude=0.5,
+    numeric_operation='scale',
+    boolean_operation='flip',
+    center=1000,
+    width=300,
+)
+
+# Recurrent drift (IoT sensor simulation)
+drifted = injector.inject_drift(
+    df=data,
+    columns=['voltage', 'current'],
+    drift_mode='recurrent',
+    drift_magnitude=0.4,
+    repeats=5,
+)
+
+# Use from generate() with drift_injection_config
+synthetic = gen.generate(
+    data=real_data,
+    n_samples=1000,
+    drift_injection_config=[
+        {
+            "method": "inject_drift",
+            "params": {
+                "columns": ["age", "income", "status"],
+                "drift_mode": "gradual",
+                "drift_magnitude": 0.3,
+            }
+        }
+    ]
+)
+```
 
 ---
 

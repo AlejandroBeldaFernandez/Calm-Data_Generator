@@ -80,8 +80,12 @@ pip install .
 
 ### Troubleshooting
 
-If you encounter errors installing `river` (C compilation errors):
+**Zsh shell (macOS/Linux):** If brackets cause errors, use quotes:
+```bash
+pip install "calm-data-generator[stream]"
+```
 
+**River compilation errors (Linux/macOS):**
 ```bash
 # Ubuntu/Debian
 sudo apt install build-essential python3-dev
@@ -89,7 +93,26 @@ sudo apt install build-essential python3-dev
 # macOS
 xcode-select --install
 
-# Then retry installation
+# Then retry
+pip install calm-data-generator
+```
+
+**Windows users:** Install Visual Studio Build Tools first:
+1. Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+2. Install "Desktop development with C++"
+3. Then retry installation
+
+**PyTorch CPU-only (no GPU):**
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install calm-data-generator
+```
+
+**Dependency conflicts:** Use a clean virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or: venv\Scripts\activate  # Windows
 pip install calm-data-generator
 ```
 
@@ -126,6 +149,35 @@ synthetic = gen.generate(
 print(f"Generated {len(synthetic)} samples")
 ```
 
+### GPU Acceleration
+
+**Methods with GPU support:**
+
+| Method | GPU Support | Parameter |
+|--------|-------------|-----------|
+| `ctgan`, `tvae`, `copula` | ✅ CUDA/MPS | `enable_gpu=True` |
+| `par` (time series) | ✅ CUDA/MPS | `enable_gpu=True` |
+| `dgan` (DoppelGANger) | ✅ PyTorch | Auto-detected |
+| `diffusion` | ✅ PyTorch | Auto-detected |
+| `smote`, `adasyn`, `cart`, `rf`, `lgbm`, `gmm`, `dp`, `datasynth` | ❌ CPU only | - |
+
+```python
+synthetic = gen.generate(
+    data=data,
+    n_samples=1000,
+    method='ctgan',
+    model_params={
+        'epochs': 300,
+        'enable_gpu': True  # Explicit GPU - auto-detected by default
+    }
+)
+```
+
+> **Note:** Requires PyTorch with CUDA support:
+> ```bash
+> pip install torch --index-url https://download.pytorch.org/whl/cu118
+> ```
+
 ### Generate Clinical Data
 
 ```python
@@ -148,21 +200,92 @@ proteins = result['proteins']
 
 ### Inject Drift for ML Testing
 
+**Option 1: Directly from `generate()` (recommended)**
+
+```python
+from calm_data_generator.generators.tabular import RealGenerator
+
+gen = RealGenerator()
+
+# Generate synthetic data WITH drift in one call
+synthetic = gen.generate(
+    data=real_data,
+    n_samples=1000,
+    method='ctgan',
+    target_col='label',
+    drift_injection_config=[
+        {
+            "method": "inject_drift",
+            "params": {
+                "columns": ["age", "income", "label"],
+                "drift_mode": "gradual", # Auto-detects column types
+                "drift_magnitude": 0.3,
+                "center": 500,
+                "width": 200
+            }
+        }
+    ]
+)
+```
+
+**Option 2: Standalone DriftInjector**
+
 ```python
 from calm_data_generator.generators.drift import DriftInjector
 
 injector = DriftInjector()
 
-# Inject gradual drift to test model robustness
-drifted_data = injector.inject_feature_drift_gradual(
+# Unified drift injection (auto-detects types)
+drifted_data = injector.inject_drift(
     df=data,
-    feature_cols=['feature1', 'feature2'],
+    columns=['feature1', 'feature2', 'status'],
+    drift_mode='gradual',
     drift_magnitude=0.5,
-    drift_type='shift',  # Options: gaussian_noise, shift, scale
-    start_index=50,
-    auto_report=False
+    # Optional specific configs
+    numeric_operation='shift',
+    categorical_operation='frequency',
+    boolean_operation='flip'
 )
 ```
+```
+
+**Available drift methods:** `inject_feature_drift`, `inject_feature_drift_gradual`, `inject_feature_drift_incremental`, `inject_feature_drift_recurrent`, `inject_label_drift`, `inject_concept_drift`, `inject_categorical_frequency_drift`, and more. See [DRIFT_INJECTOR_REFERENCE.md](calm_data_generator/docs/DRIFT_INJECTOR_REFERENCE.md).
+
+### Single-Cell / Gene Expression Data
+
+Generate synthetic single-cell RNA-seq-like data using specialized VAE models:
+
+```python
+from calm_data_generator.generators.tabular import RealGenerator
+
+gen = RealGenerator()
+
+# scVI: Generate new cells from scratch
+synthetic = gen.generate(
+    data=expression_df,      # Rows=cells, Columns=genes
+    n_samples=1000,
+    method='scvi',
+    target_col='cell_type',
+    model_params={'epochs': 100, 'n_latent': 10}
+)
+
+# scGen: Generate cells under different conditions
+synthetic = gen.generate(
+    data=expression_df,
+    n_samples=1000,
+    method='scgen',
+    target_col='cell_type',
+    model_params={
+        'epochs': 100,
+        'condition_col': 'treatment'  # Required for scGen
+    }
+)
+```
+
+| Method | Use Case |
+|--------|----------|
+| `scvi` | Generate new cells from learned distribution |
+| `scgen` | Perturbation prediction, batch effect removal |
 
 ### Stream Data Generation
 

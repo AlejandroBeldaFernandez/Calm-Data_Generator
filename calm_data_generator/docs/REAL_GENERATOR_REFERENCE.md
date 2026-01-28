@@ -269,6 +269,86 @@ model_params={"diffusion_steps": 100}
 | `dgan` | DoppelGANger | `epochs`, `seq_len`, `sequence_key` | ydata-synthetic |
 | `copula_temporal` | Temporal Copula | `sequence_key`, `time_col` | SDV |
 
+### Single-Cell / High-Dimensional
+
+| Method | Description | Key Parameters | Dependencies |
+|--------|-------------|----------------|--------------|
+| `scvi` | scVI Variational Autoencoder | `epochs`, `n_latent`, `n_layers` | scvi-tools |
+| `scgen` | scGen (perturbation prediction) | `epochs`, `n_latent`, `condition_col` | scvi-tools |
+
+---
+
+## Method Selection Guide
+
+Choose the right method based on your data and requirements:
+
+| Use Case | Recommended Methods | Why |
+|----------|---------------------|-----|
+| **General tabular data** | `ctgan`, `tvae` | Best balance of quality and speed |
+| **Small datasets (< 1000 rows)** | `cart`, `rf`, `gmm` | Don't overfit, fast |
+| **Large datasets (> 100k rows)** | `lgbm`, `ctgan` | Scalable |
+| **Preserve correlations** | `ctgan`, `copulagan`, `datasynth` | Capture feature relationships |
+| **Class imbalance** | `smote`, `adasyn` | Designed for oversampling |
+| **Privacy-sensitive** | `dp` | Formal privacy guarantees |
+| **Time series / Sequential** | `par`, `timegan`, `dgan` | Temporal dependencies |
+| **Single-cell / Gene expression** | `scvi`, `scgen` | Biological structure aware |
+| **Fast prototyping** | `resample`, `cart` | Instant results |
+| **Numeric-only data** | `gmm`, `diffusion` | Simple distributions |
+
+### Single-Cell Methods Details
+
+#### scVI (Single-cell Variational Inference)
+
+Best for generating new single-cell-like observations from scratch.
+
+```python
+synthetic = gen.generate(
+    data=expression_df,      # Rows=cells, Columns=genes
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type",  # Optional metadata column
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,      # Latent space dimensions
+        "n_layers": 1,       # Encoder/decoder depth
+    }
+)
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `epochs` | 100 | Training epochs |
+| `n_latent` | 10 | Latent space dimensionality |
+| `n_layers` | 1 | Number of hidden layers |
+
+#### scGen (Perturbation Prediction)
+
+Best for generating cells under different conditions or removing batch effects.
+
+```python
+synthetic = gen.generate(
+    data=expression_df,
+    n_samples=1000,
+    method="scgen",
+    target_col="cell_type",
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,
+        "condition_col": "treatment",  # Required: condition/batch column
+        "noise_scale": 0.1,            # Diversity noise
+    }
+)
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `epochs` | 100 | Training epochs |
+| `n_latent` | 10 | Latent space dimensionality |
+| `condition_col` | None | Column with condition/batch labels (required) |
+| `noise_scale` | 0.1 | Noise for sample diversity |
+
+> **Note:** If `condition_col` is not provided, scGen automatically falls back to scVI.
+
 ---
 
 ## Advanced Features

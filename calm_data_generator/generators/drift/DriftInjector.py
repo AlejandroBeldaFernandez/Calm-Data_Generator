@@ -2689,3 +2689,467 @@ class DriftInjector:
             self._generate_reports(df, df_drift, drift_config, time_col=self.time_col)
 
         return df_drift
+
+    # -------------------------
+    # Unified Drift Injection API
+    # -------------------------
+    def inject_drift(
+        self,
+        df: pd.DataFrame,
+        columns: List[str],
+        drift_magnitude: float = 0.3,
+        drift_mode: str = "abrupt",
+        # Operations per column type (auto-detect if None)
+        numeric_operation: Optional[str] = None,
+        categorical_operation: Optional[str] = None,
+        boolean_operation: Optional[str] = None,
+        # Gradual/incremental mode parameters
+        center: Optional[int] = None,
+        width: Optional[int] = None,
+        profile: str = "sigmoid",
+        speed_k: float = 1.0,
+        direction: str = "up",
+        # Recurrent mode parameters
+        repeats: int = 3,
+        windows: Optional[List[Tuple[int, int]]] = None,
+        # Row selection parameters
+        start_index: Optional[int] = None,
+        end_index: Optional[int] = None,
+        block_index: Optional[int] = None,
+        block_column: Optional[str] = None,
+        blocks: Optional[Sequence] = None,
+        time_col: Optional[str] = None,
+        time_start: Optional[str] = None,
+        time_end: Optional[str] = None,
+        time_ranges: Optional[Sequence[Tuple[str, str]]] = None,
+        specific_times: Optional[Sequence[str]] = None,
+        # Conditional drift
+        conditions: Optional[List[Dict]] = None,
+        # Output
+        output_dir: Optional[str] = None,
+        generator_name: Optional[str] = None,
+        auto_report: Optional[bool] = None,
+        resample_rule: Optional[Union[str, int]] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Unified drift injection method that auto-detects column types and applies
+        appropriate drift operations.
+
+        Args:
+            df: Input DataFrame.
+            columns: List of columns to apply drift to (any type).
+            drift_magnitude: Intensity of the drift (0.0 to 1.0).
+            drift_mode: Type of drift pattern:
+                - 'abrupt': Immediate change from start_index
+                - 'gradual': Smooth transition using window function
+                - 'incremental': Constant smooth drift over entire range
+                - 'recurrent': Multiple drift windows
+            numeric_operation: Operation for numeric columns. Default: 'shift'.
+                Options: 'shift', 'scale', 'gaussian_noise', 'uniform_noise',
+                         'add_value', 'subtract_value', 'multiply_value'
+            categorical_operation: Operation for categorical columns. Default: 'frequency'.
+                Options: 'frequency', 'typos', 'new_category'
+            boolean_operation: Operation for boolean columns. Default: 'flip'.
+                Options: 'flip'
+            center: Center of transition window (for gradual mode).
+            width: Width of transition window (for gradual mode).
+            profile: Transition profile: 'sigmoid', 'linear', 'cosine'.
+            speed_k: Speed factor for transition.
+            direction: 'up' (0->1) or 'down' (1->0) for transition.
+            repeats: Number of drift windows (for recurrent mode).
+            windows: Explicit windows as [(start, end), ...] (for recurrent mode).
+            start_index, end_index: Row index range for drift.
+            block_index, block_column, blocks: Block-based selection.
+            time_col, time_start, time_end, time_ranges, specific_times: Time-based selection.
+            conditions: List of conditions for conditional drift.
+            output_dir: Output directory for reports.
+            generator_name: Name for generated files.
+            auto_report: Override instance auto_report setting.
+
+        Returns:
+            DataFrame with drift applied.
+
+        Example:
+            >>> drifted = injector.inject_drift(
+            ...     df=data,
+            ...     columns=['age', 'income', 'is_active', 'gender'],
+            ...     drift_mode='gradual',
+            ...     drift_magnitude=0.3,
+            ...     center=500,
+            ...     width=100,
+            ... )
+        """
+        valid_modes = {"abrupt", "gradual", "incremental", "recurrent"}
+        if drift_mode not in valid_modes:
+            raise ValueError(f"Invalid drift_mode '{drift_mode}'. Valid: {valid_modes}")
+
+        # Auto-detect column types
+        numeric_cols = []
+        categorical_cols = []
+        boolean_cols = []
+
+        for col in columns:
+            if col not in df.columns:
+                warnings.warn(f"Column '{col}' not found in DataFrame, skipping.")
+                continue
+
+            dtype = df[col].dtype
+            n_unique = df[col].nunique()
+
+            # Boolean detection: bool dtype or exactly 2 unique values
+            if pd.api.types.is_bool_dtype(dtype) or (
+                n_unique == 2 and dtype in [np.int64, np.int32, object]
+            ):
+                boolean_cols.append(col)
+            # Categorical detection: object or category dtype
+            elif pd.api.types.is_object_dtype(dtype) or isinstance(
+                dtype, pd.CategoricalDtype
+            ):
+                categorical_cols.append(col)
+            # Numeric detection: numeric dtypes
+            elif pd.api.types.is_numeric_dtype(dtype):
+                numeric_cols.append(col)
+            else:
+                warnings.warn(
+                    f"Column '{col}' has unknown dtype {dtype}, treating as categorical."
+                )
+                categorical_cols.append(col)
+
+        # Set default operations if not specified
+        numeric_op = numeric_operation or "shift"
+        categorical_op = categorical_operation or "frequency"
+        boolean_op = boolean_operation or "flip"
+
+        df_drift = df.copy()
+        should_report = auto_report if auto_report is not None else self.auto_report
+        original_auto_report = self.auto_report
+        self.auto_report = (
+            False  # Disable per-method reports, we'll generate one at the end
+        )
+
+        try:
+            # Apply drift to numeric columns
+            if numeric_cols:
+                df_drift = self._apply_drift_by_mode(
+                    df=df_drift,
+                    feature_cols=numeric_cols,
+                    drift_type=numeric_op,
+                    drift_magnitude=drift_magnitude,
+                    drift_mode=drift_mode,
+                    center=center,
+                    width=width,
+                    profile=profile,
+                    speed_k=speed_k,
+                    direction=direction,
+                    repeats=repeats,
+                    windows=windows,
+                    start_index=start_index,
+                    end_index=end_index,
+                    block_index=block_index,
+                    block_column=block_column,
+                    blocks=blocks,
+                    time_col=time_col,
+                    time_start=time_start,
+                    time_end=time_end,
+                    time_ranges=time_ranges,
+                    specific_times=specific_times,
+                    conditions=conditions,
+                    **kwargs,
+                )
+
+            # Apply drift to categorical columns
+            if categorical_cols:
+                if categorical_op == "frequency":
+                    for col in categorical_cols:
+                        df_drift = self.inject_categorical_frequency_drift(
+                            df=df_drift,
+                            feature_cols=[col],
+                            drift_magnitude=drift_magnitude,
+                            start_index=start_index,
+                            block_index=block_index,
+                            block_column=block_column,
+                            time_col=time_col,
+                            **kwargs,
+                        )
+                elif categorical_op == "new_category":
+                    for col in categorical_cols:
+                        new_cat = kwargs.get("new_category", f"NEW_{col.upper()}")
+                        df_drift = self.inject_new_category_drift(
+                            df=df_drift,
+                            feature_col=col,
+                            new_category=new_cat,
+                            probability=drift_magnitude,
+                            start_index=start_index,
+                            block_column=block_column,
+                            center=center,
+                            width=width,
+                            profile=profile,
+                            **kwargs,
+                        )
+                elif categorical_op == "typos":
+                    # Use the apply_categorical_with_weights for typo-like changes
+                    rows = self._get_target_rows(
+                        df_drift,
+                        start_index=start_index,
+                        end_index=end_index,
+                        block_index=block_index,
+                        block_column=block_column,
+                        time_col=time_col,
+                        time_start=time_start,
+                        time_end=time_end,
+                        **kwargs,
+                    )
+                    w = np.ones(len(rows), dtype=float)
+                    for col in categorical_cols:
+                        s = df_drift.loc[rows, col]
+                        s2 = self._apply_categorical_with_weights(
+                            s, w, drift_magnitude, self.rng
+                        )
+                        df_drift.loc[rows, col] = s2
+
+            # Apply drift to boolean columns
+            if boolean_cols:
+                if boolean_op == "flip":
+                    df_drift = self._apply_drift_by_mode(
+                        df=df_drift,
+                        feature_cols=boolean_cols,
+                        drift_type="flip",
+                        drift_magnitude=drift_magnitude,
+                        drift_mode=drift_mode,
+                        center=center,
+                        width=width,
+                        profile=profile,
+                        speed_k=speed_k,
+                        direction=direction,
+                        repeats=repeats,
+                        windows=windows,
+                        start_index=start_index,
+                        end_index=end_index,
+                        block_index=block_index,
+                        block_column=block_column,
+                        blocks=blocks,
+                        time_col=time_col,
+                        time_start=time_start,
+                        time_end=time_end,
+                        time_ranges=time_ranges,
+                        specific_times=specific_times,
+                        conditions=conditions,
+                        is_boolean=True,
+                        **kwargs,
+                    )
+
+        finally:
+            self.auto_report = original_auto_report
+
+        # Generate unified report
+        if should_report:
+            gen_name = generator_name or self.generator_name
+            out_dir = output_dir or self.output_dir
+
+            drift_config = {
+                "drift_method": "inject_drift",
+                "drift_mode": drift_mode,
+                "columns": columns,
+                "column_types": {
+                    "numeric": numeric_cols,
+                    "categorical": categorical_cols,
+                    "boolean": boolean_cols,
+                },
+                "drift_magnitude": drift_magnitude,
+                "operations": {
+                    "numeric": numeric_op,
+                    "categorical": categorical_op,
+                    "boolean": boolean_op,
+                },
+                "start_index": start_index,
+                "center": center,
+                "width": width,
+                "profile": profile,
+                "generator_name": f"{gen_name}_unified_drift",
+            }
+            if out_dir:
+                df_drift.to_csv(
+                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    index=False,
+                )
+                self._generate_reports(
+                    df,
+                    df_drift,
+                    drift_config,
+                    time_col=time_col,
+                    resample_rule=resample_rule,
+                )
+
+        return df_drift
+
+    def _apply_drift_by_mode(
+        self,
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        drift_type: str,
+        drift_magnitude: float,
+        drift_mode: str,
+        center: Optional[int] = None,
+        width: Optional[int] = None,
+        profile: str = "sigmoid",
+        speed_k: float = 1.0,
+        direction: str = "up",
+        repeats: int = 3,
+        windows: Optional[List[Tuple[int, int]]] = None,
+        is_boolean: bool = False,
+        conditions: Optional[List[Dict]] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Internal method to apply drift based on drift_mode.
+        Routes to the appropriate specialized method.
+        """
+        # Handle boolean columns specially
+        if is_boolean:
+            if drift_mode == "abrupt":
+                start_idx = kwargs.get("start_index")
+                if start_idx is None:
+                    start_idx = 0
+                # Filter kwargs to remove arguments not supported by inject_label_drift_abrupt/gradual
+                # Specifically block/time args that are handled elsewhere or not supported for label drift yet
+                clean_kwargs = {
+                    k: v
+                    for k, v in kwargs.items()
+                    if k
+                    not in [
+                        "start_index",
+                        "blocks",
+                        "block_index",
+                        "block_column",
+                        "time_start",
+                        "time_end",
+                        "time_ranges",
+                        "specific_times",
+                        "conditions",
+                        "time_col",
+                        "resample_rule",
+                    ]
+                }
+                for col in feature_cols:
+                    df = self.inject_label_drift_abrupt(
+                        df=df,
+                        target_col=col,
+                        drift_magnitude=drift_magnitude,
+                        change_index=start_idx,
+                        **clean_kwargs,
+                    )
+            elif drift_mode == "gradual":
+                for col in feature_cols:
+                    df = self.inject_binary_probabilistic_drift(
+                        df=df,
+                        target_col=col,
+                        probability=drift_magnitude,
+                        mode="gradual",
+                        center=center,
+                        width=width,
+                        profile=profile,
+                        speed_k=speed_k,
+                        direction=direction,
+                        **kwargs,
+                    )
+            elif drift_mode == "incremental":
+                for col in feature_cols:
+                    df = self.inject_label_drift_incremental(
+                        df=df,
+                        target_col=col,
+                        drift_magnitude=drift_magnitude,
+                        **kwargs,
+                    )
+            elif drift_mode == "recurrent":
+                win = windows or self._generate_recurrent_windows(len(df), repeats)
+                for col in feature_cols:
+                    df = self.inject_label_drift_recurrent(
+                        df=df,
+                        target_col=col,
+                        drift_magnitude=drift_magnitude,
+                        windows=win,
+                        **kwargs,
+                    )
+            return df
+
+        # Handle conditional drift
+        if conditions:
+            return self.inject_conditional_drift(
+                df=df,
+                feature_cols=feature_cols,
+                conditions=conditions,
+                drift_type=drift_type,
+                drift_magnitude=drift_magnitude,
+                mode=drift_mode,
+                center=center,
+                width=width,
+                profile=profile,
+                **kwargs,
+            )
+
+        # Handle numeric/categorical columns
+        if drift_mode == "abrupt":
+            return self.inject_feature_drift(
+                df=df,
+                feature_cols=feature_cols,
+                drift_type=drift_type,
+                drift_magnitude=drift_magnitude,
+                **kwargs,
+            )
+        elif drift_mode == "gradual":
+            # Calculate center and width if not provided
+            start_idx = kwargs.get("start_index")
+            if start_idx is None:
+                start_idx = 0
+            n_rows = len(df) - start_idx
+            calc_center = center if center is not None else start_idx + n_rows // 2
+            calc_width = width if width is not None else n_rows // 4
+            return self.inject_feature_drift_gradual(
+                df=df,
+                feature_cols=feature_cols,
+                drift_type=drift_type,
+                drift_magnitude=drift_magnitude,
+                center=calc_center,
+                width=calc_width,
+                profile=profile,
+                speed_k=speed_k,
+                direction=direction,
+                **kwargs,
+            )
+        elif drift_mode == "incremental":
+            return self.inject_feature_drift_incremental(
+                df=df,
+                feature_cols=feature_cols,
+                drift_type=drift_type,
+                drift_magnitude=drift_magnitude,
+                **kwargs,
+            )
+        elif drift_mode == "recurrent":
+            win = windows or self._generate_recurrent_windows(len(df), repeats)
+            return self.inject_feature_drift_recurrent(
+                df=df,
+                feature_cols=feature_cols,
+                drift_type=drift_type,
+                drift_magnitude=drift_magnitude,
+                windows=win,
+                **kwargs,
+            )
+
+        return df
+
+    def _generate_recurrent_windows(
+        self, n_rows: int, repeats: int, duty_cycle: float = 0.3
+    ) -> List[Tuple[int, int]]:
+        """Generates evenly spaced windows for recurrent drift."""
+        windows = []
+        segment_size = n_rows // repeats
+        window_size = int(segment_size * duty_cycle)
+
+        for i in range(repeats):
+            start = i * segment_size + segment_size // 4
+            end = min(start + window_size, n_rows - 1)
+            if start < end:
+                windows.append((start, end))
+
+        return windows
