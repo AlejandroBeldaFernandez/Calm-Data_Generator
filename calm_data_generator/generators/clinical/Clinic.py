@@ -140,6 +140,22 @@ class ClinicalDataGenerator(BaseGenerator):
             unified_df.to_csv(os.path.join(output_dir, "unified_clinical_data.csv"))
 
         if self.auto_report and output_dir:
+            # Build aggregated drift_config if any drift was applied
+            drift_sources = []
+            if kwargs.get("demographics_drift_config"):
+                drift_sources.append("Demographics")
+            if kwargs.get("genes_drift_config"):
+                drift_sources.append("Genes")
+            if kwargs.get("proteins_drift_config"):
+                drift_sources.append("Proteins")
+
+            if drift_sources:
+                kwargs["drift_config"] = {
+                    "drift_type": "Clinical Drift",
+                    "drift_magnitude": "See config",
+                    "affected_columns": ", ".join(drift_sources),
+                }
+
             if demo_df is not None:
                 self._generate_report(
                     demo_df,
@@ -186,12 +202,16 @@ class ClinicalDataGenerator(BaseGenerator):
             if target_col not in df.columns:
                 target_col = None
 
+            # Extract drift_config if available
+            drift_config = kwargs.get("drift_config")
+
             reporter.generate_report(
                 synthetic_df=df,
                 generator_name=f"Clinical_{name}",
                 output_dir=report_dir,
                 target_column=target_col,
                 time_col=time_col if time_col in df.columns else None,
+                drift_config=drift_config,
             )
             print(f"✅ Generated report for {name} in {report_dir}")
         except Exception as e:

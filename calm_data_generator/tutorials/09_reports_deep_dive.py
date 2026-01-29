@@ -65,7 +65,7 @@ print("\n--- Running QualityReporter ---")
 quality_reporter = QualityReporter(verbose=True)
 
 # Generate comprehensive report
-# This creates drift_results.json, html profiles, and visualizations
+# This creates report_results.json, html profiles, and visualizations
 quality_reporter.generate_comprehensive_report(
     real_df=real_df,
     synthetic_df=synthetic_df,

@@ -95,10 +95,13 @@ class ScenarioInjector:
             )
 
             reporter = QualityReporter(verbose=True, minimal=self.minimal_report)
+            affected_cols = list(evolution_config.keys())
             drift_config = {
                 "generator_name": generator_name,
-                "feature_cols": list(evolution_config.keys()),
-                "drift_type": "scenario_evolution",
+                "feature_cols": affected_cols,
+                "drift_type": "Scenario Evolution",
+                "drift_magnitude": "See evolution_config",
+                "affected_columns": ", ".join(affected_cols),
                 "evolution_config": evolution_config,
             }
             # Create output dir if needed
@@ -112,6 +115,17 @@ class ScenarioInjector:
                 drift_config=drift_config,
                 time_col=time_col,
                 resample_rule=resample_rule,
+            )
+
+            # Generate evolution-specific visualization
+            from calm_data_generator.reports.Visualizer import Visualizer
+
+            Visualizer.generate_evolution_plot(
+                original_df=df,
+                evolved_df=df_evolved,
+                evolution_config=evolution_config,
+                output_dir=output_dir,
+                time_col=time_col,
             )
 
         return df_evolved

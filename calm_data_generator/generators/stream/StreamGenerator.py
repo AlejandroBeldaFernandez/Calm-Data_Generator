@@ -315,6 +315,16 @@ class StreamGenerator(BaseGenerator):
                 kwargs.get("metadata_generator_instance")
                 or kwargs["generator_instance"]
             )
+
+            # Build drift_config for report if drift was applied
+            if drift_config:
+                drift_methods = [d.get("method", "unknown") for d in drift_config]
+                report_kwargs["drift_config"] = {
+                    "drift_type": ", ".join(drift_methods),
+                    "drift_magnitude": "See config",
+                    "affected_columns": "Multiple (via drift_config)",
+                }
+
             self._save_report_json(
                 df=df, output_dir=kwargs["output_dir"], **report_kwargs
             )

@@ -135,9 +135,13 @@ class LocalIndexGenerator:
                     "file": "drift_stats.html",
                     "label": "Drift Statistics",
                 },
-                "drift_analysis": {
-                    "file": "drift_analysis.html",
-                    "label": "Plot Comparison",
+                "evolution_plot": {
+                    "file": "evolution_plot.html",
+                    "label": "Feature Evolution (ScenarioInjector)",
+                },
+                "plot_comparison": {
+                    "file": "plot_comparison.html",
+                    "label": "Distribution Comparison",
                 },
                 "density": {
                     "file": "density_plots.html",
@@ -145,7 +149,7 @@ class LocalIndexGenerator:
                 },
                 "dimensionality": {
                     "file": "dimensionality_plot.html",
-                    "label": "PCA + UMAP",
+                    "label": "PCA Visualization",
                 },
             }
 

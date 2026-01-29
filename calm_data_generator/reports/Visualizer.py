@@ -192,126 +192,40 @@ class Visualizer:
                 index=numeric_df.index,
             )
 
-            # === UMAP (if available and enough samples) ===
-            umap_df = None
-            if UMAP_AVAILABLE and numeric_df.shape[0] >= 15:
-                try:
-                    reducer = umap.UMAP(
-                        n_neighbors=min(15, numeric_df.shape[0] - 1),
-                        min_dist=0.1,
-                        n_components=2,
-                        random_state=42,
-                    )
-                    umap_result = reducer.fit_transform(scaled_data)
-                    umap_df = pd.DataFrame(
-                        umap_result,
-                        columns=["UMAP1", "UMAP2"],
-                        index=numeric_df.index,
-                    )
-                except Exception as e:
-                    logger.warning(f"UMAP failed: {e}")
-
             # Add color column if provided
             color_values = None
             if color_col and color_col in df.columns:
                 color_values = df.loc[numeric_df.index, color_col].values
 
-            # Create subplots
-            if umap_df is not None:
-                fig = make_subplots(
-                    rows=1,
-                    cols=2,
-                    subplot_titles=[
-                        f"PCA (Explained Variance: {sum(pca.explained_variance_ratio_):.1%})",
-                        "UMAP",
-                    ],
-                    horizontal_spacing=0.1,
-                )
-
-                # PCA scatter
-                if color_values is not None:
-                    for val in np.unique(color_values):
-                        mask = color_values == val
-                        fig.add_trace(
-                            go.Scatter(
-                                x=pca_df.loc[mask, "PC1"],
-                                y=pca_df.loc[mask, "PC2"],
-                                mode="markers",
-                                name=str(val),
-                                legendgroup=str(val),
-                                showlegend=True,
-                            ),
-                            row=1,
-                            col=1,
-                        )
-                        fig.add_trace(
-                            go.Scatter(
-                                x=umap_df.loc[mask, "UMAP1"],
-                                y=umap_df.loc[mask, "UMAP2"],
-                                mode="markers",
-                                name=str(val),
-                                legendgroup=str(val),
-                                showlegend=False,
-                            ),
-                            row=1,
-                            col=2,
-                        )
-                else:
+            # Only PCA
+            fig = go.Figure()
+            if color_values is not None:
+                for val in np.unique(color_values):
+                    mask = color_values == val
                     fig.add_trace(
                         go.Scatter(
-                            x=pca_df["PC1"],
-                            y=pca_df["PC2"],
+                            x=pca_df.loc[mask, "PC1"],
+                            y=pca_df.loc[mask, "PC2"],
                             mode="markers",
-                            showlegend=False,
-                        ),
-                        row=1,
-                        col=1,
+                            name=str(val),
+                        )
                     )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=umap_df["UMAP1"],
-                            y=umap_df["UMAP2"],
-                            mode="markers",
-                            showlegend=False,
-                        ),
-                        row=1,
-                        col=2,
-                    )
-
-                fig.update_xaxes(title_text="PC1", row=1, col=1)
-                fig.update_yaxes(title_text="PC2", row=1, col=1)
-                fig.update_xaxes(title_text="UMAP1", row=1, col=2)
-                fig.update_yaxes(title_text="UMAP2", row=1, col=2)
-
             else:
-                # Only PCA
-                fig = go.Figure()
-                if color_values is not None:
-                    for val in np.unique(color_values):
-                        mask = color_values == val
-                        fig.add_trace(
-                            go.Scatter(
-                                x=pca_df.loc[mask, "PC1"],
-                                y=pca_df.loc[mask, "PC2"],
-                                mode="markers",
-                                name=str(val),
-                            )
-                        )
-                else:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=pca_df["PC1"],
-                            y=pca_df["PC2"],
-                            mode="markers",
-                            showlegend=False,
-                        )
+                fig.add_trace(
+                    go.Scatter(
+                        x=pca_df["PC1"],
+                        y=pca_df["PC2"],
+                        mode="markers",
+                        showlegend=False,
                     )
-
-                fig.update_layout(
-                    title=f"PCA Visualization (Explained Variance: {sum(pca.explained_variance_ratio_):.1%})",
                 )
 
-            fig.update_layout(height=500)
+            fig.update_layout(
+                title=f"PCA Visualization (Explained Variance: {sum(pca.explained_variance_ratio_):.1%})",
+                xaxis_title="PC1",
+                yaxis_title="PC2",
+                height=500,
+            )
 
             output_path = os.path.join(output_dir, filename)
             pio.write_html(fig, output_path, include_plotlyjs=True, full_html=True)
@@ -471,26 +385,22 @@ class Visualizer:
             return None
 
     @staticmethod
-    def generate_drift_analysis(
+    def generate_comparison_plots(
         original_df: pd.DataFrame,
         drifted_df: pd.DataFrame,
         output_dir: str,
-        filename: str = "drift_analysis.html",
+        filename: str = "plot_comparison.html",
         columns: Optional[List[str]] = None,
         drift_config: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """
-        Generates comprehensive drift analysis visualizations.
+        Generates comprehensive comparison visualizations (statistical & distribution).
 
-        Includes:
-        - Drift configuration summary card
-        - KS test p-values and Cohen's d effect size
-        - JS Divergence bar chart
-        - Duplicates percentage
-        - Overlay density plots per feature
+        If drift_config is provided, includes a Drift Configuration Summary.
+        Otherwise, acts as a standard fidelity comparison.
         """
         if not PLOTLY_AVAILABLE:
-            logger.warning("Plotly not available. Skipping drift analysis.")
+            logger.warning("Plotly not available. Skipping comparison plots.")
             return None
 
         try:
@@ -514,7 +424,7 @@ class Visualizer:
                 ]
 
             if not numeric_cols:
-                logger.warning("No numeric columns found for drift analysis.")
+                logger.warning("No numeric columns found for comparison.")
                 return None
 
             # Limit to 12 columns
@@ -553,13 +463,26 @@ class Visualizer:
                         else 0
                     )
 
+                    # Severity classification based on JS Divergence
+                    if js_div > 0.15:
+                        severity = "HIGH"
+                        severity_color = "#dc3545"
+                    elif js_div > 0.05:
+                        severity = "MEDIUM"
+                        severity_color = "#ffc107"
+                    else:
+                        severity = "LOW"
+                        severity_color = "#28a745"
+
                     metrics[col] = {
                         "js_div": js_div,
                         "ks_stat": ks_stat,
                         "ks_pval": ks_pval,
                         "cohens_d": cohens_d,
                         "orig_mean": orig_vals.mean(),
+                        "orig_std": orig_vals.std(),
                         "drift_mean": drift_vals.mean(),
+                        "drift_std": drift_vals.std(),
                         "pct_change": (
                             (drift_vals.mean() - orig_vals.mean())
                             / abs(orig_vals.mean())
@@ -567,6 +490,8 @@ class Visualizer:
                         )
                         if orig_vals.mean() != 0
                         else 0,
+                        "severity": severity,
+                        "severity_color": severity_color,
                     }
                 except Exception:
                     metrics[col] = {
@@ -574,6 +499,8 @@ class Visualizer:
                         "ks_stat": 0,
                         "ks_pval": 1,
                         "cohens_d": 0,
+                        "severity": "LOW",
+                        "severity_color": "#28a745",
                     }
 
             # Calculate duplicates percentage
@@ -600,42 +527,48 @@ class Visualizer:
             # Build HTML report
             html_parts = []
 
-            # 1. Drift Configuration Summary Card
-            drift_cols_str = ", ".join(columns) if columns else "All numeric"
-            drift_type = (
-                drift_config.get("drift_type", "N/A") if drift_config else "N/A"
-            )
-            drift_mag = (
-                drift_config.get("drift_magnitude", "N/A") if drift_config else "N/A"
-            )
+            # 1. Header (Conditional)
+            if drift_config:
+                drift_cols_str = ", ".join(columns) if columns else "All numeric"
+                drift_type = drift_config.get("drift_type", "N/A")
+                drift_mag = drift_config.get("drift_magnitude", "N/A")
 
-            html_parts.append(f"""
-            <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 1200px; margin: auto;">
-                <h1 style="color: #333;">🌊 Drift Analysis Report</h1>
-                
-                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
-                        <div style="font-size: 14px; opacity: 0.8;">AFFECTED COLUMNS</div>
-                        <div style="font-size: 24px; font-weight: bold;">{drift_cols_str}</div>
+                html_parts.append(f"""
+                <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 1200px; margin: auto;">
+                    <h1 style="color: #333;">🌊 Drift Analysis Report</h1>
+                    
+                    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+                        <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
+                            <div style="font-size: 14px; opacity: 0.8;">AFFECTED COLUMNS</div>
+                            <div style="font-size: 24px; font-weight: bold;">{drift_cols_str}</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #f093fb, #f5576c); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
+                            <div style="font-size: 14px; opacity: 0.8;">DRIFT TYPE</div>
+                            <div style="font-size: 24px; font-weight: bold;">{drift_type}</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
+                            <div style="font-size: 14px; opacity: 0.8;">MAGNITUDE</div>
+                            <div style="font-size: 24px; font-weight: bold;">{drift_mag}</div>
+                        </div>
+                        <div style="background: linear-gradient(135deg, #fa709a, #fee140); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
+                            <div style="font-size: 14px; opacity: 0.8;">DUPLICATES WITH ORIGINAL</div>
+                            <div style="font-size: 24px; font-weight: bold;">{cross_dup_pct:.1f}%</div>
+                        </div>
                     </div>
-                    <div style="background: linear-gradient(135deg, #f093fb, #f5576c); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
-                        <div style="font-size: 14px; opacity: 0.8;">DRIFT TYPE</div>
-                        <div style="font-size: 24px; font-weight: bold;">{drift_type}</div>
-                    </div>
-                    <div style="background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
-                        <div style="font-size: 14px; opacity: 0.8;">MAGNITUDE</div>
-                        <div style="font-size: 24px; font-weight: bold;">{drift_mag}</div>
-                    </div>
-                    <div style="background: linear-gradient(135deg, #fa709a, #fee140); color: white; padding: 20px; border-radius: 12px; flex: 1; min-width: 200px;">
-                        <div style="font-size: 14px; opacity: 0.8;">DUPLICATES WITH ORIGINAL</div>
-                        <div style="font-size: 24px; font-weight: bold;">{cross_dup_pct:.1f}%</div>
-                    </div>
-                </div>
+                """)
+            else:
+                html_parts.append(f"""
+                <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 1200px; margin: auto;">
+                    <h1 style="color: #333;">📊 Statistical Distribution Comparison</h1>
+                    <p style="color: #666; margin-bottom: 30px;">Comparison of statistical properties between Original and Synthetic datasets.</p>
+                """)
 
-                <h2>📊 Statistical Analysis by Feature</h2>
+            html_parts.append("""
+                <h2>Statistical Metrics by Feature</h2>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
                     <tr style="background: #f8f9fa;">
                         <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Feature</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Severity</th>
                         <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">JS Div</th>
                         <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">KS Stat</th>
                         <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">KS p-value</th>
@@ -647,21 +580,60 @@ class Visualizer:
             for col in sorted_cols:
                 m = metrics[col]
                 pval_color = "#28a745" if m["ks_pval"] > 0.05 else "#dc3545"
-                js_color = (
+                severity = m.get("severity", "LOW")
+                severity_color = m.get("severity_color", "#28a745")
+                html_parts.append(f"""
+                    <tr>
+                        <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold;">{col}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">
+                            <span style="background: {severity_color}; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">{severity}</span>
+                        </td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; color: {severity_color};">{m["js_div"]:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m["ks_stat"]:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; color: {pval_color};">{m["ks_pval"]:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m["cohens_d"]:+.3f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m.get("pct_change", 0):+.1f}%</td>
+                    </tr>
+                """)
+
+            html_parts.append("</table>")
+
+            # Add Before/After Statistics Table
+            html_parts.append("""
+                <h2>📈 Before/After Statistics</h2>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                    <tr style="background: #f8f9fa;">
+                        <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;">Feature</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Original Mean</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Original Std</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Drifted Mean</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Drifted Std</th>
+                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #dee2e6;">Change</th>
+                    </tr>
+            """)
+
+            for col in sorted_cols:
+                m = metrics[col]
+                orig_mean = m.get("orig_mean", 0)
+                orig_std = m.get("orig_std", 0)
+                drift_mean = m.get("drift_mean", 0)
+                drift_std = m.get("drift_std", 0)
+                pct_change = m.get("pct_change", 0)
+                change_color = (
                     "#dc3545"
-                    if m["js_div"] > 0.1
+                    if abs(pct_change) > 10
                     else "#ffc107"
-                    if m["js_div"] > 0.05
+                    if abs(pct_change) > 5
                     else "#28a745"
                 )
                 html_parts.append(f"""
                     <tr>
                         <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold;">{col}</td>
-                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; color: {js_color};">{m["js_div"]:.4f}</td>
-                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m["ks_stat"]:.4f}</td>
-                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; color: {pval_color};">{m["ks_pval"]:.4f}</td>
-                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m["cohens_d"]:+.3f}</td>
-                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{m["pct_change"]:+.1f}%</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{orig_mean:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{orig_std:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{drift_mean:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6;">{drift_std:.4f}</td>
+                        <td style="padding: 10px; text-align: center; border-bottom: 1px solid #dee2e6; color: {change_color}; font-weight: bold;">{pct_change:+.1f}%</td>
                     </tr>
                 """)
 
@@ -670,10 +642,11 @@ class Visualizer:
             # Close HTML wrapper
             html_parts.append("</div>")
 
-            # Save stats HTML
-            stats_path = os.path.join(output_dir, "drift_stats.html")
-            with open(stats_path, "w") as f:
-                f.write("".join(html_parts))
+            # Save stats HTML ONLY if drift_config was provided
+            if drift_config:
+                stats_path = os.path.join(output_dir, "drift_stats.html")
+                with open(stats_path, "w") as f:
+                    f.write("".join(html_parts))
 
             # Generate Plotly density plots
             n_density_cols = min(6, len(sorted_cols))
@@ -709,7 +682,7 @@ class Visualizer:
                 fig.add_trace(
                     go.Histogram(
                         x=drifted_df[col].dropna(),
-                        name="Drifted",
+                        name="Comparison",
                         opacity=0.6,
                         marker_color="#EF553B",
                         showlegend=(idx == 0),
@@ -721,7 +694,7 @@ class Visualizer:
                 )
 
             fig.update_layout(
-                title_text="Distribution Comparison: Original vs Drifted",
+                title_text="Distribution Comparison",
                 height=300 * n_rows,
                 barmode="overlay",
                 legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99),
@@ -733,7 +706,7 @@ class Visualizer:
             return output_path
 
         except Exception as e:
-            logger.error(f"Failed to generate drift analysis: {e}")
+            logger.error(f"Failed to generate comparison plots: {e}")
             return None
 
     @staticmethod
@@ -834,4 +807,132 @@ class Visualizer:
 
         except Exception as e:
             logger.error(f"Failed to generate sequence plot: {e}")
+            return None
+
+    @staticmethod
+    def generate_evolution_plot(
+        original_df: pd.DataFrame,
+        evolved_df: pd.DataFrame,
+        evolution_config: Dict[str, Any],
+        output_dir: str,
+        time_col: Optional[str] = None,
+        filename: str = "evolution_plot.html",
+    ) -> Optional[str]:
+        """
+        Generates a before/after evolution plot for ScenarioInjector.
+        Shows how features changed after applying evolution transformations.
+
+        Args:
+            original_df: Original DataFrame before evolution.
+            evolved_df: DataFrame after evolution was applied.
+            evolution_config: Dictionary mapping column names to evolution specs.
+            output_dir: Directory to save the plot.
+            time_col: Optional time column for x-axis.
+            filename: Output filename.
+
+        Returns:
+            Path to the generated HTML file, or None on failure.
+        """
+        if not PLOTLY_AVAILABLE:
+            logger.warning("Plotly not available, skipping evolution plot")
+            return None
+
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Get evolved columns
+            evolved_cols = [
+                c for c in evolution_config.keys() if c in original_df.columns
+            ]
+            if not evolved_cols:
+                logger.warning("No evolved columns found in DataFrame")
+                return None
+
+            n_cols = len(evolved_cols)
+            n_rows = min(n_cols, 4)  # Max 4 features
+
+            fig = make_subplots(
+                rows=n_rows,
+                cols=2,
+                subplot_titles=[
+                    f"{col} - Before" if i % 2 == 0 else f"{col} - After"
+                    for col in evolved_cols[:n_rows]
+                    for i in range(2)
+                ],
+                horizontal_spacing=0.1,
+                vertical_spacing=0.12,
+            )
+
+            # Use time_col or index for x-axis
+            if time_col and time_col in original_df.columns:
+                x_orig = original_df[time_col]
+                x_evolved = evolved_df[time_col]
+                x_label = time_col
+            else:
+                x_orig = np.arange(len(original_df))
+                x_evolved = np.arange(len(evolved_df))
+                x_label = "Index"
+
+            for i, col in enumerate(evolved_cols[:n_rows]):
+                config = evolution_config.get(col, {})
+                evo_type = config.get("type", "unknown")
+
+                # Before (original)
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_orig,
+                        y=original_df[col],
+                        mode="lines",
+                        name=f"{col} (Original)",
+                        line=dict(color="#6c757d", width=1),
+                        showlegend=(i == 0),
+                        legendgroup="original",
+                    ),
+                    row=i + 1,
+                    col=1,
+                )
+
+                # After (evolved)
+                fig.add_trace(
+                    go.Scatter(
+                        x=x_evolved,
+                        y=evolved_df[col],
+                        mode="lines",
+                        name=f"{col} (Evolved)",
+                        line=dict(color="#007bff", width=1.5),
+                        showlegend=(i == 0),
+                        legendgroup="evolved",
+                    ),
+                    row=i + 1,
+                    col=2,
+                )
+
+                # Add annotation for evolution type
+                fig.add_annotation(
+                    text=f"Evolution: {evo_type}",
+                    xref=f"x{i * 2 + 2} domain",
+                    yref=f"y{i * 2 + 2} domain",
+                    x=0.02,
+                    y=0.98,
+                    showarrow=False,
+                    font=dict(size=10, color="#666"),
+                    bgcolor="rgba(255,255,255,0.8)",
+                )
+
+            fig.update_layout(
+                title="📈 Feature Evolution Analysis (ScenarioInjector)",
+                height=250 * n_rows,
+                showlegend=True,
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
+                ),
+            )
+
+            output_path = os.path.join(output_dir, filename)
+            pio.write_html(fig, output_path, include_plotlyjs=True, full_html=True)
+            logger.info(f"Evolution plot saved to {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Failed to generate evolution plot: {e}")
             return None

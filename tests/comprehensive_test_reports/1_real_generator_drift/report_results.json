@@ -1,0 +1,18 @@
+{
+  "generator_name": "RealGenerator_tvae",
+  "generation_timestamp": "2026-01-29T13:09:01.632719",
+  "real_rows": 150,
+  "synthetic_rows": 100,
+  "sdv_quality": {
+    "overall_quality_score": 0.8617,
+    "weighted_quality_score": 0.8445
+  },
+  "sdv_by_block": null,
+  "compared_data_files": {
+    "original": "real_data",
+    "generated": "synthetic_data"
+  },
+  "sequential_quality": null,
+  "privacy_metrics": null,
+  "constraints_stats": null
+}

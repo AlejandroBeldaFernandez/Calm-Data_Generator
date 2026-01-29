@@ -196,7 +196,7 @@ class QualityReporter(BaseReporter):
             "constraints_stats": constraints_stats,
         }
 
-        results_path = os.path.join(output_dir, "drift_results.json")
+        results_path = os.path.join(output_dir, "report_results.json")
         with open(results_path, "w") as f:
             json.dump(results, f, indent=2, cls=NumpyEncoder)
 
@@ -230,7 +230,7 @@ class QualityReporter(BaseReporter):
             print("   -> Skipping PCA/UMAP (minimal mode)")
 
         # Drift Analysis (comparing real vs synthetic)
-        Visualizer.generate_drift_analysis(
+        Visualizer.generate_comparison_plots(
             original_df=real_df_for_report,
             drifted_df=synthetic_df_for_report,
             output_dir=output_dir,

@@ -2114,6 +2114,20 @@ class RealGenerator(BaseGenerator):
 
                 if self.auto_report and output_dir:
                     time_col_name = date_config.date_col if date_config else "timestamp"
+
+                    # Build drift_config for report if drift was applied
+                    report_drift_config = None
+                    if drift_injection_config:
+                        # Summarize drift configuration for the report
+                        drift_methods = [
+                            d.get("method", "unknown") for d in drift_injection_config
+                        ]
+                        report_drift_config = {
+                            "drift_type": ", ".join(drift_methods),
+                            "drift_magnitude": "See config",
+                            "affected_columns": "Multiple (via drift_injection_config)",
+                        }
+
                     self.reporter.generate_comprehensive_report(
                         real_df=data,
                         synthetic_df=synth,
@@ -2121,6 +2135,7 @@ class RealGenerator(BaseGenerator):
                         output_dir=output_dir,
                         target_column=target_col,
                         time_col=time_col_name,
+                        drift_config=report_drift_config,
                     )
 
                 # Save the generated dataset for inspection
