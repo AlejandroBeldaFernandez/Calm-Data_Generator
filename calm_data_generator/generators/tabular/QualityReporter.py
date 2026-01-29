@@ -67,7 +67,7 @@ class QualityReporter(BaseReporter):
     Uses YData Profiling and Plotly for visualizations.
     """
 
-    def __init__(self, verbose: bool = True, minimal: bool = True):
+    def __init__(self, verbose: bool = True, minimal: bool = False):
         """
         Initializes the QualityReporter.
 

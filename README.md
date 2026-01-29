@@ -15,6 +15,21 @@
 - **Privacy Preservation** - Differential privacy, pseudonymization, generalization
 - **Scenario Evolution** - Feature evolution and target construction
 
+## Scope & Capabilities
+
+**Calm-Data-Generator** is optimized for **structured tabular data**. It is designed to handle:
+- ✅ **Classification** (Binary & Multi-class)
+- ✅ **Regression** (Continuous variables)
+- ✅ **Multi-label** problems
+- ✅ **Clustering** (Preserving natural groupings)
+- ✅ **Time Series** (Temporal correlations and patterns)
+- ✅ **Single-Cell / Genomics** (scRNA-seq expression data)
+
+> [!IMPORTANT]
+> This library is **NOT** designed for unstructured data such as **Images**, **Videos**, or **Audio**. It does not include Computer Vision or Signal Processing models.
+
+---
+
 ## Core Technologies
 
 This library leverages and unifies best-in-class open-source tools to provide a seamless data generation experience:

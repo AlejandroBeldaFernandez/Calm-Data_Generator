@@ -14,6 +14,21 @@
 - **Preservación de Privacidad** - Privacidad diferencial, pseudonimización, generalización.
 - **Evolución de Escenarios** - Evolución de features y construcción de targets.
 
+## Alcance y Capacidades
+
+**Calm-Data-Generator** está optimizado para **datos tabulares estructurados**. Está diseñado para manejar:
+- ✅ **Clasificación** (Binaria y Multiclase)
+- ✅ **Regresión** (Variables continuas)
+- ✅ **Multi-label** (Múltiples objetivos)
+- ✅ **Clustering** (Preservación de agrupamientos naturales)
+- ✅ **Series Temporales** (Correlaciones y patrones temporales)
+- ✅ **Single-Cell / Genómica** (Datos de expresión RNA-seq)
+
+> [!IMPORTANT]
+> Esta biblioteca **NO** está diseñada para datos no estructurados como **Imágenes**, **Vídeos** o **Audio**. No incluye modelos de Visión Artificial o Procesamiento de Señales.
+
+---
+
 ## Tecnologías Principales
 
 Esta biblioteca aprovecha y unifica las mejores herramientas de código abierto para proporcionar una experiencia de generación de datos fluida:
