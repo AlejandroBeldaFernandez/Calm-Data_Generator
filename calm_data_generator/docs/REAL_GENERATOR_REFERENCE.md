@@ -53,6 +53,7 @@ synthetic_df = gen.generate(
     drift_injection_config=[...],
     dynamics_config={...},
     constraints=[...],
+    adversarial_validation=True,      # Activate adversarial validation
 )
 ```
 
@@ -60,22 +61,23 @@ synthetic_df = gen.generate(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data` | DataFrame | - | Original dataset (required) |
+| `data` | DataFrame | - | Original and reference dataset (required) |
 | `n_samples` | int | - | Number of samples to generate (required) |
-| `method` | str | `"cart"` | Synthesis method |
-| `target_col` | str | `None` | Target column for balancing |
-| `output_dir` | str | `None` | Directory for output files |
+| `method` | str | `"cart"` | Synthesis method to use |
+| `target_col` | str | `None` | Target variable column name for balancing |
+| `output_dir` | str | `None` | Directory to save reports and datasets |
 | `generator_name` | str | `"RealGenerator"` | Base name for output files |
-| `save_dataset` | bool | `False` | Save generated dataset as CSV |
-| `custom_distributions` | Dict | `None` | Forced distribution per column |
-| `date_col` | str | `None` | Name of date column to inject |
+| `save_dataset` | bool | `False` | Whether to save the generated dataset to a CSV file |
+| `custom_distributions` | Dict | `None` | Force specific distributions for columns |
+| `date_col` | str | `None` | Name of the date column to inject |
 | `date_start` | str | `None` | Start date ("YYYY-MM-DD") |
 | `date_step` | Dict | `None` | Time increment (e.g., `{"days": 1}`) |
 | `date_every` | int | `1` | Increment date every N rows |
-| `drift_injection_config` | List[Dict] | `None` | Post-generation drift configuration |
-| `dynamics_config` | Dict | `None` | Dynamic evolution configuration |
-| `model_params` | Dict | `None` | Specific model hyperparameters (passes `**kwargs` to the model) |
+| `drift_injection_config` | List[Dict] | `None` | Configuration for post-generation drift injection |
+| `dynamics_config` | Dict | `None` | Configuration for dynamic feature evolution |
+| `model_params` | Dict | `None` | Model-specific hyperparameters (passed as `**kwargs`) |
 | `constraints` | List[Dict] | `None` | Integrity constraints |
+| `adversarial_validation` | bool | `False` | Activate Discriminator Report (Real vs Synthetic) |
 
 ---
 

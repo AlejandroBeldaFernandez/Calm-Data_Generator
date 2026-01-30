@@ -16,6 +16,7 @@ ydata-profiling>=4.0.0
 lightgbm>=4.0.0
 scvi-tools>=1.0.0
 anndata>=0.10.0
+shap>=0.40.0
 
 # Optional dependencies (install manually if needed)
 # river>=0.21.0            # For StreamGenerator (online learning). May require: sudo apt-get install build-essential python3-dev

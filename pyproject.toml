@@ -27,7 +27,8 @@ dependencies = [
     "smartnoise-synth>=1.0.0",
     "ydata-profiling>=4.0.0",
     "scvi-tools>=1.0.0",
-    "anndata>=0.10.0"
+    "anndata>=0.10.0",
+    "shap>=0.40.0"
 ]
 
 [project.optional-dependencies]

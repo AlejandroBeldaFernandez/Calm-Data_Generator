@@ -53,6 +53,7 @@ synthetic_df = gen.generate(
     drift_injection_config=[...],
     dynamics_config={...},
     constraints=[...],
+    adversarial_validation=True,      # Activar validación adversaria
 )
 ```
 
@@ -76,6 +77,7 @@ synthetic_df = gen.generate(
 | `dynamics_config` | Dict | `None` | Configuración de evolución dinámica |
 | `model_params` | Dict | `None` | Hiperparámetros específicos (pasa `**kwargs` al modelo) |
 | `constraints` | List[Dict] | `None` | Restricciones de integridad |
+| `adversarial_validation` | bool | `False` | Activar reporte de discriminador (Real vs Sintético) |
 
 ---
 
@@ -137,6 +139,32 @@ model_params={
     "condition_col": "batch"
 }
 ```
+
+---
+
+## Manejo de Datos Desbalanceados
+
+`RealGenerator` ofrece varias estrategias para trabajar con datasets fuertemente desbalanceados (ej. detección de fraude, diagnósticos raros):
+
+### 1. Re-balanceo Automático (`balance_target=True`)
+Utiliza técnicas de re-muestreo antes o durante el entrenamiento para generar un dataset sintético equilibrado.
+*   **Ideal para:** Entrenar modelos de clasificación robustos que requieren clases balanceadas.
+*   **Comportamiento:** Si el original es 99% clase A y 1% clase B, el resultado será aprox. 50% A y 50% B.
+*   **Métodos compatibles:** `cart`, `rf`, `lgbm`.
+
+### 2. Control Manual de Distribución
+Puede forzar la distribución de la clase objetivo usando `DriftInjector`.
+*   **Ideal para:** Escenarios "What-If" (ej. "¿Qué pasa si el fraude aumenta al 10%?").
+*   **Método:** `DriftInjector.inject_label_shift` post-generación.
+
+### 3. Técnicas de Oversampling
+Métodos clásicos para aumentar la clase minoritaria mediante interpolación.
+*   **Métodos:** `smote` (Synthetic Minority Over-sampling Technique), `adasyn` (Adaptive Synthetic Sampling).
+*   **Ideal para:** Datasets numéricos pequeños donde se necesita aumentar la representación de casos raros.
+
+### 4. Fidelidad Estadística (Por defecto)
+Si no se especifica ninguna opción, los modelos generativos avanzados (`ctgan`, `tvae`) aprenderán y replicarán la distribución original, preservando el desbalance real.
+*   **Ideal para:** Análisis exploratorio fiel a la realidad o validación de sistemas en condiciones reales.
 
 ---
 

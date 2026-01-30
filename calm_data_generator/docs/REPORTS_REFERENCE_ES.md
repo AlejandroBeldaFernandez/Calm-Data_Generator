@@ -24,6 +24,34 @@ reporter.generate_comprehensive_report(
 )
 ```
 
+    output_dir="./report_output"
+)
+```
+
+## Reporter Discriminador (Adversarial Validation)
+**Módulo:** `calm_data_generator.reports.DiscriminatorReporter`
+
+Este reporter entrena un modelo clasificador (Random Forest) para intentar distinguir entre datos reales y sintéticos. Se utiliza para detectar drift o evaluar la fidelidad general.
+
+### Métricas Clave
+- **Similarity Score (Indistinguishability)**: (0.0 - 1.0).
+    - **Fórmula**: `1 - 2 * |AUC - 0.5|`
+    - `1.0`: Datos indistinguibles (AUC = 0.5). Excelente Calidad.
+    - `0.0`: Datos fácilmente distinguibles (AUC = 1.0 o 0.0). Drift detectado o baja calidad.
+- **Confusion Score**: Capacidad de los datos para "confundir" al discriminador (basado en Accuracy inversamente).
+- **Explicabilidad**:
+    - **Feature Importance**: Qué variables permitieron al modelo distinguir los datos.
+    - **SHAP Values**: Explicación detallada del impacto de cada feature.
+
+### Uso
+Este reporter se integra automáticamente en `QualityReporter` si se activa el parámetro opcional:
+```python
+reporter.generate_comprehensive_report(
+    ...,
+    adversarial_validation=True  # Activar Discriminator
+)
+```
+
 ## Reporter de Stream (`Stream`)
 **Módulo:** `calm_data_generator.generators.stream.StreamReporter`
 

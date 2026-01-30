@@ -1803,6 +1803,7 @@ class RealGenerator(BaseGenerator):
         dynamics_config: Optional[Dict] = None,
         model_params: Optional[Dict[str, Any]] = None,
         constraints: Optional[List[Dict]] = None,
+        adversarial_validation: bool = False,
     ) -> Optional[pd.DataFrame]:
         """
         The main public method to generate synthetic data.
@@ -1821,6 +1822,7 @@ class RealGenerator(BaseGenerator):
             drift_injection_config (Optional[List[Dict]]): List of drift injection configurations.
             dynamics_config (Optional[Dict]): Configuration for dynamics injection (feature evolution, target construction).
             model_params (Optional[Dict[str, Any]]): A dictionary of hyperparameters for the chosen synthesis model.
+            adversarial_validation (bool): If True, runs the DiscriminatorReporter to compute adversarial validation metrics (AUC).
 
         Returns:
             Optional[pd.DataFrame]: The generated synthetic DataFrame, or None if synthesis fails.
@@ -2136,6 +2138,7 @@ class RealGenerator(BaseGenerator):
                         target_column=target_col,
                         time_col=time_col_name,
                         drift_config=report_drift_config,
+                        adversarial_validation=adversarial_validation,
                     )
 
                 # Save the generated dataset for inspection

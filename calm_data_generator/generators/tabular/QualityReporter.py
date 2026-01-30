@@ -19,6 +19,7 @@ from calm_data_generator.reports.ExternalReporter import ExternalReporter
 from calm_data_generator.reports.Visualizer import Visualizer
 from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
 from calm_data_generator.reports.base import BaseReporter
+from calm_data_generator.reports.DiscriminatorReporter import DiscriminatorReporter
 
 # Try to import SDV for quality metrics
 try:
@@ -76,6 +77,7 @@ class QualityReporter(BaseReporter):
             minimal (bool): If True, skips expensive computations (PCA/UMAP, full correlations).
         """
         super().__init__(verbose=verbose, minimal=minimal)
+        self.discriminator_reporter = DiscriminatorReporter(verbose=verbose)
 
     def generate_report(self, *args, **kwargs):
         """Wrapper for generate_comprehensive_report to satisfy BaseReporter contract."""
@@ -97,6 +99,7 @@ class QualityReporter(BaseReporter):
         constraints_stats: Optional[Dict[str, int]] = None,
         privacy_check: bool = False,
         minimal: Optional[bool] = None,
+        adversarial_validation: bool = False,
     ) -> None:
         """
         Generates a comprehensive file-based report comparing real and synthetic data.
@@ -237,6 +240,20 @@ class QualityReporter(BaseReporter):
             columns=focus_cols,
             drift_config=drift_config,
         )
+
+        # Run Discriminator Reporter (Adversarial Validation)
+        # Note: We use the prepared data for reporting
+        if adversarial_validation and not use_minimal:
+            try:
+                self.discriminator_reporter.generate_report(
+                    real_df=real_df_for_report,
+                    synthetic_df=synthetic_df_for_report,
+                    output_dir=output_dir,
+                    label_real="Real/Original",
+                    label_synthetic="Synthetic/Drifted",
+                )
+            except Exception as e:
+                self.logger.error(f"Discriminator report generation failed: {e}")
 
         # === Generate YData Reports (Global) ===
         if self.verbose:

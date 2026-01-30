@@ -151,6 +151,14 @@ class LocalIndexGenerator:
                     "file": "dimensionality_plot.html",
                     "label": "PCA Visualization",
                 },
+                "discriminator_metrics": {
+                    "file": "discriminator_metrics.html",
+                    "label": "Adversarial Validation",
+                },
+                "discriminator_explainability": {
+                    "file": "discriminator_explainability.html",
+                    "label": "Discriminator Explainability",
+                },
             }
 
             found_plotly = []
