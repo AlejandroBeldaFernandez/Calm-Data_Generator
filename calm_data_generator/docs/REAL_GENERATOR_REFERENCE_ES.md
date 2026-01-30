@@ -183,3 +183,57 @@ Si no se especifica ninguna opción, los modelos generativos avanzados (`ctgan`,
 | `scvi` | Gen. | Variational Inference para datos single-cell |
 | `scgen` | Gen. | Predicción de perturbaciones para datos single-cell |
 | `dp` | Priv. | Privacidad Diferencial (Requiere SmartNoise) |
+
+---
+
+## Escenarios de Uso Comunes (Guía Rápida)
+
+### 1. Series Temporales (Time Series)
+*   **Secuencias Independientes (Multi-Entity):** Usa `method="par"` (Probabilistic AutoRegressive, requiere SDV con deep learning).
+    ```python
+    gen.generate(data, method="par", model_params={"sequence_key": "user_id"})
+    ```
+*   **Proyección de Futuro (Forecasting):** No es el caso de uso principal. Usa `StreamGenerator` para flujos infinitos o inyección de fechas manual.
+
+### 2. Clasificación y Regresión (Supervisado)
+Si tienes una columna `target` (ej. precio, churn) y la relación $X \rightarrow Y$ es crítica:
+*   Usa `method="lgbm"` (LightGBM) o `method="rf"` (Random Forest).
+*   Especifica siempre `target_col="nombre_columna"`.
+    ```python
+    # El generador detecta automáticamente si es Regresión o Clasificación
+    gen.generate(data, target_col="precio", method="lgbm") 
+    ```
+
+### 3. Clustering (No Supervisado)
+Si no hay un target claro y quieres preservar grupos naturales de datos:
+*   Usa `method="gmm"` (Gaussian Mixture Models, vía librería externa si disponible) o `method="tvae"` (Variational Autoencoder).
+    ```python
+    gen.generate(data, method="tvae")
+    ```
+
+### 4. Multi-Label (Etiquetas Múltiples)
+Si una celda contiene múltiples valores (ej: `["A", "B", "C"]`) o formato string `"A,B,C"`:
+*   **Limitación:** Los modelos estándar no manejan bien listas dentro de celdas.
+*   **Solución:** Transforma la columna a **One-Hot Encoding** (múltiples columnas binarias `is_A`, `is_B`) antes de pasarla al generador. Los modelos basados en árboles (`lgbm`, `cart`) aprenderán las correlaciones entre etiquetas (ej: si `is_A=1` suele implicar `is_B=1`).
+
+### 5. Datos por Bloques (Blocks)
+Si tus datos están fragmentados lógicamente (ej: por Tiendas, Países, Pacientes) y quieres modelos independientes para cada uno:
+*   Usa **`RealBlockGenerator`** en lugar de `RealGenerator`.
+    ```python
+    block_gen = RealBlockGenerator()
+    block_gen.generate(data, block_column="TiendaID", method="cart") 
+    ```
+    *Esto entrena un modelo diferente para cada TiendaID.*
+
+### 6. Manejo de Datos Desbalanceados (Imbalance)
+Si tu columna objetivo (`target`) tiene clases muy minoritarias que quieres potenciar:
+*   **Balanceo Automático:** Usa `balance_target=True`. El generador aplicará técnicas de sobremuestreo (SMOTE/RandomOverSampler) internamente para que el modelo aprenda por igual de todas las clases.
+    ```python
+    gen.generate(data, target_col="fraude", balance_target=True, method="cart")
+    ```
+*   **Distribución Personalizada:** Si quieres una proporción exacta (ej: 70% Clase A, 30% Clase B):
+    ```python
+    gen.generate(data, target_col="nivel", custom_distributions={"nivel": {"Bajo": 0.7, "Alto": 0.3}})
+    ```
+    *Nota: `balance_target` es un atajo para `custom_distributions={"col": "balanced"}`. Para desbalanceos extremos, los métodos de Deep Learning como `method="ctgan"` suelen ofrecer mayor estabilidad que los métodos basados en árboles.*
+---

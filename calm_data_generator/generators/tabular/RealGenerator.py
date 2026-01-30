@@ -489,40 +489,51 @@ class RealGenerator(BaseGenerator):
         """
         self.logger.info("Starting PAR (Time Series) synthesis...")
         sequence_key = kwargs.get("sequence_key")
+        sequence_index = kwargs.get("sequence_index")
+
         try:
             from sdv.sequential import PARSynthesizer
-            # Note: PAR requires MultiTableMetadata usually or different setup in SDV 1.0+
-            # Actually SDV 1.0+ wraps PAR in 'Sequential' module but expects metadata compatible with it.
+            # SDV 1.0+ sequential models require sequence_key in metadata
         except ImportError:
             raise ImportError("sdv is required for PAR synthesis.")
 
         if not sequence_key:
             raise ValueError(
-                "sequence_index (column name for entity ID) is required for PAR synthesis."
+                "sequence_key (column name for entity ID) is required for PAR synthesis."
             )
 
         try:
-            # For PAR, we need to know the sequence index (Entity) and Time index (optional/inferred)
-            # We assume metadata is built or we build it manually
-            # SDV 1.0+ changed API significantly. PARSynthesizer takes metadata.
-
             metadata = self._build_metadata(data)
-            # We need to update metadata to set sequence key info if not auto-detected
-            # In SDV 1.0, SingleTableMetadata doesn't natively support sequence key for PAR in the same way
-            # PAR expects 'sequence_key' in constructor or metadata.
 
-            metadata.update_column(column_name=sequence_key, sdtype="id")
+            # Set sequential properties in metadata
+            metadata.set_sequence_key(column_name=sequence_key)
+            if sequence_index:
+                metadata.set_sequence_index(column_name=sequence_index)
+            elif "timestamp" in data.columns:
+                metadata.set_sequence_index(column_name="timestamp")
+            elif "date" in data.columns:
+                metadata.set_sequence_index(column_name="date")
 
             # Simple PAR usage
             epochs = kwargs.get("epochs", 100)
+
+            # Filter kwargs for PAR constructor
+            par_args = {
+                k: v
+                for k, v in kwargs.items()
+                if k
+                not in [
+                    "epochs",
+                    "par_epochs",
+                    "sequence_key",
+                    "sequence_index",
+                    "entity_columns",
+                    "target_col",
+                ]
+            }
+
             synthesizer = PARSynthesizer(
-                metadata=metadata,
-                context_columns=[],  # Can add if needed
-                epochs=epochs,
-                verbose=True,
-                **{
-                    k: v for k, v in kwargs.items() if k not in ["epochs", "par_epochs"]
-                },
+                metadata=metadata, epochs=epochs, verbose=True, **par_args
             )
 
             synthesizer.fit(data)
@@ -1350,21 +1361,38 @@ class RealGenerator(BaseGenerator):
         # Prepare initial synthetic data (bootstrap)
         X_real = data.copy()
 
+        # If target column is specified and has balanced distribution requested,
+        # we balance the STARTING point (bootstrap) so FCS doesn't have to work as hard
+        # to move the distribution, and to avoid bias from the starting features.
+        X_bootstrap_source = X_real
+        if target_col and custom_distributions and target_col in custom_distributions:
+            self.logger.info(f"Balancing bootstrap source for column '{target_col}'...")
+            X_res, y_res = self._apply_resampling_strategy(
+                X_real.drop(columns=target_col),
+                X_real[target_col],
+                custom_distributions[target_col],
+                len(X_real),
+            )
+            # Reconstruct the full balanced dataframe
+            X_bootstrap_source = X_res.copy()
+            X_bootstrap_source[target_col] = y_res
+
         # Ensure object columns are category for consistency
         for col in X_real.select_dtypes(include=["object"]).columns:
             X_real[col] = X_real[col].astype("category")
+            X_bootstrap_source[col] = X_bootstrap_source[col].astype("category")
 
         # Initial random sample
         # OPTIMIZATION: Instead of pure random sample (which might miss rare categories),
         # we repeat the original dataset as many times as possible, then sample the rest.
-        n_real = len(X_real)
+        n_real = len(X_bootstrap_source)
         if n_samples > n_real:
             n_repeats = n_samples // n_real
             remainder = n_samples % n_real
-            X_synth_list = [X_real] * n_repeats
+            X_synth_list = [X_bootstrap_source] * n_repeats
             if remainder > 0:
                 X_synth_list.append(
-                    X_real.sample(
+                    X_bootstrap_source.sample(
                         n=remainder, replace=False, random_state=self.random_state
                     )
                 )
@@ -1375,7 +1403,7 @@ class RealGenerator(BaseGenerator):
             ).reset_index(drop=True)
         else:
             # If we need fewer samples than real data, standard sample is fine (or could be stratified)
-            X_synth = X_real.sample(
+            X_synth = X_bootstrap_source.sample(
                 n=n_samples, replace=True, random_state=self.random_state
             ).reset_index(drop=True)
 
@@ -1418,7 +1446,7 @@ class RealGenerator(BaseGenerator):
                             Xr_real_train,
                             y_real_train,
                             custom_distributions[col],
-                            n_samples,
+                            len(Xr_real_train),
                         )
 
                     # Encode categorical features for sklearn-based models (CART/RF)
@@ -1465,7 +1493,24 @@ class RealGenerator(BaseGenerator):
                             ) from e
                         raise e
 
-                    y_synth_pred = model.predict(Xs_synth_input)
+                    if (
+                        is_classification
+                        and hasattr(model, "predict_proba")
+                        and not (custom_distributions and col in custom_distributions)
+                    ):
+                        # Probabilistic sampling for better distribution preservation
+                        # but we skip it if we are already forcing a distribution via resampling
+                        # to avoid double-amplification/overshooting.
+                        probs = model.predict_proba(Xs_synth_input)
+                        classes = model.classes_
+
+                        # Sample for each row
+                        y_synth_pred = np.array(
+                            [np.random.choice(classes, p=p) for p in probs]
+                        )
+                    else:
+                        # Regression, balancing via resampling, or fallback
+                        y_synth_pred = model.predict(Xs_synth_input)
 
                     # Restore categorical type if needed
                     if y_real_train.dtype.name == "category":
@@ -1483,6 +1528,19 @@ class RealGenerator(BaseGenerator):
         """Applies over/under-sampling to match a custom distribution before model training."""
         try:
             original_counts = y.value_counts().to_dict()
+
+            # If "balanced", create a uniform distribution across all present classes
+            if custom_dist == "balanced":
+                unique_labels = list(original_counts.keys())
+                if not unique_labels:
+                    return X, y
+                prob = 1.0 / len(unique_labels)
+                custom_dist = {label: prob for label in unique_labels}
+
+            # Ensure we have a dict
+            if not isinstance(custom_dist, dict):
+                return X, y
+
             target_total_size = n_samples
             target_counts = {
                 k: int(v * target_total_size) for k, v in custom_dist.items()

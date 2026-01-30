@@ -512,3 +512,57 @@ synthetic_large = gen.generate(
     minimal_report=True  # Skip heavy reporting to save time
 )
 ```
+
+---
+
+## Common Usage Scenarios (Quick Guide)
+
+### 1. Time Series (Sequences)
+*   **Independent Sequences (Multi-Entity):** Use `method="par"` (Probabilistic AutoRegressive, requires SDV deep learning).
+    ```python
+    gen.generate(data, method="par", model_params={"sequence_key": "user_id"})
+    ```
+*   **Future Forecasting:** Not the primary use case. Use `StreamGenerator` for infinite flows or manual date injection.
+
+### 2. Classification and Regression (Supervised)
+If you have a `target` column (e.g., price, churn) and the relationship $X \rightarrow Y$ is critical:
+*   Use `method="lgbm"` (LightGBM) or `method="rf"` (Random Forest).
+*   Always specify `target_col="column_name"`.
+    ```python
+    # The generator automatically detects if it's Regression or Classification
+    gen.generate(data, target_col="price", method="lgbm") 
+    ```
+
+### 3. Clustering (Unsupervised)
+If there's no clear target and you want to preserve natural data clusters:
+*   Use `method="gmm"` (Gaussian Mixture Models) or `method="tvae"` (Variational Autoencoder).
+    ```python
+    gen.generate(data, method="tvae")
+    ```
+
+### 4. Multi-Label (Multiple Labels)
+If a cell contains multiple values (e.g., `["A", "B", "C"]`) or string format `"A,B,C"`:
+*   **Limitation:** Standard models don't handle lists within cells well.
+*   **Solution:** Transform the column to **One-Hot Encoding** (multiple binary columns `is_A`, `is_B`) before passing to the generator. Tree-based models (`lgbm`, `cart`) will learn correlations between labels (e.g., if `is_A=1` often implies `is_B=1`).
+
+### 5. Block Data (Partitioned Data)
+If your data is logically fragmented (e.g., by Stores, Countries, Patients) and you want independent models for each:
+*   Use **`RealBlockGenerator`** instead of `RealGenerator`.
+    ```python
+    block_gen = RealBlockGenerator()
+    block_gen.generate(data, block_column="StoreID", method="cart") 
+    ```
+    *This trains a different model for each StoreID.*
+
+### 6. Handling Imbalanced Data
+If your target column has minority classes that you want to amplify:
+*   **Automatic Balancing:** Use `balance_target=True`. The generator applies internal oversampling (SMOTE/RandomOverSampler) so the model learns equally from all classes.
+    ```python
+    gen.generate(data, target_col="fraud", balance_target=True, method="cart")
+    ```
+*   **Custom Distribution:** If you want a specific ratio (e.g., 70% Class A, 30% Class B):
+    ```python
+    gen.generate(data, target_col="status", custom_distributions={"status": {"Low": 0.7, "High": 0.3}})
+    ```
+    *Note: `balance_target=True` is a shortcut for `custom_distributions={"col": "balanced"}`. For extreme imbalances, Deep Learning methods like `method="ctgan"` usually provide better stability than tree-based methods.*
+---
