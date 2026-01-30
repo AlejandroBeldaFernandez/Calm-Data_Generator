@@ -301,7 +301,7 @@ Choose the right method based on your data and requirements:
 
 #### scVI (Single-cell Variational Inference)
 
-Best for generating new single-cell-like observations from scratch.
+Best for generating new single-cell-like observations from scratch. These methods are specifically designed for high-dimensional **transcriptomic data (RNA-seq)**. They use deep generative models to represent biological variation while handling the heavy sparsity and technical noise (dropout) typical of single-cell datasets. They are excellent for correcting "batch effects" and synthesizing coherent gene expression profiles.
 
 ```python
 synthetic = gen.generate(

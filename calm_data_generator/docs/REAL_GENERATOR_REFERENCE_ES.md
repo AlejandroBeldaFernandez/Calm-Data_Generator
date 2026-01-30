@@ -123,6 +123,9 @@ model_params={
 
 ### Single-Cell (scVI, scGen)
 
+Estos métodos están diseñados específicamente para **datos transcriptómicos (RNA-seq)**. Utilizan modelos generativos profundos para manejar la dispersión (sparsity) y el ruido técnico característico de los datos biológicos. Son ideales para corregir "efectos de lote" (batch effects) y generar perfiles de expresión genética sintéticos coherentes.
+
+
 | Parámetro | Descripción |
 |-----------|-------------|
 | `n_hidden` | Número de neuronas ocultas |

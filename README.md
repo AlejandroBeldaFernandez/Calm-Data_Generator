@@ -374,6 +374,10 @@ reporter.generate_report(
 | `dgan` | Time Series | DoppelGANger | Requires `calm-data-generator[timeseries]` (`gretel-synthetics`) |
 | `par` | Time Series | Probabilistic AutoRegressive | Requires `sdv` |
 | `copula_temporal` | Time Series | Gaussian Copula with temporal lags | Base installation |
+| `gmm` | Statistical | Gaussian Mixture Models | Base installation |
+| `datasynth` | Statistical | DataSynthesizer (Greedy Bayes) | Requires `DataSynthesizer` |
+| `scvi` | Single-Cell | scVI (Variational Inference) for RNA-seq | Requires `scvi-tools` |
+| `scgen` | Single-Cell | scGen (Perturbation prediction) | Requires `scvi-tools` |
 
 ---
 
