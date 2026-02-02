@@ -16,7 +16,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 # tf.get_logger().setLevel("ERROR")
 
 
-from calm_data_generator.generators.stream.StreamReporter import StreamReporter
+from calm_data_generator.generators.clinical.ClinicReporter import ClinicReporter
 from calm_data_generator.generators.configs import DateConfig
 from calm_data_generator.generators.base import BaseGenerator
 
@@ -193,7 +193,7 @@ class ClinicalDataGenerator(BaseGenerator):
     def _generate_report(self, df, name, base_output_dir, time_col, sub_dir, **kwargs):
         """Helper to generate a report for a specific dataframe using StreamReporter."""
         try:
-            reporter = StreamReporter(verbose=True)
+            reporter = ClinicReporter(verbose=True)
             report_dir = os.path.join(base_output_dir, sub_dir)
 
             # Extract target column if available

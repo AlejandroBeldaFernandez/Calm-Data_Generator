@@ -2,12 +2,22 @@ import unittest
 import pandas as pd
 import shutil
 import os
-from river import synth
+import pytest
+
+try:
+    from river import synth
+
+    RIVER_AVAILABLE = True
+except ImportError:
+    RIVER_AVAILABLE = False
+    synth = None
+
 from calm_data_generator.generators.stream.StreamBlockGenerator import (
     SyntheticBlockGenerator,
 )
 
 
+@pytest.mark.skipif(not RIVER_AVAILABLE, reason="River not installed")
 class TestSyntheticBlockGenerator(unittest.TestCase):
     def setUp(self):
         self.output_dir = "test_output_stream_block"
@@ -29,7 +39,7 @@ class TestSyntheticBlockGenerator(unittest.TestCase):
             filename=self.filename,
             n_blocks=2,
             total_samples=100,
-            methods=["sea"],  # Use SEA generator
+            methods=["sea"],
             method_params=[{"seed": 42}, {"seed": 43}],
             generate_report=False,
         )
@@ -43,9 +53,12 @@ class TestSyntheticBlockGenerator(unittest.TestCase):
     def test_generate_manual_interface(self):
         gen = SyntheticBlockGenerator()
 
+        if not RIVER_AVAILABLE:
+            pytest.skip("River not available")
+
         # Create different River generators to simulate concept drift
         gen1 = synth.Agrawal(seed=42, classification_function=0)
-        gen2 = synth.Agrawal(seed=42, classification_function=1)  # Different concept
+        gen2 = synth.Agrawal(seed=42, classification_function=1)
 
         path = gen.generate(
             output_dir=self.output_dir,
