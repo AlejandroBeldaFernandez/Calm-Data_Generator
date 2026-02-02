@@ -729,9 +729,9 @@ This approach is superior to global modeling when data has distinct regimes (e.g
 ### Example: SyntheticBlockGenerator (Drift)
 
 ```python
-from calm_data_generator.generators.stream import SyntheticBlockGenerator
+from calm_data_generator.generators.stream import StreamBlockGenerator
 
-gen = SyntheticBlockGenerator()
+gen = StreamBlockGenerator()
 
 # Generate with scheduled concept drift
 gen.generate_blocks_simple(

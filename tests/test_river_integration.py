@@ -4,15 +4,21 @@ import numpy as np
 import shutil
 import tempfile
 import os
-import sys
+import pytest
 
 # Try to import river to skip if not available
 try:
-    import river
+    from river import synth
 
     RIVER_AVAILABLE = True
 except ImportError:
-    RIVER_AVAILABLE = False
+    try:
+        from river.datasets import synth
+
+        RIVER_AVAILABLE = True
+    except ImportError:
+        RIVER_AVAILABLE = False
+        synth = None
 
 from calm_data_generator.generators.stream.StreamGenerator import StreamGenerator
 
@@ -26,49 +32,38 @@ class TestRiverIntegration(unittest.TestCase):
         shutil.rmtree(self.output_dir)
 
     def test_river_drift_detection(self):
-        """Test StreamGenerator with River ADWIN/DDM injection."""
+        """Test StreamGenerator with River synth generator."""
 
         if not RIVER_AVAILABLE:
-            print("Skipping test_river_drift_detection: 'river' not installed.")
-            return
+            pytest.skip("River not available")
 
-        # Create base data
-        df = pd.DataFrame(
-            {
-                "val": np.concatenate(
-                    [np.random.normal(0, 1, 500), np.random.normal(5, 1, 500)]
-                )
-            }
-        )
+        # Create a River generator
+        agrawal_gen = synth.Agrawal(seed=42)
 
-        generator = StreamGenerator()
-
-        # We need to verify if StreamGenerator actually exposes a direct interface for River
-        # based on previous knowledge, StreamGenerator handles drift internally or via DriftInjector.
-        # If StreamGenerator has specific river integration logic (e.g. for online learning/detection),
-        # we try to invoke it.
-
-        # Assuming StreamGenerator might have a method or param related to river.
-        # If not, this test might be testing the theoretical capability or we check if we can pass a river detector.
-
-        # NOTE: Inspecting StreamGenerator code would be ideal, but we proceed based on standard usage.
-        # If RealGenerator sets up the stream, we just generate.
+        generator = StreamGenerator(auto_report=False)
 
         try:
-            # Just a basic generation run to ensure no crashes when river is present
+            # Generate from River stream
+            n_samples = 100
             synthetic_stream = generator.generate(
-                data=df,
-                n_samples=100,
-                generator_name="RiverStream",
+                generator_instance=agrawal_gen,
+                n_samples=n_samples,
                 output_dir=self.output_dir,
             )
 
             self.assertIsNotNone(synthetic_stream)
-            print("River integration test passed (Basic Generation)")
+            self.assertEqual(len(synthetic_stream), n_samples)
 
-            # If there were specific "detect_drift" methods employing river, we'd call them here.
+            # Check if columns are present (Agrawal features: salary, commission, age, etc.)
+            self.assertIn("target", synthetic_stream.columns)
+            self.assertTrue(len(synthetic_stream.columns) > 1)
+
+            print("River integration test passed (River Generator)")
 
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             self.fail(f"StreamGenerator failed with River available: {e}")
 
 

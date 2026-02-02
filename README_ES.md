@@ -117,7 +117,7 @@ pip install calm-data-generator
 ### Generar Datos Sintéticos desde un Dataset Real
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 import pandas as pd
 
 # Tu dataset real
@@ -170,7 +170,8 @@ synthetic = gen.generate(
 ### Generar Datos Clínicos
 
 ```python
-from calm_data_generator.generators.clinical import ClinicalDataGenerator, DateConfig
+from calm_data_generator import ClinicalDataGenerator
+from calm_data_generator.generators.configs import DateConfig
 
 gen = ClinicalDataGenerator()
 
@@ -192,7 +193,7 @@ proteins = result['proteins']
 **Opción 1: Directamente desde `generate()` (recomendado)**
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 
 gen = RealGenerator()
 
@@ -220,7 +221,7 @@ synthetic = gen.generate(
 **Opción 2: DriftInjector Independiente**
 
 ```python
-from calm_data_generator.generators.drift import DriftInjector
+from calm_data_generator import DriftInjector
 
 injector = DriftInjector()
 
@@ -242,7 +243,7 @@ drifted_data = injector.inject_drift(
 ### Simulación de Streaming
 
 ```python
-from calm_data_generator.generators.stream import StreamGenerator
+from calm_data_generator import StreamGenerator
 
 # Simular un stream de datos basándose en el dataset real
 stream_gen = StreamGenerator()
@@ -261,7 +262,7 @@ print(f"Generado stream con {len(stream_data)} muestras totales")
 ### Informe de Calidad
 
 ```python
-from calm_data_generator.generators.tabular import QualityReporter
+from calm_data_generator import QualityReporter
 
 # Generar informe comparando datos reales vs sintéticos
 reporter = QualityReporter()
@@ -283,7 +284,7 @@ reporter.generate_report(
 |--------|-------------|-------------|
 | **Tabular** | `generators.tabular` | RealGenerator, QualityReporter |
 | **Clinical** | `generators.clinical` | ClinicalDataGenerator, ClinicalDataGeneratorBlock |
-| **Stream** | `generators.stream` | StreamGenerator, SyntheticBlockGenerator |
+| **Stream** | \`generators.stream\` | StreamGenerator, StreamBlockGenerator |
 | **Blocks** | `generators.tabular` | RealBlockGenerator |
 | **Drift** | `generators.drift` | DriftInjector |
 | **Dynamics** | `generators.dynamics` | ScenarioInjector |

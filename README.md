@@ -140,7 +140,7 @@ pip install calm-data-generator
 ### Generate Synthetic Data from Real Dataset
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 import pandas as pd
 
 # Your real dataset
@@ -198,7 +198,8 @@ synthetic = gen.generate(
 ### Generate Clinical Data
 
 ```python
-from calm_data_generator.generators.clinical import ClinicalDataGenerator, DateConfig
+from calm_data_generator import ClinicalDataGenerator
+from calm_data_generator.generators.configs import DateConfig
 
 gen = ClinicalDataGenerator()
 
@@ -220,7 +221,7 @@ proteins = result['proteins']
 **Option 1: Directly from `generate()` (recommended)**
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 
 gen = RealGenerator()
 
@@ -248,7 +249,7 @@ synthetic = gen.generate(
 **Option 2: Standalone DriftInjector**
 
 ```python
-from calm_data_generator.generators.drift import DriftInjector
+from calm_data_generator import DriftInjector
 
 injector = DriftInjector()
 
@@ -273,7 +274,7 @@ drifted_data = injector.inject_drift(
 Generate synthetic single-cell RNA-seq-like data using specialized VAE models:
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 
 gen = RealGenerator()
 
@@ -307,7 +308,7 @@ synthetic = gen.generate(
 ### Stream Data Generation
 
 ```python
-from calm_data_generator.generators.stream import StreamGenerator
+from calm_data_generator import StreamGenerator
 
 stream_gen = StreamGenerator()
 
@@ -325,7 +326,7 @@ print(f"Generated stream with {len(stream_data)} total samples")
 ### Quality Reporting
 
 ```python
-from calm_data_generator.generators.tabular import QualityReporter
+from calm_data_generator import QualityReporter
 
 # Generate a quality report comparing real vs synthetic data
 reporter = QualityReporter()
@@ -347,7 +348,7 @@ reporter.generate_report(
 |--------|--------|-------------|
 | **Tabular** | `generators.tabular` | RealGenerator, QualityReporter |
 | **Clinical** | `generators.clinical` | ClinicalDataGenerator, ClinicalDataGeneratorBlock |
-| **Stream** | `generators.stream` | StreamGenerator, SyntheticBlockGenerator |
+| **Stream** | \`generators.stream\` | StreamGenerator, StreamBlockGenerator |
 | **Blocks** | `generators.tabular` | RealBlockGenerator |
 | **Drift** | `generators.drift` | DriftInjector |
 | **Dynamics** | `generators.dynamics` | ScenarioInjector |

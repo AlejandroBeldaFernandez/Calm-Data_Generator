@@ -194,7 +194,7 @@ Permiten crear datasets compuestos de múltiples partes ("bloques"), donde cada 
 | Generador | Descripción |
 |-----------|-------------|
 | `RealBlockGenerator` | Divide un dataset real en bloques y aprende de cada uno. |
-| `SyntheticBlockGenerator` | Concatena generadores de stream para simular drift sintético puro. |
+| `StreamBlockGenerator` | Concatena generadores de stream para simular drift sintético puro. |
 | `ClinicalDataGeneratorBlock` | Genera datos clínicos multi-centro (ej. varios hospitales). |
 
 ### Ejemplo: RealBlockGenerator

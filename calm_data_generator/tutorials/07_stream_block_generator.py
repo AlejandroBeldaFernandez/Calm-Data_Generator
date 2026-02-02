@@ -9,7 +9,11 @@ to create datasets with scheduled concept drift by chaining multiple data stream
 import pandas as pd
 import shutil
 import os
-from river import synth
+
+try:
+    from river import synth
+except ImportError:
+    from river.datasets import synth
 from calm_data_generator.generators.stream.StreamBlockGenerator import (
     SyntheticBlockGenerator,
 )

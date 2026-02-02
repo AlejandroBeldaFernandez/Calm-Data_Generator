@@ -7,7 +7,7 @@ stream-based generators (River library compatible).
 """
 
 import numpy as np
-from calm_data_generator.generators.synthetic import StreamGenerator
+from calm_data_generator import StreamGenerator
 
 # ============================================================
 # 1. Create a stream generator

@@ -24,10 +24,6 @@ reporter.generate_comprehensive_report(
 )
 ```
 
-    output_dir="./report_output"
-)
-```
-
 ## Reporter Discriminador (Adversarial Validation)
 **Módulo:** `calm_data_generator.reports.DiscriminatorReporter`
 

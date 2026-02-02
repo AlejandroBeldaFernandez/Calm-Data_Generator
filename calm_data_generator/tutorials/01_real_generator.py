@@ -8,7 +8,7 @@ synthetic data that preserves the statistical properties of real data.
 
 import pandas as pd
 import numpy as np
-from calm_data_generator.generators.real import RealGenerator
+from calm_data_generator import RealGenerator
 
 # ============================================================
 # 1. Basic Usage - Generate synthetic data with CART

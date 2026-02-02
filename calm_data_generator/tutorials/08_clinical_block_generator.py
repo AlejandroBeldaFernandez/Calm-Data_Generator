@@ -10,7 +10,11 @@ underlying distributions (simulating center effects or drift).
 import pandas as pd
 import shutil
 import os
-from river import synth
+
+try:
+    from river import synth
+except ImportError:
+    from river.datasets import synth
 from calm_data_generator.generators.clinical.ClinicGeneratorBlock import (
     ClinicalDataGeneratorBlock,
 )

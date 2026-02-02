@@ -6,8 +6,11 @@ La clase `calm_data_generator.generators.stream.StreamGenerator` proporciona fun
 
 ### Uso
 ```python
-from calm_data_generator.generators.stream.StreamGenerator import StreamGenerator
-from river import synth
+from calm_data_generator import StreamGenerator
+try:
+    from river import synth
+except ImportError:
+    from river.datasets import synth
 
 # Inicializar
 generator = StreamGenerator(random_state=42)

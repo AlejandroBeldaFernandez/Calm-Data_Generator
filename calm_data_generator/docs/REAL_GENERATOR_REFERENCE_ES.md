@@ -9,7 +9,7 @@ El generador principal para la síntesis de datos tabulares a partir de datasets
 ## Inicialización
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator import RealGenerator
 
 gen = RealGenerator(
     auto_report=True,       # Generar informe automáticamente tras síntesis
