@@ -125,23 +125,82 @@ model_params={
 
 Estos métodos están diseñados específicamente para **datos transcriptómicos (RNA-seq)**. Utilizan modelos generativos profundos para manejar la dispersión (sparsity) y el ruido técnico característico de los datos biológicos. Son ideales para corregir "efectos de lote" (batch effects) y generar perfiles de expresión genética sintéticos coherentes.
 
+**Formato de Entrada:** Acepta tanto `pd.DataFrame` como objetos `AnnData` directamente.
+
+#### scVI (Single-cell Variational Inference)
+
+**Entrada DataFrame:**
+```python
+synthetic = gen.generate(
+    data=expression_df,      # Filas=células, Columnas=genes
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type",  # Columna de metadatos opcional
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,      # Dimensiones del espacio latente
+        "n_layers": 1,       # Profundidad encoder/decoder
+    }
+)
+```
+
+**Entrada AnnData (Recomendado para datos single-cell):**
+```python
+import anndata
+
+# Crear o cargar objeto AnnData
+adata = anndata.read_h5ad("single_cell_data.h5ad")
+
+synthetic = gen.generate(
+    data=adata,              # Pasar AnnData directamente
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type",  # Debe estar en adata.obs
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,
+        "n_layers": 1,
+    }
+)
+# Retorna pd.DataFrame con columnas de genes + metadatos
+```
 
 | Parámetro | Descripción |
 |-----------|-------------|
-| `n_hidden` | Número de neuronas ocultas |
-| `n_layers` | Número de capas ocultas |
-| `n_epochs` | Épocas de entrenamiento |
-| `condition_col` | (Solo scGen/scVI) Columna que define condiciones experimentales o lotes |
+| `epochs` | Épocas de entrenamiento (default: 100) |
+| `n_latent` | Dimensionalidad del espacio latente (default: 10) |
+| `n_layers` | Número de capas ocultas (default: 1) |
 
-**Ejemplo:**
+> [!NOTE]
+> **¿Por qué scVI + scGen?** Juntos, estos métodos proporcionan una suite completa para la síntesis de datos single-cell. **scVI** es el estándar de oro para representar la varianza biológica y generar poblaciones celulares "imparciales", mientras que **scGen** destaca en la predicción de respuestas a tratamientos y condiciones experimentales.
+
+> **Soporte AnnData:** Al pasar un objeto `AnnData`, este se utiliza directamente sin conversión, preservando la estructura original. El resultado es siempre un `pd.DataFrame` que contiene tanto la expresión génica como los metadatos de las observaciones (`obs`).
+
+#### scGen (Predicción de Perturbaciones)
+
+Mejor para generar células bajo diferentes condiciones o eliminar efectos de lote.
+
 ```python
-method="scvi",
-model_params={
-    "n_hidden": 128,
-    "n_layers": 2,
-    "condition_col": "batch"
-}
+synthetic = gen.generate(
+    data=expression_df,
+    n_samples=1000,
+    method="scgen",
+    target_col="cell_type",
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,
+        "condition_col": "treatment",  # Requerido: columna de condición/lote
+    }
+)
 ```
+
+| Parámetro | Descripción |
+|-----------|-------------|
+| `epochs` | Épocas de entrenamiento (default: 100) |
+| `n_latent` | Dimensionalidad del espacio latente (default: 10) |
+| `condition_col` | Columna con etiquetas de condición/lote (requerido) |
+
+> **Nota:** Si no se proporciona `condition_col`, scGen automáticamente vuelve a scVI.
 
 ---
 

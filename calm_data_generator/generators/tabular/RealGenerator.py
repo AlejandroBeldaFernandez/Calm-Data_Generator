@@ -25,7 +25,7 @@ import logging
 import pandas as pd
 import numpy as np
 import warnings
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 import os
 import math
 import tempfile
@@ -38,7 +38,6 @@ import tempfile
 from calm_data_generator.generators.base import BaseGenerator
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
-from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
 from calm_data_generator.generators.configs import DateConfig
 
 
@@ -1032,7 +1031,7 @@ class RealGenerator(BaseGenerator):
 
     def _synthesize_scvi(
         self,
-        data: pd.DataFrame,
+        data: Union[pd.DataFrame, Any],
         n_samples: int,
         target_col: Optional[str] = None,
         **kwargs,
@@ -1040,12 +1039,12 @@ class RealGenerator(BaseGenerator):
         """
         Synthesizes single-cell-like data using scVI (Variational Autoencoder).
 
-        This method treats the DataFrame as a gene expression matrix where:
+        This method treats the input as a gene expression matrix where:
         - Rows are cells/samples
         - Columns are genes/features
 
         Args:
-            data: DataFrame with numeric expression values
+            data: DataFrame or AnnData with numeric expression values
             n_samples: Number of synthetic samples to generate
             target_col: Optional column to preserve as metadata (will be excluded from training)
             **kwargs: Additional parameters passed to scVI model (n_latent, n_layers, etc.)
@@ -1054,6 +1053,7 @@ class RealGenerator(BaseGenerator):
             DataFrame with synthetic samples
         """
         self.logger.info("Starting scVI synthesis for single-cell data...")
+        print(f"DEBUG: Entering _synthesize_scvi with data type: {type(data)}")
 
         try:
             import anndata
@@ -1064,36 +1064,59 @@ class RealGenerator(BaseGenerator):
                 "Install with: pip install scvi-tools anndata"
             )
 
-        # Separate metadata from expression data
-        metadata_cols = []
-        if target_col and target_col in data.columns:
-            metadata_cols.append(target_col)
+        # Create or use AnnData object
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            adata = data
+            # Ensure target_col is in obs if provided
+            if target_col and target_col not in adata.obs.columns:
+                self.logger.warning(
+                    f"target_col '{target_col}' not found in AnnData.obs."
+                )
+        else:
+            # Separate metadata from expression data
+            metadata_cols = []
+            if target_col and target_col in data.columns:
+                metadata_cols.append(target_col)
 
-        # Get expression columns (numeric only, excluding metadata)
-        expr_cols = [c for c in data.columns if c not in metadata_cols]
-        expr_data = data[expr_cols].select_dtypes(include=[np.number])
+            # Get expression columns (numeric only, excluding metadata)
+            expr_cols = [c for c in data.columns if c not in metadata_cols]
+            expr_data = data[expr_cols].select_dtypes(include=[np.number])
 
-        if expr_data.empty:
-            raise ValueError("No numeric columns found for scVI synthesis.")
+            if expr_data.empty:
+                raise ValueError("No numeric columns found for scVI synthesis.")
 
-        # Create AnnData object
-        adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
-        adata.obs_names = [f"cell_{i}" for i in range(len(data))]
-        adata.var_names = list(expr_data.columns)
+            # Create AnnData object
+            adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
+            adata.obs_names = [f"cell_{i}" for i in range(len(data))]
+            adata.var_names = list(expr_data.columns)
 
-        # Add metadata to obs if present
-        if metadata_cols:
-            for col in metadata_cols:
-                adata.obs[col] = data[col].values
+            # Add metadata to obs if present
+            if metadata_cols:
+                for col in metadata_cols:
+                    adata.obs[col] = data[col].values
 
         # Setup and train scVI model
         n_latent = kwargs.get("n_latent", 10)
         n_layers = kwargs.get("n_layers", 1)
         epochs = kwargs.get("epochs", 100)
 
-        scvi.model.SCVI.setup_anndata(adata)
+        # Work on a copy of adata to avoid modifying the original if passed
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            adata_to_train = adata.copy()
+        else:
+            adata_to_train = adata
+
+        scvi.model.SCVI.setup_anndata(adata_to_train)
         model = scvi.model.SCVI(
-            adata,
+            adata_to_train,
             n_latent=n_latent,
             n_layers=n_layers,
         )
@@ -1114,7 +1137,10 @@ class RealGenerator(BaseGenerator):
         with torch.no_grad():
             latent_tensor = torch.tensor(latent_samples)
             # Get library size from training data
-            library_size = torch.tensor([[adata.X.sum(axis=1).mean()]] * n_samples)
+            # Use adata_to_train to ensure consistency
+            library_size = torch.tensor(
+                [[adata_to_train.X.sum(axis=1).mean()]] * n_samples
+            )
 
             # Generate from decoder
             generative_outputs = model.module.generative(
@@ -1147,20 +1173,32 @@ class RealGenerator(BaseGenerator):
                     # Absolute fallback if mean also fails: return zeros or latent projection
                     # (This happens if model is completely untrained/unstable)
                     synthetic_expression = torch.zeros(
-                        (n_samples, expr_data.shape[1]), dtype=torch.float32
+                        (n_samples, adata.n_vars), dtype=torch.float32
                     )
 
             if hasattr(synthetic_expression, "cpu"):
                 synthetic_expression = synthetic_expression.cpu()
 
             synth_values = synthetic_expression.numpy()
+            print(
+                f"DEBUG: scVI synthesis produced values with shape: {synth_values.shape}"
+            )
 
-        synth_df = pd.DataFrame(synth_values, columns=expr_data.columns)
+        # Use adata.var_names for column names (works for both DataFrame and AnnData input)
+        synth_df = pd.DataFrame(synth_values, columns=adata.var_names)
 
         # Add metadata column with random sampling from original if present
-        if metadata_cols and target_col:
+        if target_col and target_col in (
+            data.obs.columns if hasattr(data, "obs") else data.columns
+        ):
+            # metadata_cols might be empty if adata was passed
+            source_metadata = (
+                data.obs[target_col].values
+                if hasattr(data, "obs")
+                else data[target_col].values
+            )
             synth_df[target_col] = np.random.choice(
-                data[target_col].values, size=n_samples, replace=True
+                source_metadata, size=n_samples, replace=True
             )
 
         self.logger.info(f"scVI synthesis complete. Generated {len(synth_df)} samples.")
@@ -1168,7 +1206,7 @@ class RealGenerator(BaseGenerator):
 
     def _synthesize_scgen(
         self,
-        data: pd.DataFrame,
+        data: Union[pd.DataFrame, Any],
         n_samples: int,
         target_col: Optional[str] = None,
         condition_col: Optional[str] = None,
@@ -1183,7 +1221,7 @@ class RealGenerator(BaseGenerator):
         - Perturbation response prediction
 
         Args:
-            data: DataFrame with numeric expression values
+            data: DataFrame or AnnData with numeric expression values
             n_samples: Number of synthetic samples to generate
             target_col: Column identifying cell types/labels
             condition_col: Column identifying conditions/batches (required for scGen)
@@ -1220,39 +1258,94 @@ class RealGenerator(BaseGenerator):
                     "Install with: pip install scgen anndata"
                 )
 
-        # Get expression columns
-        metadata_cols = []
-        if target_col and target_col in data.columns:
-            metadata_cols.append(target_col)
-        if condition_col and condition_col in data.columns:
-            metadata_cols.append(condition_col)
+        # Create or use AnnData object
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            adata = data
+            # Ensure target_col/condition_col are in obs and renamed if necessary for internal use
+            if (
+                target_col
+                and target_col in adata.obs.columns
+                and target_col != "cell_type"
+            ):
+                adata.obs["cell_type"] = adata.obs[target_col].astype(str).values
+            elif "cell_type" not in adata.obs.columns:
+                adata.obs["cell_type"] = "unknown"
 
-        expr_cols = [c for c in data.columns if c not in metadata_cols]
-        expr_data = data[expr_cols].select_dtypes(include=[np.number])
-
-        if expr_data.empty:
-            raise ValueError("No numeric columns found for scGen synthesis.")
-
-        # Create AnnData object
-        adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
-        adata.obs_names = [f"cell_{i}" for i in range(len(data))]
-        adata.var_names = list(expr_data.columns)
-
-        # Add metadata
-        if target_col and target_col in data.columns:
-            adata.obs["cell_type"] = data[target_col].astype(str).values
+            if (
+                condition_col
+                and condition_col in adata.obs.columns
+                and condition_col != "condition"
+            ):
+                adata.obs["condition"] = adata.obs[condition_col].astype(str).values
+            elif "condition" not in adata.obs.columns:
+                # If scgen but no condition, we already handled fallback in generate or will fail setup
+                pass
         else:
-            adata.obs["cell_type"] = "unknown"
+            # Get expression columns
+            metadata_cols = []
+            if target_col and target_col in data.columns:
+                metadata_cols.append(target_col)
+            if condition_col and condition_col in data.columns:
+                metadata_cols.append(condition_col)
 
-        adata.obs["condition"] = data[condition_col].astype(str).values
+            expr_cols = [c for c in data.columns if c not in metadata_cols]
+            expr_data = data[expr_cols].select_dtypes(include=[np.number])
+
+            if expr_data.empty:
+                raise ValueError("No numeric columns found for scGen synthesis.")
+
+            # Create AnnData object
+            adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
+            adata.obs_names = [f"cell_{i}" for i in range(len(data))]
+            adata.var_names = list(expr_data.columns)
+
+            # Add metadata
+            if target_col and target_col in data.columns:
+                adata.obs["cell_type"] = data[target_col].astype(str).values
+            else:
+                adata.obs["cell_type"] = "unknown"
+
+            if condition_col and condition_col in data.columns:
+                adata.obs["condition"] = data[condition_col].astype(str).values
 
         # Setup and train scGen
         n_latent = kwargs.get("n_latent", 10)
         epochs = kwargs.get("epochs", 100)
 
         SCGEN = scgen.SCGEN
-        SCGEN.setup_anndata(adata, batch_key="condition", labels_key="cell_type")
-        model = SCGEN(adata, n_latent=n_latent)
+
+        # Work on a copy of adata to avoid modifying the original if passed
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            adata_to_train = adata.copy()
+        else:
+            adata_to_train = adata
+
+        SCGEN.setup_anndata(
+            adata_to_train, batch_key="condition", labels_key="cell_type"
+        )
+        model = SCGEN(adata_to_train, n_latent=n_latent)
+
+        # Monkeypatch scGen inference to match scvi-tools 1.0+ expected keys ('qzm', 'qzv')
+        # instead of scgen defaults ('qz_m', 'qz_v')
+        original_inference = model.module.inference
+
+        def patched_inference(*args, **kwargs):
+            outputs = original_inference(*args, **kwargs)
+            if "qz_m" in outputs:
+                outputs["qzm"] = outputs["qz_m"]
+            if "qz_v" in outputs:
+                outputs["qzv"] = outputs["qz_v"]
+            return outputs
+
+        model.module.inference = patched_inference
 
         self.logger.info(f"Training scGen model with {epochs} epochs...")
         model.train(max_epochs=epochs, early_stopping=True)
@@ -1313,16 +1406,31 @@ class RealGenerator(BaseGenerator):
 
             decoded = synthetic_expression.numpy()
 
-        synth_df = pd.DataFrame(decoded, columns=expr_data.columns)
+        # Use adata.var_names for column names (works for both DataFrame and AnnData input)
+        synth_df = pd.DataFrame(decoded, columns=adata.var_names)
 
         # Add metadata with random sampling
-        if target_col and target_col in data.columns:
-            synth_df[target_col] = np.random.choice(
-                data[target_col].values, size=n_samples, replace=True
+        if target_col and target_col in (
+            data.obs.columns if hasattr(data, "obs") else data.columns
+        ):
+            source_target = (
+                data.obs[target_col].values
+                if hasattr(data, "obs")
+                else data[target_col].values
             )
-        if condition_col:
+            synth_df[target_col] = np.random.choice(
+                source_target, size=n_samples, replace=True
+            )
+        if condition_col and condition_col in (
+            data.obs.columns if hasattr(data, "obs") else data.columns
+        ):
+            source_cond = (
+                data.obs[condition_col].values
+                if hasattr(data, "obs")
+                else data[condition_col].values
+            )
             synth_df[condition_col] = np.random.choice(
-                data[condition_col].values, size=n_samples, replace=True
+                source_cond, size=n_samples, replace=True
             )
 
         self.logger.info(
@@ -1841,7 +1949,7 @@ class RealGenerator(BaseGenerator):
 
     def generate(
         self,
-        data: pd.DataFrame,
+        data: Union[pd.DataFrame, Any],
         n_samples: int,
         method: str = "cart",
         target_col: Optional[str] = None,
@@ -1867,7 +1975,7 @@ class RealGenerator(BaseGenerator):
         The main public method to generate synthetic data.
 
         Args:
-            data (pd.DataFrame): The real dataset to be synthesized.
+            data (Union[pd.DataFrame, AnnData]): The real dataset (DataFrame) or AnnData object to be synthesized.
             n_samples (int): The number of synthetic samples to generate.
             method (str): The synthesis method to use.
             target_col (Optional[str]): The name of the target variable column.
@@ -1885,6 +1993,24 @@ class RealGenerator(BaseGenerator):
         Returns:
             Optional[pd.DataFrame]: The generated synthetic DataFrame, or None if synthesis fails.
         """
+        # Handle AnnData input
+        original_adata = None
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            self.logger.info(
+                "AnnData input detected. Converting to DataFrame for general processing."
+            )
+            original_adata = data
+            # Convert AnnData to DataFrame for general validation and reporting
+            df = data.to_df()
+            # Add obs (metadata) to the dataframe
+            for col in data.obs.columns:
+                df[col] = data.obs[col].values
+            data = df
+
         self._validate_method(method)
         # Note: params was used for default values, now all methods use **kwargs from model_params
         self.logger.info(
@@ -2023,12 +2149,20 @@ class RealGenerator(BaseGenerator):
                     data, n_samples, target_col=target_col, **(model_params or {})
                 )
             elif method == "scvi":
+                # Pass original_adata if available to avoid redundant conversion
                 synth = self._synthesize_scvi(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    original_adata if original_adata is not None else data,
+                    n_samples,
+                    target_col=target_col,
+                    **(model_params or {}),
                 )
             elif method == "scgen":
+                # Pass original_adata if available to avoid redundant conversion
                 synth = self._synthesize_scgen(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    original_adata if original_adata is not None else data,
+                    n_samples,
+                    target_col=target_col,
+                    **(model_params or {}),
                 )
 
             # --- Constraints Application ---
@@ -2084,36 +2218,17 @@ class RealGenerator(BaseGenerator):
                 self.logger.info(f"Successfully synthesized {len(synth)} samples.")
 
                 # --- Dynamics Injection (Feature Evolution & Target Construction) ---
-                if dynamics_config:
-                    self.logger.info("Applying dynamics injection...")
-                    # Initialize dynamics injector
-                    dyn_injector = ScenarioInjector(seed=self.random_state)
+                if synth is not None and dynamics_config:
+                    print("DEBUG: Applying dynamics config...")
+                    self.logger.info("Applying dynamics injection config...")
+                    from calm_data_generator.generators.dynamics.ScenarioInjector import (
+                        ScenarioInjector,
+                    )
 
-                    # Evolve Features
-                    if "evolve_features" in dynamics_config:
-                        self.logger.info("Evolving features (Dynamics)...")
-                        evolve_args = dynamics_config["evolve_features"]
-
-                        # Inject dates early for dynamics if needed
-                        if date_config and date_config.start_date:
-                            synth = self._inject_dates(
-                                df=synth,
-                                date_col=date_config.date_col,
-                                date_start=date_config.start_date,
-                                date_every=date_config.frequency,
-                                date_step=date_config.step,
-                            )
-
-                        time_col = date_config.date_col if date_config else "timestamp"
-                        synth = dyn_injector.evolve_features(
-                            synth, time_col=time_col, evolution_config=evolve_args
-                        )
-
-                    # Construct/Overwrite Target
-                    if "construct_target" in dynamics_config:
-                        self.logger.info("Constructing dynamic target (Dynamics)...")
-                        target_args = dynamics_config["construct_target"]
-                        synth = dyn_injector.construct_target(synth, **target_args)
+                    injector = ScenarioInjector(
+                        random_state=self.random_state, logger=self.logger
+                    )
+                    synth = injector.apply_config(synth, dynamics_config)
 
                 # --- Date Injection (if not done in dynamics) ---
                 if date_config and date_config.start_date:
@@ -2126,10 +2241,9 @@ class RealGenerator(BaseGenerator):
                     )
 
                 # --- Drift Injection ---
-                if drift_injection_config:
-                    self.logger.info("Applying drift injection...")
-
-                    # Resolve dir for drift injector
+                if synth is not None and drift_injection_config:
+                    print("DEBUG: Applying drift injection...")
+                    self.logger.info("Applying drift injection config...")
                     drift_out_dir = (
                         output_dir or "."
                     )  # Drift injector might need a dir, fallback to current
@@ -2173,6 +2287,7 @@ class RealGenerator(BaseGenerator):
                             )
 
                 if self.auto_report and output_dir:
+                    print("DEBUG: Generating report...")
                     time_col_name = date_config.date_col if date_config else "timestamp"
 
                     # Build drift_config for report if drift was applied
@@ -2201,6 +2316,7 @@ class RealGenerator(BaseGenerator):
 
                 # Save the generated dataset for inspection
                 if save_dataset:  # Only save if save_dataset is True
+                    print("DEBUG: Saving dataset...")
                     if not output_dir:
                         raise ValueError(
                             "output_dir must be provided if save_dataset is True"
@@ -2216,13 +2332,18 @@ class RealGenerator(BaseGenerator):
                     except Exception as e:
                         self.logger.error(f"Failed to save synthetic dataset: {e}")
 
+                print(f"DEBUG: Returning synth for method '{method}'.")
                 return synth
             else:
+                print(
+                    f"DEBUG: Synthesis method '{method}' failed to generate data (synth is None)."
+                )
                 self.logger.error(
                     f"Synthesis method '{method}' failed to generate data."
                 )
                 return None
         except Exception as e:
+            print(f"DEBUG: Synthesis with method '{method}' failed with exception: {e}")
             self.logger.error(
                 f"Synthesis with method '{method}' failed: {e}", exc_info=True
             )

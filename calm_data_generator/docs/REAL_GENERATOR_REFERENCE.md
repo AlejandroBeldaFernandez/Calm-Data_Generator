@@ -303,6 +303,9 @@ Choose the right method based on your data and requirements:
 
 Best for generating new single-cell-like observations from scratch. These methods are specifically designed for high-dimensional **transcriptomic data (RNA-seq)**. They use deep generative models to represent biological variation while handling the heavy sparsity and technical noise (dropout) typical of single-cell datasets. They are excellent for correcting "batch effects" and synthesizing coherent gene expression profiles.
 
+**Input Format:** Accepts both `pd.DataFrame` and `AnnData` objects directly.
+
+**DataFrame Input:**
 ```python
 synthetic = gen.generate(
     data=expression_df,      # Rows=cells, Columns=genes
@@ -317,11 +320,37 @@ synthetic = gen.generate(
 )
 ```
 
+**AnnData Input (Recommended for single-cell data):**
+```python
+import anndata
+
+# Create or load AnnData object
+adata = anndata.read_h5ad("single_cell_data.h5ad")
+
+synthetic = gen.generate(
+    data=adata,              # Pass AnnData directly
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type",  # Must be in adata.obs
+    model_params={
+        "epochs": 100,
+        "n_latent": 10,
+        "n_layers": 1,
+    }
+)
+# Returns pd.DataFrame with gene columns + metadata
+```
+
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `epochs` | 100 | Training epochs |
 | `n_latent` | 10 | Latent space dimensionality |
 | `n_layers` | 1 | Number of hidden layers |
+
+> [!NOTE]
+> **Why scVI + scGen?** Together, these methods provide a comprehensive suite for single-cell synthesis. **scVI** is the gold standard for representing biological variance and generating "unbiased" cell populations, while **scGen** excels at predicting response to treatments and experimental conditions.
+
+> **AnnData Support:** When passing `AnnData`, the object is used directly without conversion, preserving the original structure. The output is always a `pd.DataFrame` containing both the gene expression and the observations metadata.
 
 #### scGen (Perturbation Prediction)
 
