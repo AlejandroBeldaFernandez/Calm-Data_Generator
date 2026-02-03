@@ -143,8 +143,8 @@ pip install calm-data-generator
 from calm_data_generator import RealGenerator
 import pandas as pd
 
-# Your real dataset
-data = pd.read_csv("your_data.csv")
+# Your real dataset (can be a DataFrame, path to .csv, .h5, or .h5ad)
+data = pd.read_csv("your_data.csv")  # or "your_data.h5ad"
 
 # Initialize generator
 gen = RealGenerator()
@@ -280,7 +280,7 @@ gen = RealGenerator()
 
 # scVI: Generate new cells from scratch
 synthetic = gen.generate(
-    data=expression_df,      # Rows=cells, Columns=genes
+    data="expression_data.h5ad", # Paths to .h5 or .h5ad are supported directly
     n_samples=1000,
     method='scvi',
     target_col='cell_type',

@@ -1993,6 +1993,52 @@ class RealGenerator(BaseGenerator):
         Returns:
             Optional[pd.DataFrame]: The generated synthetic DataFrame, or None if synthesis fails.
         """
+        # Handle file paths as input
+        if isinstance(data, str):
+            import os
+            import pandas as pd
+
+            try:
+                import anndata
+            except ImportError:
+                anndata = None
+
+            if not os.path.exists(data):
+                self.logger.error(f"File not found: {data}")
+                return None
+
+            ext = os.path.splitext(data)[1].lower()
+            if ext == ".h5ad":
+                try:
+                    if anndata is None:
+                        raise ImportError("anndata is required for .h5ad files.")
+                    self.logger.info(f"Loading AnnData from {data}...")
+                    data = anndata.read_h5ad(data)
+                except Exception as e:
+                    self.logger.error(f"Failed to load .h5ad file: {e}")
+                    return None
+            elif ext == ".h5":
+                try:
+                    # Try loading as Pandas HDF5 first
+                    self.logger.info(f"Loading HDF5 data from {data}...")
+                    # We try common keys or default
+                    try:
+                        data = pd.read_hdf(data)
+                    except (ValueError, KeyError, ImportError):
+                        # If it fails, it might be an AnnData stored in H5 format
+                        # or requires a specific key
+                        if anndata is None:
+                            raise ImportError(
+                                "anndata is required for AnnData H5 files."
+                            )
+                        data = anndata.read_h5ad(data)
+                except Exception as e:
+                    self.logger.error(f"Failed to load .h5 file: {e}")
+                    return None
+            else:
+                self.logger.error(f"Unsupported file format for direct loading: {ext}")
+                return None
+
         # Handle AnnData input
         original_adata = None
         if (

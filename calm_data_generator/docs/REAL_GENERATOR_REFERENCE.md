@@ -276,7 +276,7 @@ model_params={"diffusion_steps": 100}
 | Method | Description | Key Parameters | Dependencies |
 |--------|-------------|----------------|--------------|
 | `scvi` | scVI Variational Autoencoder | `epochs`, `n_latent`, `n_layers` | scvi-tools |
-| `scgen` | scGen (perturbation prediction) | `epochs`, `n_latent`, `condition_col` | scvi-tools |
+| `scgen` | scGen (perturbation prediction) | `epochs`, `n_latent`, `condition_col` | scgen 2.1.1 (GitHub) |
 
 ---
 
@@ -303,7 +303,18 @@ Choose the right method based on your data and requirements:
 
 Best for generating new single-cell-like observations from scratch. These methods are specifically designed for high-dimensional **transcriptomic data (RNA-seq)**. They use deep generative models to represent biological variation while handling the heavy sparsity and technical noise (dropout) typical of single-cell datasets. They are excellent for correcting "batch effects" and synthesizing coherent gene expression profiles.
 
-**Input Format:** Accepts both `pd.DataFrame` and `AnnData` objects directly.
+**Input Format:** Accepts `pd.DataFrame`, `AnnData` objects, or strings (paths to `.h5` or `.h5ad` files) directly.
+
+**Using File Paths (H5/H5AD):**
+```python
+# Pass the file path directly - the generator loads it for you!
+synthetic = gen.generate(
+    data="path/to/data.h5ad",  # Or .h5
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type"
+)
+```
 
 **DataFrame Input:**
 ```python

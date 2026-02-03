@@ -120,8 +120,8 @@ pip install calm-data-generator
 from calm_data_generator import RealGenerator
 import pandas as pd
 
-# Tu dataset real
-data = pd.read_csv("your_data.csv")
+# Tu dataset real (puede ser un DataFrame, ruta a .csv, .h5 o .h5ad)
+data = pd.read_csv("your_data.csv")  # o "your_data.h5ad"
 
 # Inicializar generador
 gen = RealGenerator()

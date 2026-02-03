@@ -28,7 +28,9 @@ dependencies = [
     "ydata-profiling>=4.0.0",
     "scvi-tools>=1.0.0",
     "anndata>=0.10.0",
-    "scgen @ git+https://github.com/theislab/scgen.git",
+    "tables>=3.8.0",
+    "h5py>=3.10.0",
+    "scgen @ git+https://github.com/theislab/scgen.git@d79e1f04233c30f9a4eb5b8d57718127909807d7", # scgen 2.1.1 pinned for stability
     "shap>=0.40.0"
 ]
 

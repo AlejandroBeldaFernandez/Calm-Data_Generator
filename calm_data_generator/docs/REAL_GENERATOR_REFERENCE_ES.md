@@ -144,6 +144,19 @@ synthetic = gen.generate(
 )
 ```
 
+**Formato de Entrada:** Acepta objetos `pd.DataFrame`, `AnnData` o rutas de archivo (`.h5` o `.h5ad`) directamente.
+
+**Uso de Rutas de Archivo (H5/H5AD):**
+```python
+# ¡El generador carga el archivo automáticamente por ti!
+synthetic = gen.generate(
+    data="datos_single_cell.h5ad",  # O .h5
+    n_samples=1000,
+    method="scvi",
+    target_col="cell_type"
+)
+```
+
 **Entrada AnnData (Recomendado para datos single-cell):**
 ```python
 import anndata
