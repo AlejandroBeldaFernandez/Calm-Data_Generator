@@ -256,7 +256,7 @@ Si no se especifica ninguna opción, los modelos generativos avanzados (`ctgan`,
 | `smote` | Aug. | Synthetic Minority Over-sampling Technique |
 | `adasyn` | Aug. | Adaptive Synthetic Sampling |
 | `scvi` | Gen. | Variational Inference para datos single-cell |
-| `scgen` | Gen. | Predicción de perturbaciones para datos single-cell |
+| `scgen` | Gen. | Predicción de perturbaciones (Requiere scgen 2.1.1 desde GitHub) |
 | `dp` | Priv. | Privacidad Diferencial (Requiere SmartNoise) |
 
 ---

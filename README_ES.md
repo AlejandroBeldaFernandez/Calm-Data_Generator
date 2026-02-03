@@ -314,7 +314,7 @@ reporter.generate_report(
 | `gmm` | Estadístico | Modelos de Mezcla Gaussiana | Instalación base |
 | `datasynth` | Estadístico | DataSynthesizer (Greedy Bayes) | Requiere `DataSynthesizer` |
 | `scvi` | Single-Cell | scVI (Variational Inference) para RNA-seq | Requiere `scvi-tools` |
-| `scgen` | Single-Cell | scGen (Predictor de Perturbaciones) | Requiere `scvi-tools` |
+| `scgen` | Single-Cell | scGen (Requiere scgen 2.1.1 desde GitHub) | Requiere `scvi-tools` |
 
 ---
 
