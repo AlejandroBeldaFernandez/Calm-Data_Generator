@@ -16,7 +16,7 @@ ydata-profiling>=4.0.0
 lightgbm>=4.0.0
 scvi-tools>=1.0.0
 anndata>=0.10.0
-scgen>=0.1.0
+scgen @ git+https://github.com/theislab/scgen.git
 shap>=0.40.0
 
 # Optional dependencies (install manually if needed)
