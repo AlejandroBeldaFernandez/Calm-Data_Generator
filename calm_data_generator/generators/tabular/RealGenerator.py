@@ -1165,7 +1165,7 @@ class RealGenerator(BaseGenerator):
                 else:
                     # Last resort, try to get mean
                     synthetic_expression = px_dist.mean
-            except Exception as e:
+            except Exception:
                 # Fallback to mean if sampling fails (e.g. unstable parameters from low training)
                 try:
                     synthetic_expression = px_dist.mean
@@ -1996,7 +1996,6 @@ class RealGenerator(BaseGenerator):
         # Handle file paths as input
         if isinstance(data, str):
             import os
-            import pandas as pd
 
             try:
                 import anndata
