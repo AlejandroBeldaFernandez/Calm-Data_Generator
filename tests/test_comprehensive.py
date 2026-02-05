@@ -36,11 +36,7 @@ def test_real_generator_methods(sample_data):
 
     # LGBM (low epochs)
     synth = gen.generate(
-        sample_data,
-        20,
-        method="lgbm",
-        target_col="target",
-        model_params={"n_estimators": 5},
+        sample_data, 20, method="lgbm", target_col="target", n_estimators=5
     )
     assert synth is not None and len(synth) == 20
 

@@ -239,7 +239,6 @@ class RealGenerator(BaseGenerator):
         # Always rebuild/refit for stateless operation on new data.
         # (Optimization: could cache if data/method matches, but keeping it simple/safe first)
         self.metadata = self._build_metadata(data)
-        self.metadata = self._build_metadata(data)
         self.synthesizer = self._get_synthesizer(method, **model_kwargs)
         self.synthesizer.fit(data)
 
@@ -1967,9 +1966,9 @@ class RealGenerator(BaseGenerator):
         save_dataset: bool = False,
         drift_injection_config: Optional[List[Dict]] = None,
         dynamics_config: Optional[Dict] = None,
-        model_params: Optional[Dict[str, Any]] = None,
         constraints: Optional[List[Dict]] = None,
         adversarial_validation: bool = False,
+        **kwargs,
     ) -> Optional[pd.DataFrame]:
         """
         The main public method to generate synthetic data.
@@ -1987,7 +1986,7 @@ class RealGenerator(BaseGenerator):
             save_dataset (bool): If True, saves the generated dataset to a CSV file.
             drift_injection_config (Optional[List[Dict]]): List of drift injection configurations.
             dynamics_config (Optional[Dict]): Configuration for dynamics injection (feature evolution, target construction).
-            model_params (Optional[Dict[str, Any]]): A dictionary of hyperparameters for the chosen synthesis model.
+            **kwargs: Hyperparameters for the models
             adversarial_validation (bool): If True, runs the DiscriminatorReporter to compute adversarial validation metrics (AUC).
 
         Returns:
@@ -2095,7 +2094,7 @@ class RealGenerator(BaseGenerator):
             synth = None
             if method in ["ctgan", "tvae", "copula"]:
                 # Pass model_params as kwargs, filtering out non-SDV params if needed
-                sdv_params = model_params.copy() if model_params else {}
+                sdv_params = kwargs if kwargs else {}
                 # Ensure we don't pass sdv_epochs/sdv_batch_size if they were already in params
                 # but sdv_params should just be the kwargs
                 synth = self._synthesize_sdv(
@@ -2119,7 +2118,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "rf":
                 synth = self._synthesize_rf(
@@ -2127,7 +2126,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "lgbm":
                 synth = self._synthesize_lgbm(
@@ -2135,7 +2134,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "gmm":
                 synth = self._synthesize_gmm(
@@ -2143,7 +2142,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "datasynth":
                 synth = self._synthesize_datasynth(
@@ -2151,7 +2150,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "smote":
                 synth = self._synthesize_smote(
@@ -2159,7 +2158,7 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "adasyn":
                 synth = self._synthesize_adasyn(
@@ -2167,31 +2166,29 @@ class RealGenerator(BaseGenerator):
                     n_samples,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "dp":
                 synth = self._synthesize_dp(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    data, n_samples, target_col=target_col, **(kwargs or {})
                 )
             elif method == "par":
                 synth = self._synthesize_par(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    data, n_samples, target_col=target_col, **(kwargs or {})
                 )
             elif method == "diffusion":
-                synth = self._synthesize_diffusion(
-                    data, n_samples, **(model_params or {})
-                )
+                synth = self._synthesize_diffusion(data, n_samples, **(kwargs or {}))
             elif method == "timegan":
                 synth = self._synthesize_timegan(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    data, n_samples, target_col=target_col, **(kwargs or {})
                 )
             elif method == "dgan":
                 synth = self._synthesize_dgan(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    data, n_samples, target_col=target_col, **(kwargs or {})
                 )
             elif method == "copula_temporal":
                 synth = self._synthesize_copula_temporal(
-                    data, n_samples, target_col=target_col, **(model_params or {})
+                    data, n_samples, target_col=target_col, **(kwargs or {})
                 )
             elif method == "scvi":
                 # Pass original_adata if available to avoid redundant conversion
@@ -2199,7 +2196,7 @@ class RealGenerator(BaseGenerator):
                     original_adata if original_adata is not None else data,
                     n_samples,
                     target_col=target_col,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
             elif method == "scgen":
                 # Pass original_adata if available to avoid redundant conversion
@@ -2207,7 +2204,7 @@ class RealGenerator(BaseGenerator):
                     original_adata if original_adata is not None else data,
                     n_samples,
                     target_col=target_col,
-                    **(model_params or {}),
+                    **(kwargs or {}),
                 )
 
             # --- Constraints Application ---

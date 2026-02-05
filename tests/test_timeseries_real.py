@@ -36,13 +36,6 @@ class TestTimeSeriesReal(unittest.TestCase):
 
         df = pd.DataFrame(data)
 
-        # Define model_params for PAR
-        # RealGenerator expects 'sequence_key' for entity ID
-        model_params = {
-            "entity_columns": ["user_id"],
-            "sequence_key": "user_id",  # Correct parameter name
-        }
-
         try:
             generator = RealGenerator()
 
@@ -54,7 +47,8 @@ class TestTimeSeriesReal(unittest.TestCase):
                 data=df,
                 n_samples=n_users,  # In PAR/Series, n_samples usually means number of entities to sample
                 method="par",
-                model_params=model_params,
+                entity_columns=["user_id"],
+                sequence_key="user_id",
                 output_dir=self.output_dir,
                 save_dataset=False,
             )
@@ -98,10 +92,6 @@ class TestTimeSeriesReal(unittest.TestCase):
         # Diffusion typically for images, but checking if supported for tabular/ts in this lib
 
         # Base params
-        model_params = {
-            "entity_columns": ["user_id"],
-            "sequence_key": "user_id",
-        }
 
         generator = RealGenerator()
 
@@ -113,16 +103,16 @@ class TestTimeSeriesReal(unittest.TestCase):
                     # RealGenerator builds it.
 
                     # Some methods might need specific params (e.g. epochs to be fast)
-                    params = model_params.copy()
-                    params["epochs"] = 1  # Fast training
 
                     synth_df = generator.generate(
                         data=df,
                         n_samples=2,  # Entities
                         method=method,
-                        model_params=params,
                         output_dir=self.output_dir,
                         save_dataset=False,
+                        entity_colums=["user_id"],
+                        sequence_key="user_di",
+                        epochs=1,
                     )
 
                     if synth_df is None:

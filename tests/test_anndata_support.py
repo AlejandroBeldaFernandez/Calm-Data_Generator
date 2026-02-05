@@ -56,7 +56,9 @@ def test_anndata_support_scgen():
         n_samples=30,
         method="scgen",
         target_col="cell_type",
-        model_params={"epochs": 5, "n_latent": 5, "condition_col": "batch"},
+        epochs=5,
+        n_latent=5,
+        condition_col="batch",
     )
 
     # 3. Assertions

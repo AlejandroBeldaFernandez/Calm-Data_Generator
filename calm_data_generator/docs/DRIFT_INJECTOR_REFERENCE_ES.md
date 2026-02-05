@@ -97,6 +97,9 @@ La inyección de drift puede respetar la estructura de correlación de tus datos
 
 Mecanismo: $\Delta Y = \rho_{XY} \cdot \frac{\sigma_Y}{\sigma_X} \cdot \Delta X$
 
+> [!TIP]
+> **Nota sobre Concept Drift:** Si deseas simular **Concept Drift** (donde las reglas del modelo cambian y por tanto falla, ej: el input sube pero el target se mantiene igual), debes **excluir la columna target** de la matriz de correlaciones o anular su correlación manualmente antes de pasarla. Si incluyes el target en la propagación, este se ajustará junto con el input (Covariate Shift), manteniendo la relación original y haciendo que el drift sea más difícil de detectar por el modelo.
+
 ### Tipos de Columna Auto-Detectados
 
 | Tipo Columna | Detección | Operación por Defecto |

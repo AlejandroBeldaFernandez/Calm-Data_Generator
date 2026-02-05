@@ -85,7 +85,8 @@ class TestSingleCellSynthesis:
             n_samples=30,
             method="scvi",
             target_col="cell_type",
-            model_params={"epochs": 5, "n_latent": 5},
+            epochs=5,
+            n_latent=5,
         )
 
         assert "cell_type" in synthetic.columns
@@ -107,11 +108,9 @@ class TestSingleCellSynthesis:
             n_samples=n_samples,
             method="scgen",
             target_col="cell_type",
-            model_params={
-                "epochs": 10,
-                "n_latent": 5,
-                "condition_col": "condition",
-            },
+            epochs=10,
+            n_latent=5,
+            condition_col="condition",
         )
 
         assert synthetic is not None
@@ -129,7 +128,7 @@ class TestSingleCellSynthesis:
             n_samples=30,
             method="scgen",
             target_col="cell_type",
-            model_params={"epochs": 5},
+            epochs=5,
         )
 
         assert synthetic is not None
@@ -150,9 +149,7 @@ class TestSingleCellSynthesis:
         gen = RealGenerator(auto_report=False)
 
         # RealGenerator returns None on failure and logs error
-        result = gen.generate(
-            data=df, n_samples=10, method="scvi", model_params={"epochs": 5}
-        )
+        result = gen.generate(data=df, n_samples=10, method="scvi", epochs=5)
         assert result is None
 
     def test_scvi_model_params_kwargs(self, sample_expression_data):
@@ -166,11 +163,9 @@ class TestSingleCellSynthesis:
             data=sample_expression_data,
             n_samples=20,
             method="scvi",
-            model_params={
-                "epochs": 5,
-                "n_latent": 8,
-                "n_layers": 2,
-            },
+            epochs=5,
+            n_latent=8,
+            n_layers=2,
         )
 
         assert synthetic is not None

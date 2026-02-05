@@ -170,6 +170,9 @@ drifted = injector.inject_drift(
 
 Mechanism: $\Delta Y = \rho_{XY} \cdot \frac{\sigma_Y}{\sigma_X} \cdot \Delta X$
 
+> [!TIP]
+> **Note on Concept Drift:** If you want to simulate **Concept Drift** (where the model rules change and thus it fails, e.g., input grows but target stays low), you should **exclude the target column** from the correlation matrix or manually zero out its correlation before passing it. If you include the target in propagation, it will adjust along with the input (Covariate Shift), maintaining the original relationship and making the drift harder for the model to detect.
+
 ---
 
 # Gradual drift with custom operations
