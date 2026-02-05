@@ -82,8 +82,20 @@ drifted = injector.inject_drift(
     drift_magnitude=0.3,
     center=500,                    # Para modo gradual
     width=200,
+    correlations=True,             # Propagar drift a columnas correlacionadas
 )
 ```
+
+### Propagación de Correlaciones
+
+La inyección de drift puede respetar la estructura de correlación de tus datos, asegurando que los cambios en una característica se reflejen de manera realista en las características correlacionadas.
+
+**Parámetro `correlations`:**
+- **`True`**: Calcula la matriz de correlación de Pearson desde el DataFrame actual y propaga el drift proporcionalmente.
+- **`pd.DataFrame`** o **`Dict`**: Usa una matriz o diccionario de correlación específico proporcionado por ti.
+- **`None`** (Defecto): No se realiza propagación; solo cambian las columnas especificadas.
+
+Mecanismo: $\Delta Y = \rho_{XY} \cdot \frac{\sigma_Y}{\sigma_X} \cdot \Delta X$
 
 ### Tipos de Columna Auto-Detectados
 

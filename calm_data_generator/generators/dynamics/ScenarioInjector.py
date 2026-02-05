@@ -22,6 +22,7 @@ class ScenarioInjector:
         auto_report: bool = True,
         generator_name: str = "ScenarioInjector",
         resample_rule: Optional[Union[str, int]] = None,
+        correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
     ) -> pd.DataFrame:
         """
         Evolves features in the DataFrame based on the provided configuration.
@@ -34,6 +35,10 @@ class ScenarioInjector:
             time_col (str, optional): Column to use as the time variable t.
                                       If None, uses the DataFrame index (must be numeric or convertible).
             resample_rule (str|int, optional): Resampling rule for reporting.
+            correlations (Optional[Union[pd.DataFrame, Dict, bool]]): Controls drift propagation to correlated features.
+                - If `True`: Calculates the correlation matrix from the current DataFrame and propagates drift.
+                - If `pd.DataFrame` or `Dict`: Uses the provided correlation structure to propagate drift.
+                - If `None` (default): No propagation is performed.
 
         Returns:
             pd.DataFrame: DataFrame with evolved features.
@@ -87,7 +92,25 @@ class ScenarioInjector:
 
             # Apply delta
             # Assuming additive drift for now. Could add 'mode': 'multiplicative' later.
+            # Calculate current values before update for delta calculation if needed
+            # But here delta is already the change vector for the whole column 't'
+
+            # Pre-calculate std for propagation BEFORE applying delta to df
+            driver_std = float(df_evolved[col].std())
+
+            # Apply to main column
             df_evolved[col] = df_evolved[col] + delta
+
+            # Propagate to correlated columns
+            if correlations is not None and correlations is not False:
+                self._propagate_numeric_drift(
+                    df_evolved,
+                    df_evolved.index,
+                    col,
+                    delta,
+                    correlations,
+                    driver_std=driver_std,
+                )
 
         if auto_report and output_dir:
             from calm_data_generator.generators.tabular.QualityReporter import (
@@ -129,6 +152,71 @@ class ScenarioInjector:
             )
 
         return df_evolved
+
+    def _propagate_numeric_drift(
+        self,
+        df: pd.DataFrame,
+        rows: pd.Index,
+        driver_col: str,
+        delta_driver: np.ndarray,
+        correlations: Union[pd.DataFrame, Dict, bool],
+        driver_std: Optional[float] = None,
+    ) -> pd.DataFrame:
+        """
+        Propagates the drift (delta) from a driver column to other correlated columns.
+
+        Formula: Delta_Y = Correlation(X, Y) * (Std_Y / Std_X) * Delta_X
+        """
+        if correlations is None or correlations is False:
+            return df
+
+        # 1. Determine Correlation Matrix
+        if isinstance(correlations, bool) and correlations:
+            corr_matrix = df.corr()
+        elif isinstance(correlations, (pd.DataFrame, dict)):
+            corr_matrix = pd.DataFrame(correlations)
+        else:
+            return df
+
+        if driver_col not in corr_matrix.index:
+            return df
+
+        # 2. Get Driver Stats
+        if driver_std is None:
+            driver_std = df[driver_col].std()
+
+        if driver_std == 0 or np.isnan(driver_std):
+            return df
+
+        # 3. Iterate over other columns
+        target_cols = [
+            c
+            for c in df.columns
+            if c != driver_col and pd.api.types.is_numeric_dtype(df[c])
+        ]
+
+        for target_col in target_cols:
+            if target_col not in corr_matrix.columns:
+                continue
+
+            rho = corr_matrix.loc[driver_col, target_col]
+            if pd.isna(rho) or rho == 0:
+                continue
+
+            target_std = df[target_col].std()
+            if target_std == 0 or np.isnan(target_std):
+                continue
+
+            # Delta_Y ~ rho * (sigma_Y / sigma_X) * Delta_X
+            factor = rho * (target_std / driver_std)
+            delta_target = delta_driver * factor
+
+            # Apply to DataFrame
+            # We add to existing values
+            current_vals = df.loc[rows, target_col].to_numpy()
+            df.loc[rows, target_col] = current_vals + delta_target
+
+        return df
 
     def construct_target(
         self,

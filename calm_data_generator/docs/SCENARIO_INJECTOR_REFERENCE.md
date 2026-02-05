@@ -40,7 +40,10 @@ evolved_df = scenario.evolve_features(
     output_dir="./output",                    # Output directory
     auto_report=True,                         # Generate report
     generator_name="ScenarioInjector",        # File base name
+    auto_report=True,                         # Generate report
+    generator_name="ScenarioInjector",        # File base name
     resample_rule=None,                       # Time resampling rule
+    correlations=None,                        # Drift propagation control
 )
 ```
 
@@ -55,6 +58,7 @@ evolved_df = scenario.evolve_features(
 | `auto_report` | bool | `True` | Automatically generate a report |
 | `generator_name` | str | `"ScenarioInjector"` | Base name for output files |
 | `resample_rule` | str/int | `None` | Resampling rule (e.g., "D", "W") |
+| `correlations` | bool/df/dict | `None` | If `True` or a matrix, propagates evolution to correlated features. |
 
 ### Evolution Types
 

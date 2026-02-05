@@ -53,6 +53,7 @@ Una ventaja clave de **Calm-Data-Generator** es permitir el uso de datos privado
 - **Validación de Monitorización MLOps**: Usa **StreamGenerator** y **DriftInjector** para simular drift de datos (gradual, abrupto) y verificar si tus alertas de monitorización se activan correctamente antes del despliegue.
 - **Investigación Biomédica (HealthTech)**: Genera cohortes de pacientes sintéticos con **ClinicalDataGenerator** que preservan correlaciones biológicas complejas (ej. relaciones gen-edad) para estudios colaborativos sin comprometer la privacidad del paciente.
 - **Pruebas de Estrés (Análisis "What-If")**: Usa **ScenarioInjector** para simular escenarios futuros (ej. "¿Qué pasa si la base de clientes envejece 10 años?") y medir la degradación del rendimiento del modelo bajo estrés.
+- **Drift con Correlaciones**: Inyecta drift que se propaga realisticamente a características correlacionadas (ej. aumentar ingresos también aumenta gastos proporcionalmente) usando el parámetro `correlations=True`.
 - **Datos de Desarrollo**: Proporciona a los desarrolladores réplicas sintéticas de alta fidelidad de bases de datos de producción, permitiéndoles construir y probar funcionalidades de forma segura sin acceder a datos reales sensibles.
 
 ---

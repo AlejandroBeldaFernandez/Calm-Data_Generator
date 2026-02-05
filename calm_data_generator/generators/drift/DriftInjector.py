@@ -484,6 +484,72 @@ class DriftInjector:
 
         return x
 
+    def _propagate_numeric_drift(
+        self,
+        df: pd.DataFrame,
+        rows: pd.Index,
+        driver_col: str,
+        delta_driver: np.ndarray,
+        correlations: Union[pd.DataFrame, Dict, bool],
+        driver_std: Optional[float] = None,
+    ) -> pd.DataFrame:
+        """
+        Propagates the drift (delta) from a driver column to other correlated columns.
+
+        Formula: Delta_Y = Correlation(X, Y) * (Std_Y / Std_X) * Delta_X
+        """
+        if correlations is None or correlations is False:
+            return df
+
+        # 1. Determine Correlation Matrix
+        if isinstance(correlations, bool) and correlations:
+            # Calculate correlation matrix from CURRENT data (or could use original?)
+            # Using current data to reflect current relationships
+            corr_matrix = df.corr()
+        elif isinstance(correlations, (pd.DataFrame, dict)):
+            corr_matrix = pd.DataFrame(correlations)
+        else:
+            return df
+
+        if driver_col not in corr_matrix.index:
+            return df
+
+        # 2. Get Driver Stats
+        if driver_std is None:
+            driver_std = df[driver_col].std()
+        if driver_std == 0 or np.isnan(driver_std):
+            return df
+
+        # 3. Iterate over other columns
+        target_cols = [
+            c
+            for c in df.columns
+            if c != driver_col and pd.api.types.is_numeric_dtype(df[c])
+        ]
+
+        for target_col in target_cols:
+            if target_col not in corr_matrix.columns:
+                continue
+
+            rho = corr_matrix.loc[driver_col, target_col]
+            if pd.isna(rho) or rho == 0:
+                continue
+
+            target_std = df[target_col].std()
+            if target_std == 0 or np.isnan(target_std):
+                continue
+
+            # Delta_Y ~ rho * (sigma_Y / sigma_X) * Delta_X
+            factor = rho * (target_std / driver_std)
+            delta_target = delta_driver * factor
+
+            # Apply to DataFrame
+            # We add to existing values
+            current_vals = df.loc[rows, target_col].to_numpy()
+            df.loc[rows, target_col] = current_vals + delta_target
+
+        return df
+
     def _apply_categorical_with_weights(
         self,
         original_vals: pd.Series,
@@ -558,6 +624,7 @@ class DriftInjector:
         specific_times: Optional[Sequence[str]] = None,
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
+        correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -571,6 +638,10 @@ class DriftInjector:
             auto_report: Whether to generate a report.
             output_dir: Directory for reports (overrides init default).
             generator_name: Name for reports (overrides init default).
+            correlations: Optional. Controls drift propagation to correlated features.
+                - If `True`: Calculates the correlation matrix from the current DataFrame and propagates drift.
+                - If `pd.DataFrame` or `Dict`: Uses the provided correlation structure to propagate drift.
+                - If `None` (default): No propagation is performed.
         """
         self._validate_feature_op(drift_type, drift_magnitude)
         df_drift = df.copy()
@@ -588,6 +659,10 @@ class DriftInjector:
         )
 
         w = np.ones(len(rows), dtype=float)
+
+        # Pre-calculate correlations if needed to avoid re-calc per column
+        # If correlations is implicitly True, we can either calculate here or inside propagation
+        # Let's clean it up slightly if it's just a boolean flag to start with
 
         for col in feature_cols:
             if col not in df.columns:
@@ -610,11 +685,31 @@ class DriftInjector:
                     )
 
             if pd.api.types.is_numeric_dtype(df[col]):
-                x = df_drift.loc[rows, col].to_numpy(copy=True)
+                x_original = df_drift.loc[rows, col].to_numpy(copy=True)
+
+                # Pre-calculate std for propagation (before drift applied)
+                driver_std = float(df_drift[col].std())
+
                 x2 = self._apply_numeric_op_with_weights(
-                    x, drift_type, drift_magnitude, w, self.rng, column_drift_value
+                    x_original,
+                    drift_type,
+                    drift_magnitude,
+                    w,
+                    self.rng,
+                    column_drift_value,
                 )
+
+                # Calculate Delta for propagation
+                delta = x2 - x_original
+
+                # Apply change
                 df_drift.loc[rows, col] = x2
+
+                # Propagate if correlations provided
+                if correlations is not None and correlations is not False:
+                    self._propagate_numeric_drift(
+                        df_drift, rows, col, delta, correlations, driver_std=driver_std
+                    )
             else:
                 s = df_drift.loc[rows, col]
                 s2 = self._apply_categorical_with_weights(
@@ -682,9 +777,17 @@ class DriftInjector:
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         resample_rule: Optional[Union[str, int]] = None,
+        correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
     ) -> pd.DataFrame:
         """
         Injects gradual drift on selected rows using a transition window.
+
+        Args:
+            df, feature_cols, drift_type, drift_magnitude...: Standard drift params.
+            correlations: Optional. Controls drift propagation to correlated features.
+                - If `True`: Calculates correlations from data and propagates.
+                - If `pd.DataFrame`/`Dict`: Uses provided correlations.
+                - If `None`: No propagation.
         """
         self._validate_feature_op(drift_type, drift_magnitude)
         df_drift = df.copy()
@@ -731,11 +834,27 @@ class DriftInjector:
 
             column_drift_value = drift_values.get(col) if drift_values else drift_value
             if pd.api.types.is_numeric_dtype(df[col]):
-                x = df_drift.loc[rows, col].to_numpy(copy=True)
+                x_original = df_drift.loc[rows, col].to_numpy(copy=True)
+
+                # Pre-calculate std for propagation
+                driver_std = float(df_drift[col].std())
+
                 x2 = self._apply_numeric_op_with_weights(
-                    x, drift_type, drift_magnitude, w, self.rng, column_drift_value
+                    x_original,
+                    drift_type,
+                    drift_magnitude,
+                    w,
+                    self.rng,
+                    column_drift_value,
                 )
+
+                delta = x2 - x_original
                 df_drift.loc[rows, col] = x2
+
+                if correlations is not None and correlations is not False:
+                    self._propagate_numeric_drift(
+                        df_drift, rows, col, delta, correlations, driver_std=driver_std
+                    )
             else:
                 s = df_drift.loc[rows, col]
                 s2 = self._apply_categorical_with_weights(

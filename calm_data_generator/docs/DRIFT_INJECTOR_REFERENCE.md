@@ -148,6 +148,30 @@ drifted = injector.inject_drift(
     start_index=500,
 )
 
+### Correlation Propagation
+
+Drift injection can respect the correlation structure of your data, ensuring that changes in one feature are realistically reflected in correlated features.
+
+```python
+# Propagate drift to correlated features
+drifted = injector.inject_drift(
+    df=data,
+    columns=['income'],
+    drift_mode='gradual',
+    drift_magnitude=0.2,
+    correlations=True # Calculate and use current correlations
+)
+```
+
+**`correlations` Parameter:**
+- **`True`**: Calculates the Pearson correlation matrix from the current DataFrame and propagates drift to all correlated features proportionally.
+- **`pd.DataFrame`** or **`Dict`**: Uses a distinct correlation matrix or dictionary you provide.
+- **`None`** (Default): No propagation is performed; only the specified columns change.
+
+Mechanism: $\Delta Y = \rho_{XY} \cdot \frac{\sigma_Y}{\sigma_X} \cdot \Delta X$
+
+---
+
 # Gradual drift with custom operations
 drifted = injector.inject_drift(
     df=data,
