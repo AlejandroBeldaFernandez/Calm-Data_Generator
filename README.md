@@ -9,11 +9,16 @@
 
 **CALM-Data-Generator** is a comprehensive Python library for synthetic data generation with advanced features for:
 - **Clinical/Medical Data** - Generate realistic patient demographics, genes, proteins
-- **Tabular Data Synthesis** - CTGAN, TVAE, Copula, CART, and more
-- **Time Series** - TimeGAN, DGAN, PAR, Temporal Copula
+- **Tabular Data Synthesis** - CTGAN, TVAE, CART, and more
+- **Time Series** - TimeGAN, DGAN
+- **Single-Cell** - scVI (Deep Generative Models for scRNA-seq)
 - **Drift Injection** - Test ML model robustness with controlled drift
-- **Privacy Preservation** - Differential privacy, pseudonymization, generalization
+- **Privacy Assessment** - DCR metrics for re-identification risk
 - **Scenario Evolution** - Feature evolution and target construction
+
+![CALM Architecture](assets/architecture.png)
+
+![CALM Workflow](assets/ecosystem.png)
 
 ## Scope & Capabilities
 
@@ -34,12 +39,21 @@
 
 This library leverages and unifies best-in-class open-source tools to provide a seamless data generation experience:
 
-- **SDV (Synthetic Data Vault)**: The core engine for tabular deep learning models (CTGAN, TVAE) and statistical methods (Copula). **Included by default**.
-  > **Note:** SDV versions 1.0+ use the Business Source License (BSL). While free for development and research, commercial production use may require a license from DataCebo. Please review their terms.
-- **River**: Powers the streaming generation capabilities (`[stream]` extra).
-- **Gretel Synthetics**: Provides advanced time-series generation via DoppelGANger (`[timeseries]` extra).
+- **Synthcity**: The core engine for tabular deep learning models (CTGAN, TVAE) and privacy. **Included by default**.
+- **River**: Powers the streaming generation capabilities (`[stream]` extra)..
 - **YData Profiling**: Generates comprehensive automated quality reports.
-- **SmartNoise**: Enables differential privacy mechanisms.
+
+## Key Libraries & Ecosystem
+ 
+ | Library | Role | Usage in Calm-Data-Generator |
+ | :--- | :--- | :--- |
+ | **Synthcity** | Deep Learning Engine | Powers `CTGAN`, `TVAE`, `DDPM`, `TimeGAN`. Handling privacy & fidelity. |
+ | **scvi-tools** | Single-Cell Analysis | Powers `scvi` method for high-dimensional genomic/transcriptomic data. |
+ | **River** | Streaming ML | Powers `StreamGenerator` for concept drift simulation and real-time data flow. |
+ | **YData Profiling**| Reporting | Generates automated quality reports (`QualityReporter`). |
+ | **Pydantic** | Validation | Ensures strict type checking and configuration management. |
+ | **PyTorch** | Backend | Underlying tensor computation for all deep learning models. |
+ | **Copulae** | Statistical Modeling | Powers the `copula` method for multivariate dependence modeling. |
 
 ## Safe Data Sharing
 
@@ -66,28 +80,42 @@ Minimalist view of the system's core components and data flow.
 
 ![Architecture Diagram](calm_data_generator/docs/assets/architecture.png)
 
-### Ecosystem Integration
-How **Calm Data Generator** integrates with foundational libraries to provide enhanced value (Drift, Clinical Logic, Reporting).
 
-![Ecosystem Diagram](calm_data_generator/docs/assets/ecosystem.png)
 
 ---
 
 ## Installation
+ 
+ > [!WARNING]
+ > **Heads Up**: This library depends on heavy Deep Learning frameworks like `PyTorch`, `Synthcity`, and `CUDA` libraries. 
+ > The installation might be **heavy (~2-3 GB)** and take a few minutes depending on your internet connection. We strongly recommend using a fresh virtual environment.
+
+### Standard Installation
+The library is available on PyPI. For the most stable experience, we recommend using a virtual environment:
 
 ```bash
-# Basic installation
+# 1. Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Install the core library (optimized for speed)
 pip install calm-data-generator
-
-# For Stream Generator (River)
-pip install calm-data-generator[stream]
-
-# For Time Series (Gretel Synthetics)
-pip install calm-data-generator[timeseries]
-
-# Full installation
-pip install calm-data-generator[full]
 ```
+
+### Installation Extras
+Depending on your needs, you can install additional capabilities:
+```bash
+# For Stream Generator (River)
+pip install "calm-data-generator[stream]"
+
+
+
+# Full suite
+pip install "calm-data-generator[full]"
+```
+
+> [!NOTE]
+> **Performance Note**: We have optimized the dependency tree in version 1.0.0 by pinning specific versions of `pydantic`, `xgboost`, and `cloudpickle`. This significantly reduces the initial installation time from ~40 minutes to just a few minutes. 🚀
 
 **From source:**
 ```bash
@@ -151,17 +179,15 @@ data = pd.read_csv("your_data.csv")  # or "your_data.h5ad"
 gen = RealGenerator()
 
 # Generate 1000 synthetic samples using CTGAN
-# model_params accepts any hyperparameter supported by the underlying model
+
 synthetic = gen.generate(
     data=data,
     n_samples=1000,
     method='ctgan',
     target_col='label',
-    model_params={
-        'epochs': 300,           # Training epochs
-        'batch_size': 500,       # Batch size
-        'discriminator_steps': 1 # CTGAN-specific parameter
-    }
+    epochs=300,
+    batch_size=500,
+    discriminator_steps=1,
 )
 
 print(f"Generated {len(synthetic)} samples")
@@ -173,21 +199,23 @@ print(f"Generated {len(synthetic)} samples")
 
 | Method | GPU Support | Parameter |
 |--------|-------------|-----------|
-| `ctgan`, `tvae`, `copula` | ✅ CUDA/MPS | `enable_gpu=True` |
-| `par` (time series) | ✅ CUDA/MPS | `enable_gpu=True` |
-| `dgan` (DoppelGANger) | ✅ PyTorch | Auto-detected |
+| `ctgan`, `tvae` | ✅ CUDA/MPS | `enable_gpu=True` |
 | `diffusion` | ✅ PyTorch | Auto-detected |
-| `smote`, `adasyn`, `cart`, `rf`, `lgbm`, `gmm`, `dp`, `datasynth` | ❌ CPU only | - |
+| `ddpm` | ✅ PyTorch + Synthcity | Auto-detected |
+| `timegan` | ✅ PyTorch + Synthcity | Auto-detected |
+| `timevae` | ✅ PyTorch + Synthcity | Auto-detected |
+
+
+| `smote`, `adasyn`, `cart`, `rf`, `lgbm`, `gmm`, `copula` | ❌ CPU only | - |
 
 ```python
 synthetic = gen.generate(
     data=data,
     n_samples=1000,
     method='ctgan',
-    model_params={
-        'epochs': 300,
-        'enable_gpu': True  # Explicit GPU - auto-detected by default
-    }
+    epochs=300, 
+    enable_gpu=True,
+   
 )
 ```
 
@@ -285,26 +313,18 @@ synthetic = gen.generate(
     n_samples=1000,
     method='scvi',
     target_col='cell_type',
-    model_params={'epochs': 100, 'n_latent': 10}
+    epochs=100,
+    n_latent=10,
+    
 )
 
-# scGen: Generate cells under different conditions
-synthetic = gen.generate(
-    data=expression_df,
-    n_samples=1000,
-    method='scgen',
-    target_col='cell_type',
-    model_params={
-        'epochs': 100,
-        'condition_col': 'treatment'  # Required for scGen
-    }
-)
+
 ```
 
 | Method | Use Case |
 |--------|----------|
 | `scvi` | Generate new cells from learned distribution |
-| `scgen` | Perturbation prediction, batch effect removal |
+
 
 ### Stream Data Generation
 
@@ -353,7 +373,6 @@ reporter.generate_report(
 | **Blocks** | `generators.tabular` | RealBlockGenerator |
 | **Drift** | `generators.drift` | DriftInjector |
 | **Dynamics** | `generators.dynamics` | ScenarioInjector |
-| **Anonymizer** | `anonymizer` | Privacy transformations |
 | **Reports** | `reports` | Visualizer |
 
 ---
@@ -365,21 +384,20 @@ reporter.generate_report(
 | `cart` | ML | CART-based iterative synthesis (fast) | Base installation |
 | `rf` | ML | Random Forest synthesis | Base installation |
 | `lgbm` | ML | LightGBM-based synthesis | Base installation (Requires `lightgbm`) |
-| `ctgan` | DL | Conditional GAN for tabular data | Requires `sdv` (heavy DL dep) |
-| `tvae` | DL | Variational Autoencoder | Requires `sdv` (heavy DL dep) |
-| `copula` | Statistical | Gaussian Copula | Base installation |
-| `diffusion` | DL | Tabular Diffusion (DDPM) | **Experimental**. Requires `calm-data-generator[deeplearning]` |
+| `ctgan` | DL | Conditional GAN for tabular data | Requires `synthcity` |
+| `tvae` | DL | Variational Autoencoder | Requires `synthcity` |
+| `diffusion` | DL | Tabular Diffusion (custom, fast) | Base installation (PyTorch) |
+| `ddpm` | DL | Synthcity TabDDPM (advanced) | Requires `synthcity` |
+| `timegan` | Time Series | TimeGAN for sequential data | Requires `synthcity` |
+| `timevae` | Time Series | TimeVAE for sequential data | Requires `synthcity` |
 | `smote` | Augmentation | SMOTE oversampling | Base installation |
 | `adasyn` | Augmentation | ADASYN adaptive sampling | Base installation |
-| `dp` | Privacy | Differential Privacy (PATE-CTGAN) | Requires `smartnoise-synth` |
-| `timegan` | Time Series | TimeGAN for sequences | **Manual Install**. Requires `ydata-synthetic` & `tensorflow` (conflicts likely) |
-| `dgan` | Time Series | DoppelGANger | Requires `calm-data-generator[timeseries]` (`gretel-synthetics`) |
-| `par` | Time Series | Probabilistic AutoRegressive | Requires `sdv` |
-| `copula_temporal` | Time Series | Gaussian Copula with temporal lags | Base installation |
+
+
+| `copula` | Copula | Copula-based synthesis | Base installation |
 | `gmm` | Statistical | Gaussian Mixture Models | Base installation |
-| `datasynth` | Statistical | DataSynthesizer (Greedy Bayes) | Requires `DataSynthesizer` |
 | `scvi` | Single-Cell | scVI (Variational Inference) for RNA-seq | Requires `scvi-tools` |
-| `scgen` | Single-Cell | scGen (Perturbation prediction) | Requires `scvi-tools` |
+
 
 ---
 
@@ -409,8 +427,7 @@ calm-data-generator version
 | 2 | Clinical Generator | Clinical/medical data |
 | 3 | Drift Injector | Drift injection for ML |
 | 4 | Stream Generator | Stream-based generation |
-| 5 | Privacy | Privacy transformations |
-| 6 | Scenario Injector | Feature evolution |
+| 5 | Scenario Injector | Feature evolution |
 
 ---
 

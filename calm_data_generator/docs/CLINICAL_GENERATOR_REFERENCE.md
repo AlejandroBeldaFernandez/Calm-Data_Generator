@@ -2,6 +2,56 @@
 
 **Location:** `calm_data_generator.generators.clinical.ClinicalDataGenerator`
 
+The `ClinicalDataGenerator` is a high-fidelity simulator for multi-modal healthcare datasets.
+
+---
+
+## Quick Start Guide
+
+### What is ClinicalDataGenerator?
+
+A specialized generator for **clinical/medical research data** that creates realistic multi-modal datasets including:
+- 👥 **Patient Demographics** (age, gender, BMI, etc.)
+- 🧬 **Omics Data** (gene expression, proteins)
+- 📊 **Longitudinal Records** (multi-visit trajectories)
+- �� **Disease Effects** (biomarkers, treatment responses)
+
+### When to Use ClinicalDataGenerator
+
+✅ **Use ClinicalDataGenerator when:**
+- You need **clinical trial** or **medical research** data
+- Working with **omics data** (RNA-Seq, Microarray, Proteomics)
+- Simulating **disease vs control** studies
+- Creating **longitudinal patient** trajectories
+- Testing **biomarker discovery** algorithms
+- Need **correlated demographics** (age, BMI, blood pressure)
+
+❌ **Don't use ClinicalDataGenerator when:**
+- You have **simple tabular data** → Use `RealGenerator` instead
+- You need **general-purpose** synthetic data → Use `RealGenerator`
+- You don't need **multi-modal** structure → Use `RealGenerator`
+
+### Basic Usage (3 Lines)
+
+```python
+from calm_data_generator.generators.clinical import ClinicalDataGenerator
+
+gen = ClinicalDataGenerator()
+data = gen.generate(n_samples=100, n_genes=500, n_proteins=200)
+# Returns: {"demographics": DataFrame, "genes": DataFrame, "proteins": DataFrame}
+```
+
+### Common Use Cases
+
+| Scenario | Method | Key Parameters |
+|----------|--------|----------------|
+| **Static cohort** (single timepoint) | `generate()` | `n_samples`, `n_genes`, `n_proteins` |
+| **Longitudinal study** (multiple visits) | `generate_longitudinal_data()` | `longitudinal_config` |
+| **Biomarker simulation** (disease effects) | `generate()` | `disease_effects_config` |
+| **Population diversity** (correlated demographics) | `generate()` | `demographic_correlations` |
+
+---
+
 The `ClinicalDataGenerator` is a high-fidelity simulator for multi-modal healthcare datasets. It orchestrates the generation of:
 1.  **Patient Demographics**: Age, gender, BMI, etc., with inter-dependencies.
 2.  **Omics Data**: Gene expression (RNA-Seq/Microarray) and proteins, correlated with demographics.

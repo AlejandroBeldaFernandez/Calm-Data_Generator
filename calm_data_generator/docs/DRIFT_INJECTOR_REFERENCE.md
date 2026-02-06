@@ -1,6 +1,206 @@
 # DriftInjector - Complete Reference
 
-**Location:** `calm_data_generator.generators.drift.DriftInjector`
+**Location:** `calm_data_generator.injectors.DriftInjector`
+
+Tool for injecting realistic data drift patterns into synthetic datasets.
+
+---
+
+## Quick Start Guide
+
+### What is DriftInjector?
+
+A tool to simulate **data drift** - changes in data distribution over time. Essential for testing:
+- 🔄 **Model monitoring** systems
+- �� **Drift detection** algorithms
+- 🎯 **Adaptive ML** pipelines
+- ⚠️ **Alert systems** for production models
+
+### When to Use Each Drift Type
+
+| Drift Type | What It Does | When to Use |
+|------------|--------------|-------------|
+| **Feature Drift (Gradual)** | Slowly shifts feature values | Seasonal changes, aging populations |
+| **Feature Drift (Sudden)** | Abrupt feature change | System updates, policy changes |
+| **Label Drift** | Changes target distribution | Market shifts, behavior changes |
+| **Covariate Shift** | Changes feature distribution | New user demographics |
+| **Concept Drift** | Changes feature→target relationship | Changing user preferences |
+
+### Decision Tree: Which Drift Type?
+
+```
+Do you want to change...
+├─ Feature values?
+│  ├─ Gradually over time? → inject_feature_drift_gradual()
+│  └─ Suddenly at a point? → inject_feature_drift_sudden()
+├─ Target/label distribution?
+│  └─ → inject_label_drift()
+├─ Feature distributions (not values)?
+│  └─ → inject_covariate_shift()
+└─ Feature→Target relationship?
+   └─ → inject_concept_drift()
+```
+
+### Basic Usage
+
+```python
+from calm_data_generator.injectors import DriftInjector
+
+injector = DriftInjector()
+
+# Gradual feature drift (most common)
+drifted_data = injector.inject_feature_drift_gradual(
+    data,
+    feature_cols=["age", "income"],
+    drift_type="shift",  # or "scale", "noise"
+    drift_magnitude=0.3,
+    start_index=100
+)
+```
+
+---
+
+## Drift Types Explained
+
+### 1. Feature Drift (Gradual)
+
+**What:** Feature values slowly change over time  
+**Example:** Customer age increasing as your user base matures  
+**Use Case:** Testing drift detection sensitivity
+
+```python
+# Simulate aging population
+drifted = injector.inject_feature_drift_gradual(
+    data,
+    feature_cols=["age"],
+    drift_type="shift",      # Shift mean upward
+    drift_magnitude=0.5,     # 50% increase
+    start_index=500,         # Start at row 500
+    end_index=1000           # Complete by row 1000
+)
+```
+
+**Drift Types:**
+- `shift`: Changes mean (μ → μ + δ)
+- `scale`: Changes variance (σ → σ × k)
+- `noise`: Adds random noise
+
+### 2. Feature Drift (Sudden)
+
+**What:** Abrupt change at a specific point  
+**Example:** New data collection system deployed  
+**Use Case:** Testing alert systems
+
+```python
+# Simulate system update
+drifted = injector.inject_feature_drift_sudden(
+    data,
+    feature_cols=["sensor_reading"],
+    drift_type="shift",
+    drift_magnitude=2.0,
+    drift_point=750          # Change at row 750
+)
+```
+
+### 3. Label Drift
+
+**What:** Target variable distribution changes  
+**Example:** Fraud rate increases from 1% to 5%  
+**Use Case:** Testing model retraining triggers
+
+```python
+# Simulate fraud increase
+drifted = injector.inject_label_drift(
+    data,
+    target_col="is_fraud",
+    new_distribution={0: 0.95, 1: 0.05},  # 5% fraud
+    start_index=600
+)
+```
+
+### 4. Covariate Shift
+
+**What:** Feature distributions change (not relationships)  
+**Example:** New customer segment with different demographics  
+**Use Case:** Testing domain adaptation
+
+```python
+# Simulate new user segment
+drifted = injector.inject_covariate_shift(
+    data,
+    feature_cols=["age", "income"],
+    shift_magnitude=1.5,
+    start_index=400
+)
+```
+
+### 5. Concept Drift
+
+**What:** Feature→Target relationship changes  
+**Example:** What makes a "good customer" changes  
+**Use Case:** Testing model performance degradation
+
+```python
+# Simulate changing preferences
+drifted = injector.inject_concept_drift(
+    data,
+    feature_cols=["price", "quality"],
+    target_col="purchased",
+    drift_magnitude=0.8,
+    start_index=300
+)
+```
+
+---
+
+## Real-World Scenarios
+
+### Scenario 1: E-Commerce Seasonal Drift
+
+**Problem:** Customer behavior changes during holidays
+
+```python
+# Gradual increase in purchase amounts
+drifted = injector.inject_feature_drift_gradual(
+    sales_data,
+    feature_cols=["purchase_amount"],
+    drift_type="shift",
+    drift_magnitude=0.4,  # 40% increase
+    start_index=1000,     # Start of holiday season
+    end_index=1500        # End of holiday season
+)
+```
+
+### Scenario 2: Fraud Detection System Update
+
+**Problem:** New fraud patterns emerge suddenly
+
+```python
+# Sudden change in fraud characteristics
+drifted = injector.inject_feature_drift_sudden(
+    transactions,
+    feature_cols=["transaction_amount", "location_risk"],
+    drift_type="shift",
+    drift_magnitude=1.5,
+    drift_point=2000
+)
+```
+
+### Scenario 3: Credit Scoring Model Monitoring
+
+**Problem:** Economic downturn changes default rates
+
+```python
+# Label drift: more defaults
+drifted = injector.inject_label_drift(
+    credit_data,
+    target_col="default",
+    new_distribution={0: 0.85, 1: 0.15},  # 15% default rate
+    start_index=5000
+)
+```
+
+---
 
 A module to inject various types of drift (data shift) into datasets.
 

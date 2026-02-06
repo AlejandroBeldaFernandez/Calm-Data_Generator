@@ -44,14 +44,26 @@ print(synthetic.head())
 # 2. Deep Learning Methods - CTGAN/TVAE
 # ============================================================
 
-# Generate with CTGAN (requires torch)
+# Generate with CTGAN (requires synthcity/torch)
 try:
     synthetic_ctgan = gen.generate(
-        data=data, n_samples=100, method="ctgan", model_params={"sdv_epochs": 100}
+        data=data,
+        n_samples=100,
+        method="ctgan",
+        epochs=100,  # Passed as kwargs
+        batch_size=64,
     )
     print("\nCTGAN synthetic data:", synthetic_ctgan.shape)
 except Exception as e:
     print(f"CTGAN not available: {e}")
+
+# Generate with Gaussian Copula
+try:
+    synthetic_copula = gen.generate(data=data, n_samples=100, method="copula")
+    print("\nCopula synthetic data:", synthetic_copula.shape)
+except Exception as e:
+    print(f"Copula failed: {e}")
+
 
 # ============================================================
 # 3. Constraints - Apply business rules
@@ -71,8 +83,21 @@ print("\nConstrained data - Min age:", synthetic_constrained["age"].min())
 print("Constrained data - Min income:", synthetic_constrained["income"].min())
 
 # ============================================================
-# 4. Oversampling Methods - SMOTE/ADASYN
+# 4. Single-Cell - scVI
 # ============================================================
+
+# Generate with scVI
+try:
+    synthetic_scvi = gen.generate(data=data, n_samples=50, method="scvi", epochs=10)
+    print("\nscVI synthetic data:", synthetic_scvi.shape)
+except Exception as e:
+    print(f"scVI not available: {e}")
+
+
+# ============================================================
+# 5. Oversampling Methods - SMOTE/ADASYN
+# ============================================================
+
 
 # Balance classes with SMOTE
 synthetic_smote = gen.generate(
@@ -81,29 +106,3 @@ synthetic_smote = gen.generate(
 
 print("\nSMOTE class distribution:")
 print(synthetic_smote["target"].value_counts())
-
-# ============================================================
-# 5. Time Series - Temporal Copula
-# ============================================================
-
-# Create time series data
-ts_data = pd.DataFrame(
-    {
-        "entity_id": [f"E_{i // 5}" for i in range(50)],
-        "timestep": list(range(5)) * 10,
-        "value": np.random.randn(50),
-        "target": np.random.choice([0, 1], 50),
-    }
-)
-
-synthetic_ts = gen.generate(
-    data=ts_data,
-    n_samples=30,
-    method="copula_temporal",
-    block_column="entity_id",
-    model_params={"time_col": "timestep"},
-)
-
-print("\nTemporal Copula result:", synthetic_ts.shape)
-
-print("\n✅ Tutorial completed!")

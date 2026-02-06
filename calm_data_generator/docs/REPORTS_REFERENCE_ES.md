@@ -9,7 +9,7 @@ Genera informes completos comparando datos tabulares reales y sintéticos.
 
 ### `generate_comprehensive_report`
 Genera un informe estático incluyendo:
-- **Puntuaciones de Calidad SDV**: Métricas de similitud generales y por columna.
+- **Puntuaciones de Calidad Global**: Métricas de similitud generales y por columna.
 - **Evaluación de Privacidad**: Métricas de Distancia al Registro Más Cercano (DCR).
 - **Visualizaciones**: Histogramas, gráficos de densidad, proyecciones PCA/UMAP.
 - **Análisis de Drift**: Comparación visual de distribuciones de features.
@@ -68,24 +68,6 @@ reporter.generate_report(
 )
 ```
 
-## Reporter de Privacidad (`Anonymizer`)
-**Módulo:** `calm_data_generator.anonymizer.PrivacyReporter`
-
-Se centra específicamente en métricas de privacidad y el balance entre privacidad y utilidad.
-
-### `generate_privacy_report`
-Genera un informe HTML visualizando:
-- **Cambio de Unicidad**: Cómo afectó la anonimización a la unicidad de registros.
-- **Pérdida de Correlación**: Cambios en correlaciones de features.
-- **Superposición de Distribuciones**: Comparación visual de features originales vs. anonimizadas.
-
-```python
-PrivacyReporter.generate_privacy_report(
-    original_df=df,
-    private_df=anonymized_df,
-    output_dir="./privacy_report"
-)
-```
 
 ## Reporter Clínico (`Clinical`)
 **Módulo:** `calm_data_generator.generators.clinical.ClinicReporter`
@@ -96,3 +78,7 @@ Una versión especializada de `StreamReporter` para datos clínicos. Hereda capa
 reporter = ClinicReporter()
 reporter.generate_report(...)
 ```
+
+> [!NOTE]
+> **Informes de Privacidad**: Las características de privacidad (métricas DCR) ahora están integradas en `QualityReporter`. Usa `privacy_check=True` al generar informes.
+

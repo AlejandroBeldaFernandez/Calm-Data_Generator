@@ -1,6 +1,281 @@
 # ScenarioInjector - Complete Reference
 
-**Location:** `calm_data_generator.generators.dynamics.ScenarioInjector`
+**Location:** `calm_data_generator.injectors.ScenarioInjector`
+
+Tool for injecting dynamic scenarios and temporal patterns into datasets.
+
+---
+
+## Quick Start Guide
+
+### What is ScenarioInjector?
+
+A tool to simulate **temporal dynamics** and **evolving patterns** in data. Different from DriftInjector:
+- **DriftInjector**: Changes distributions (what the data looks like)
+- **ScenarioInjector**: Creates patterns/scenarios (how features evolve)
+
+### When to Use ScenarioInjector vs DriftInjector
+
+| Use ScenarioInjector When | Use DriftInjector When |
+|---------------------------|------------------------|
+| Creating **feature evolution** patterns | Simulating **distribution changes** |
+| Building **temporal dependencies** | Testing **drift detection** |
+| Simulating **scenarios** (growth, decay) | Monitoring **model performance** |
+| Creating **target from features** | Changing **existing distributions** |
+
+### Decision Tree: Which Tool?
+
+```
+What do you want to do?
+├─ Create NEW patterns/scenarios?
+│  ├─ Feature evolution over time? → ScenarioInjector.inject_feature_evolution()
+│  ├─ Construct target from features? → ScenarioInjector.construct_target_from_features()
+│  └─ Add temporal dynamics? → ScenarioInjector
+└─ Change EXISTING distributions?
+   ├─ Test drift detection? → DriftInjector
+   ├─ Simulate data quality issues? → DriftInjector
+   └─ Model monitoring? → DriftInjector
+```
+
+### Basic Usage
+
+```python
+from calm_data_generator.injectors import ScenarioInjector
+
+injector = ScenarioInjector()
+
+# Create growth pattern
+evolved_data = injector.inject_feature_evolution(
+    data,
+    feature_col="revenue",
+    evolution_type="exponential_growth",
+    growth_rate=0.05  # 5% growth
+)
+```
+
+---
+
+## Scenario Types Explained
+
+### 1. Feature Evolution
+
+**What:** Creates temporal patterns in features  
+**Use Cases:** Revenue growth, user engagement decay, seasonal patterns
+
+#### Available Evolution Types:
+
+| Type | Pattern | Use Case |
+|------|---------|----------|
+| `linear_growth` | Steady increase | Sales growth, user acquisition |
+| `exponential_growth` | Accelerating increase | Viral growth, compound interest |
+| `logarithmic_growth` | Slowing increase | Market saturation, learning curves |
+| `decay` | Decrease over time | Churn, engagement drop |
+| `seasonal` | Cyclical pattern | Retail seasons, weather |
+| `step_function` | Discrete jumps | Product launches, policy changes |
+
+#### Examples:
+
+**Exponential Growth (Startup Metrics)**
+```python
+# Simulate viral user growth
+evolved = injector.inject_feature_evolution(
+    data,
+    feature_col="daily_active_users",
+    evolution_type="exponential_growth",
+    growth_rate=0.1,  # 10% daily growth
+    start_index=0
+)
+```
+
+**Seasonal Pattern (Retail Sales)**
+```python
+# Simulate holiday shopping patterns
+evolved = injector.inject_feature_evolution(
+    data,
+    feature_col="sales",
+    evolution_type="seasonal",
+    period=365,  # Yearly cycle
+    amplitude=0.3  # 30% variation
+)
+```
+
+**Decay (User Engagement)**
+```python
+# Simulate engagement drop after feature removal
+evolved = injector.inject_feature_evolution(
+    data,
+    feature_col="session_duration",
+    evolution_type="decay",
+    decay_rate=0.05,  # 5% decay per period
+    start_index=500
+)
+```
+
+### 2. Target Construction
+
+**What:** Creates target variable from feature combinations  
+**Use Cases:** Synthetic labels, complex decision rules, multi-factor outcomes
+
+```python
+# Construct "high_value_customer" from multiple features
+data_with_target = injector.construct_target_from_features(
+    data,
+    target_col="high_value",
+    feature_weights={
+        "purchase_frequency": 0.4,
+        "avg_order_value": 0.3,
+        "customer_lifetime": 0.3
+    },
+    threshold=0.7  # Top 30% are "high value"
+)
+```
+
+---
+
+## Real-World Scenarios
+
+### Scenario 1: SaaS Company Growth
+
+**Problem:** Simulate realistic startup growth metrics
+
+```python
+# Monthly recurring revenue (MRR) with exponential growth
+data = injector.inject_feature_evolution(
+    data,
+    feature_col="mrr",
+    evolution_type="exponential_growth",
+    growth_rate=0.15,  # 15% monthly growth
+    noise_level=0.05   # 5% random variation
+)
+
+# Churn rate decreasing as product matures
+data = injector.inject_feature_evolution(
+    data,
+    feature_col="churn_rate",
+    evolution_type="logarithmic_decay",
+    decay_rate=0.1
+)
+```
+
+### Scenario 2: E-Commerce Seasonality
+
+**Problem:** Model holiday shopping patterns
+
+```python
+# Sales with strong seasonal component
+data = injector.inject_feature_evolution(
+    data,
+    feature_col="daily_sales",
+    evolution_type="seasonal",
+    period=365,        # Yearly cycle
+    amplitude=0.5,     # 50% variation
+    peaks=[335, 350]   # Black Friday, Christmas
+)
+```
+
+### Scenario 3: Product Launch Impact
+
+**Problem:** Simulate step-change from new feature
+
+```python
+# User engagement jumps after feature launch
+data = injector.inject_feature_evolution(
+    data,
+    evolution_type="step_function",
+    feature_col="engagement_score",
+    step_points=[1000],  # Launch at row 1000
+    step_values=[1.5]    # 50% increase
+)
+```
+
+### Scenario 4: Credit Risk Modeling
+
+**Problem:** Create credit score from multiple factors
+
+```python
+# Construct credit risk from financial indicators
+data = injector.construct_target_from_features(
+    data,
+    target_col="credit_risk",
+    feature_weights={
+        "income": 0.3,
+        "debt_to_income": -0.4,  # Negative weight
+        "payment_history": 0.3
+    },
+    threshold=0.6,  # Above 0.6 = "low risk"
+    binary=True
+)
+```
+
+---
+
+## Combining with DriftInjector
+
+You can use both tools together for complex scenarios:
+
+```python
+from calm_data_generator.injectors import ScenarioInjector, DriftInjector
+
+scenario = ScenarioInjector()
+drift = DriftInjector()
+
+# 1. Create growth pattern
+data = scenario.inject_feature_evolution(
+    data,
+    feature_col="users",
+    evolution_type="exponential_growth",
+    growth_rate=0.1
+)
+
+# 2. Add sudden drift (system change)
+data = drift.inject_feature_drift_sudden(
+    data,
+    feature_cols=["users"],
+    drift_type="shift",
+    drift_magnitude=0.5,
+    drift_point=500
+)
+```
+
+---
+
+## Industry-Specific Examples
+
+### Healthcare: Disease Progression
+```python
+# Simulate biomarker decay in treatment study
+data = injector.inject_feature_evolution(
+    patient_data,
+    feature_col="tumor_marker",
+    evolution_type="decay",
+    decay_rate=0.08,  # 8% reduction per month
+    start_index=0  # Treatment starts immediately
+)
+```
+
+### Finance: Market Trends
+```python
+# Simulate stock price with trend + seasonality
+data = injector.inject_feature_evolution(
+    stock_data,
+    feature_col="price",
+    evolution_type="linear_growth",
+    growth_rate=0.02  # 2% monthly growth
+)
+```
+
+### IoT: Sensor Degradation
+```python
+# Simulate sensor accuracy decay
+data = injector.inject_feature_evolution(
+    sensor_data,
+    feature_col="accuracy",
+    evolution_type="logarithmic_decay",
+    decay_rate=0.05
+)
+```
+
+---
 
 A module to evolve features, build targets based on rules, and project data to future time periods.
 

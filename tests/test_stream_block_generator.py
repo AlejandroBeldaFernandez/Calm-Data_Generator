@@ -17,9 +17,12 @@ except ImportError:
         RIVER_AVAILABLE = False
         synth = None
 
-from calm_data_generator.generators.stream.StreamBlockGenerator import (
-    SyntheticBlockGenerator,
-)
+try:
+    from calm_data_generator.generators.stream.StreamBlockGenerator import (
+        SyntheticBlockGenerator,
+    )
+except ImportError:
+    SyntheticBlockGenerator = None
 
 
 @pytest.mark.skipif(not RIVER_AVAILABLE, reason="River not installed")

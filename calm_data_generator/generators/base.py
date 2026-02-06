@@ -43,7 +43,15 @@ class BaseGenerator(ABC):
         self.random_state = random_state
         self.auto_report = auto_report
         self.minimal_report = minimal_report
-        self.rng = np.random.default_rng(random_state)
+
+        # Ensure random_state is within valid range [0, 2**32-1] if it's an integer
+        # This prevents ValueErrors in environments enforcing 32-bit seeds
+        # (e.g., specific numpy builds or pytest-randomly side effects)
+        seed = random_state
+        if seed is not None:
+            seed = seed % (2**32 - 1)
+
+        self.rng = np.random.default_rng(seed)
         self.logger = logger if logger else get_logger(self.__class__.__name__)
 
     @staticmethod

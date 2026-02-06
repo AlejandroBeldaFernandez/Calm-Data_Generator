@@ -41,7 +41,6 @@ class RealBlockGenerator(RealGenerator):
         self,
         auto_report: bool = True,
         random_state: int = 42,
-        verbose: bool = True,
     ):
         """
         Initializes the RealBlockGenerator.
@@ -49,7 +48,6 @@ class RealBlockGenerator(RealGenerator):
         Args:
             auto_report (bool): Whether to automatically generate a comprehensive report after processing all blocks.
             random_state (int): Random seed for reproducibility.
-            verbose (bool): Enables verbose logging.
         """
         # Call parent constructor
         super().__init__(
@@ -58,8 +56,7 @@ class RealBlockGenerator(RealGenerator):
         )
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        if verbose:
-            self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.INFO)
 
         self.reporter = QualityReporter()
         self.logger.info("RealBlockGenerator initialized.")

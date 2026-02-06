@@ -27,15 +27,28 @@ Bienvenido a la documentación completa de **Calm Data Generator**. Esta guía c
 
 ## Instalación
 
-```bash
-# Instalación estándar
-pip install calm-data-generator
+### Instalación Estándar
+La librería está disponible en PyPI. Para una instalación estable y rápida, recomendamos usar un entorno virtual:
 
-# Con extras opcionales
-pip install calm-data-generator[stream,timeseries,deeplearning]
+```bash
+# 1. Crear y activar el entorno virtual
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Instalar la librería core
+pip install calm-data-generator
 ```
 
-Ver [README_ES.md](../../README_ES.md) para consejos de solución de problemas más detallados.
+### Dependencias Opcionales
+
+| Extra | Comando | Incluye |
+|-------|---------|---------|
+| stream | `pip install "calm-data-generator[stream]"` | River (streaming ML) |
+| timeseries | `pip install "calm-data-generator[timeseries]"` | gretel-synthetics (DGAN) |
+| full | `pip install "calm-data-generator[full]"` | Todas las dependencias anteriores |
+
+> [!NOTE]
+> **Velocidad de Instalación**: En la versión 1.0.0, hemos bloqueado dependencias clave (`pydantic`, `xgboost`, `cloudpickle`) para evitar el bucle de resolución de ~40 minutos causado por los requisitos complejos de `synthcity`. La instalación ahora es mucho más rápida.
 
 ---
 
@@ -66,23 +79,26 @@ synthetic_data = gen.generate(real_data, n_samples=1000, method='lgbm')
 |--------|-------------|-------------|
 | `cart` | Árboles de Clasificación y Regresión | Iteración rápida, captura estructura básica. |
 | `rf` | Random Forest | Mejor calidad que CART, más lento. |
+| `copula` | Copula | Copula-based synthesis | Base installation |
 | `lgbm` | LightGBM | Alta eficiencia y rendimiento para tablas grandes. |
-| `ctgan` | Conditional GAN (SDV) | Deep learning para distribuciones complejas multi-modales. |
-| `tvae` | Variational Autoencoder (SDV) | A menudo más rápido y robusto que GANs para datos tabulares. |
-| `copula` | Cópula Gaussiana | Captura correlaciones estadísticas simples. Muy rápido. |
+| `ctgan` | Conditional GAN (Synthcity) | Deep learning para distribuciones complejas multi-modales. |
+| `tvae` | Variational Autoencoder (Synthcity) | A menudo más rápido y robusto que GANs para datos tabulares. |
+| `copula` | Gaussian Copula | Modela correlaciones multivariadas usando la librería `copulae`. |
 | `diffusion` | Difusión Tabular (DDPM) | Estado del arte experimental. Lento pero alta fidelidad. |
-| `scgen/scvi` | Single-Cell (Genómica) | Modelado biológico especializado para RNA-Seq. |
+| `scvi` | Single-Cell (Genómica) | Modelado biológico especializado para RNA-Seq. |
 
-### Configuración Avanzada (`model_params`)
 
-Puedes pasar parámetros específicos al modelo subyacente a través de `model_params`.
+### Configuración Avanzada (`**kwargs`)
 
-**Para métodos basados en SDV (CTGAN, TVAE):**
+Puedes pasar parámetros específicos al modelo subyacente a través de `**kwargs`.
+
+**Para métodos de Deep Learning (CTGAN, TVAE) vía Synthcity:**
 - `epochs`: Número de épocas de entrenamiento (defecto: 300).
 - `batch_size`: Tamaño del lote (defecto: 500).
+- `n_units_conditional`: Parámetros específicos de Synthcity.
 - `cuda`: `True`/`False` para forzar uso de GPU.
 
-**Para métodos basados en ML (LGBM, RF):**
+**Para métodos basados en ML (LGBM):**
 - `n_estimators`: Número de árboles.
 - `max_depth`: Profundidad máxima.
 - `balance_target`: `True` para reequilibrar clases antes de entrenar.
@@ -153,30 +169,24 @@ Ver [DRIFT_INJECTOR_REFERENCE_ES.md](./DRIFT_INJECTOR_REFERENCE_ES.md).
 
 ## Privacidad y Anonimización
 
-Módulo: `calm_data_generator.privacy`
+> [!NOTE]
+> **Módulo de Privacidad Eliminado**: El módulo `anonymizer` independiente ha sido eliminado en favor de características de privacidad integradas.
 
-Herramientas para proteger información sensible antes de compartir datos.
+Las características de privacidad ahora están disponibles a través de:
 
-### Funciones Principales
+1. **QualityReporter con métricas DCR**: Usa `privacy_check=True` para calcular métricas de Distance to Closest Record (DCR), que miden el riesgo de re-identificación.
 
-1.  **Pseudonimización**: Reemplaza identificadores con hashes o tokens reversibles.
-    ```python
-    df = pseudonymize_columns(df, columns=['user_id', 'email'])
-    ```
+```python
+from calm_data_generator.generators.tabular import QualityReporter
 
-2.  **Ruido Diferencial**: Añade ruido de Laplace para garantizar privacidad diferencial local.
-    ```python
-    df = add_laplace_noise(df, columns=['salary'], epsilon=1.0)
-    ```
+reporter = QualityReporter()
+reporter.generate_report(real_df, synthetic_df, privacy_check=True)
+```
 
-3.  **Generalización**: Agrupa valores precisos en rangos (ej. edad 23 -> "20-30").
-    ```python
-    df = generalize_numeric_to_ranges(df, col='age', min_val=0, max_val=100, step=10)
-    ```
-
-4.  **Shuffle**: Aleatoriza el orden de una columna para romper correlaciones con el resto de la fila (k-anonymity débil).
+2. **Modelos de Privacidad Diferencial de Synthcity**: Algunos plugins de Synthcity soportan privacidad diferencial de forma nativa. Consulta la documentación de Synthcity para más detalles.
 
 ---
+
 
 ## Generadores de Bloques
 
@@ -234,3 +244,66 @@ reporter.generate_report(real_df, synthetic_df, target_col='target')
 - **Correlaciones:** Mapas de calor de Pearson/Spearman.
 - **PCA/TSNE:** Visualización de la variedad de datos en 2D.
 - **Privacidad:** (Opcional) Tests de riesgo de reidentificación.
+
+## Síntesis de Series Temporales
+
+CALM-Data-Generator ahora soporta métodos avanzados de síntesis de series temporales mediante integración con Synthcity.
+
+### Métodos Disponibles para Series Temporales
+
+| Método | Tipo | Mejor Para |
+|--------|------|-----------|
+| `timegan` | GAN | Patrones temporales complejos, secuencias multi-entidad |
+| `timevae` | VAE | Series temporales regulares, entrenamiento más rápido |
+
+### Uso Básico
+
+```python
+from calm_data_generator import RealGenerator
+
+gen = RealGenerator()
+
+# TimeGAN para patrones complejos
+synth = gen.generate(
+    datos_series_temporales,
+    method='timegan',
+    n_samples=100,
+    n_iter=1000
+)
+
+# TimeVAE para generación más rápida
+synth = gen.generate(
+    datos_series_temporales,
+    method='timevae',
+    n_samples=100,
+    n_iter=500
+)
+```
+
+Para parámetros detallados y escenarios de uso, ver [REAL_GENERATOR_REFERENCE_ES.md](REAL_GENERATOR_REFERENCE_ES.md).
+
+## Modelos de Difusión Avanzados
+
+### DDPM vs Difusión Custom
+
+| Característica | `diffusion` (custom) | `ddpm` (Synthcity) |
+|----------------|---------------------|-------------------|
+| Velocidad | ⚡ Rápido | 🐢 Más lento |
+| Calidad | ⭐⭐⭐ Buena | ⭐⭐⭐⭐ Excelente |
+| Arquitecturas | MLP | MLP/ResNet/TabNet |
+| Caso de Uso | Prototipado | Producción |
+
+```python
+# Prototipado rápido
+synth = gen.generate(data, method='diffusion', n_samples=1000)
+
+# Calidad de producción
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    model_type='resnet',
+    scheduler='cosine'
+)
+```
+

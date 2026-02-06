@@ -21,26 +21,18 @@ from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
 from calm_data_generator.reports.base import BaseReporter
 from calm_data_generator.reports.DiscriminatorReporter import DiscriminatorReporter
 
-# Try to import SDV for quality metrics
+# Direct usage of sdmetrics (MIT)
 try:
-    from sdv.evaluation.single_table import evaluate_quality
-    from sdv.metadata import SingleTableMetadata
+    from sdmetrics.reports.single_table import QualityReport
+    from sdmetrics.reports.sequential import (
+        QualityReport as SequentialQualityReport,
+    )
 
-    # Try importing sequential
-    try:
-        from sdmetrics.reports.single_table import QualityReport  # noqa: F401
-        from sdmetrics.reports.sequential import (
-            QualityReport as SequentialQualityReport,
-        )
-
-        SDMETRICS_AVAILABLE = True
-    except ImportError:
-        SDMETRICS_AVAILABLE = False
-
-    SDV_AVAILABLE = True
+    SDMETRICS_AVAILABLE = True
 except ImportError:
-    SDV_AVAILABLE = False
-    warnings.warn("SDV not available. Quality assessment will be limited.")
+    # Removed legacy imports
+    SDMETRICS_AVAILABLE = False
+
 
 logger = logging.getLogger("QualityReporter")
 
@@ -139,14 +131,14 @@ class QualityReporter(BaseReporter):
                 synthetic_df_for_report, final_time_col, block_column, resample_rule
             )
 
-        # === SDV Quality Assessment ===
-        sdv_quality = self._assess_sdv_quality(
+        # ===  Quality Assessment ===
+        sdmetrics_quality = self._assess_quality_scores(
             real_df_for_report, synthetic_df_for_report
         )
 
         # === Sequential Quality Assessment ===
         sequential_quality = None
-        if time_col and block_column and SDV_AVAILABLE:
+        if time_col and block_column and SDMETRICS_AVAILABLE:
             # Heuristic: Only run if explicit time/block provided
             sequential_quality = self._assess_sequential_quality(
                 real_df, synthetic_df, block_column, final_time_col
@@ -157,27 +149,27 @@ class QualityReporter(BaseReporter):
         if privacy_check or "dp" in generator_name.lower():
             privacy_metrics = self._calculate_dcr_privacy(real_df, synthetic_df)
 
-        # Generate SDV Scores Card
-        if "overall_quality_score" in sdv_quality:
+        # Generate Quality Scores Card
+        if "overall_quality_score" in sdmetrics_quality:
             if self.verbose:
-                print("\nGenerating SDV Scores Card...")
-            Visualizer.generate_sdv_scores_card(
-                overall_score=sdv_quality["overall_quality_score"],
-                weighted_score=sdv_quality["weighted_quality_score"],
+                print("\nGenerating Quality Scores Card...")
+            Visualizer.generate_quality_scores_card(
+                overall_score=sdmetrics_quality["overall_quality_score"],
+                weighted_score=sdmetrics_quality["weighted_quality_score"],
                 output_dir=output_dir,
             )
 
-        # === SDV Quality by Block (for evolution plot) ===
-        sdv_scores_by_block = []
+        # === Quality Scores by Block (for evolution plot) ===
+        quality_scores_by_block = []
         if block_column and block_column in real_df.columns:
-            sdv_scores_by_block = self._calculate_sdv_by_block(
+            quality_scores_by_block = self._calculate_quality_by_block(
                 real_df, synthetic_df, block_column
             )
 
-            if sdv_scores_by_block:
-                block_labels = [s["block"] for s in sdv_scores_by_block]
-                Visualizer.generate_sdv_evolution_plot(
-                    scores=sdv_scores_by_block,
+            if quality_scores_by_block:
+                block_labels = [s["block"] for s in quality_scores_by_block]
+                Visualizer.generate_quality_evolution_plot(
+                    scores=quality_scores_by_block,
                     output_dir=output_dir,
                     x_labels=block_labels,
                 )
@@ -188,8 +180,10 @@ class QualityReporter(BaseReporter):
             "generation_timestamp": datetime.now().isoformat(),
             "real_rows": len(real_df),
             "synthetic_rows": len(synthetic_df),
-            "sdv_quality": sdv_quality,
-            "sdv_by_block": sdv_scores_by_block if sdv_scores_by_block else None,
+            "quality_scores": sdmetrics_quality,
+            "quality_by_block": quality_scores_by_block
+            if quality_scores_by_block
+            else None,
             "compared_data_files": {
                 "original": "real_data",
                 "generated": "synthetic_data",
@@ -231,6 +225,16 @@ class QualityReporter(BaseReporter):
             )
         elif self.verbose:
             print("   -> Skipping PCA/UMAP (minimal mode)")
+
+        # New quality score calculation based on minimal mode
+        if use_minimal:
+            # Minimal: only basic metrics
+            quality_scores = {}
+            if self.verbose:
+                print("   -> Skipping full quality assessment (minimal mode)")
+        else:
+            # Full: run SDMetrics
+            quality_scores = self._assess_quality_scores(real_df, synthetic_df)
 
         # Drift Analysis (comparing real vs synthetic)
         Visualizer.generate_comparison_plots(
@@ -352,14 +356,17 @@ class QualityReporter(BaseReporter):
             resample_rule=resample_rule,
         )
 
-    def _assess_sdv_quality(
+    def _assess_quality_scores(
         self, real_df: pd.DataFrame, synthetic_df: pd.DataFrame
     ) -> Dict[str, Any]:
         """
-        Assesses the quality of synthetic data using SDV metrics.
+        Assesses the quality of synthetic data using SDMetrics.
         """
-        if not SDV_AVAILABLE:
-            return {"error": "SDV not available"}
+        """
+        Assesses the quality of synthetic data using SDMetrics.
+        """
+        if not SDMETRICS_AVAILABLE:
+            return {"error": "SDMetrics not available"}
 
         try:
             if self.verbose:
@@ -370,22 +377,28 @@ class QualityReporter(BaseReporter):
             if len(common_cols) < len(real_df.columns):
                 if self.verbose:
                     dropped = set(real_df.columns) - set(common_cols)
-                    print(f"   -> Aligning columns for SDV (dropped: {dropped})")
+                    print(f"   -> Aligning columns for (dropped: {dropped})")
 
             real_aligned = real_df[common_cols].copy()
             synth_aligned = synthetic_df[common_cols].copy()
 
-            metadata = SingleTableMetadata()
-            metadata.detect_from_dataframe(real_aligned)
+            # Build metadata for sdmetrics
+            # Simple metadata inference
+            # We construct a dict representing columns: {col_name: sdtype}
+            md_dict = {"columns": {}}
+            for col in real_aligned.columns:
+                if pd.api.types.is_numeric_dtype(real_aligned[col]):
+                    md_dict["columns"][col] = {"sdtype": "numerical"}
+                elif pd.api.types.is_datetime64_any_dtype(real_aligned[col]):
+                    md_dict["columns"][col] = {"sdtype": "datetime"}
+                else:
+                    md_dict["columns"][col] = {"sdtype": "categorical"}
 
-            quality_report = evaluate_quality(
-                real_data=real_aligned,
-                synthetic_data=synth_aligned,
-                metadata=metadata,
-            )
+            report = QualityReport()
+            report.generate(real_aligned, synth_aligned, md_dict)
 
-            overall_score = quality_report.get_score()
-            weighted_score = self._get_weighted_sdv_score(
+            overall_score = report.get_score()
+            weighted_score = self._get_weighted_quality_score(
                 real_df, synthetic_df, overall_score
             )
 
@@ -400,19 +413,19 @@ class QualityReporter(BaseReporter):
             }
 
         except Exception as e:
-            self.logger.error(f"SDV quality assessment failed: {e}")
+            self.logger.error(f"quality assessment failed: {e}")
             return {"error": str(e)}
 
-    def _calculate_sdv_by_block(
+    def _calculate_quality_by_block(
         self,
         real_df: pd.DataFrame,
         synthetic_df: pd.DataFrame,
         block_column: str,
     ) -> List[Dict[str, Any]]:
         """
-        Calculates SDV quality scores for each block.
+        Calculates  quality scores for each block.
         """
-        if not SDV_AVAILABLE:
+        if not SDMETRICS_AVAILABLE:
             return []
 
         scores = []
@@ -427,17 +440,25 @@ class QualityReporter(BaseReporter):
                     continue
 
                 try:
-                    metadata = SingleTableMetadata()
-                    metadata.detect_from_dataframe(real_block)
+                    # Build metadata for sdmetrics
+                    md_dict = {"columns": {}}
+                    for col in real_block.columns:
+                        if pd.api.types.is_numeric_dtype(real_block[col]):
+                            md_dict["columns"][col] = {"sdtype": "numerical"}
+                        elif pd.api.types.is_datetime64_any_dtype(real_block[col]):
+                            md_dict["columns"][col] = {"sdtype": "datetime"}
+                        else:
+                            md_dict["columns"][col] = {"sdtype": "categorical"}
 
-                    quality_report = evaluate_quality(
-                        real_data=real_block,
-                        synthetic_data=synth_block,
-                        metadata=metadata,
+                    report = QualityReport()
+                    report.generate(
+                        real_block,
+                        synth_block,
+                        md_dict,
                     )
 
-                    overall = quality_report.get_score()
-                    weighted = self._get_weighted_sdv_score(
+                    overall = report.get_score()
+                    weighted = self._get_weighted__score(
                         real_block, synth_block, overall
                     )
 
@@ -450,18 +471,18 @@ class QualityReporter(BaseReporter):
                     )
 
                 except Exception as e:
-                    self.logger.warning(f"SDV failed for block {block_id}: {e}")
+                    self.logger.warning(f" failed for block {block_id}: {e}")
 
         except Exception as e:
-            self.logger.error(f"Block-wise SDV calculation failed: {e}")
+            self.logger.error(f"Block-wise calculation failed: {e}")
 
         return scores
 
-    def _get_weighted_sdv_score(
+    def _get_weighted_score(
         self, real_df: pd.DataFrame, synthetic_df: pd.DataFrame, base_score: float
     ) -> float:
         """
-        Calculates a weighted SDV score, penalized by data duplication and null values.
+        Calculates a weighted score, penalized by data duplication and null values.
         """
         if synthetic_df.empty:
             return 0.0

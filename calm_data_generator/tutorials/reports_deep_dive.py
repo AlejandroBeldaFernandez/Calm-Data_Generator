@@ -17,7 +17,7 @@ import os
 import shutil
 from calm_data_generator.generators.tabular import QualityReporter
 from calm_data_generator.generators.stream import StreamReporter
-from calm_data_generator.anonymizer import PrivacyReporter
+# Note: PrivacyReporter removed - use QualityReporter with privacy_check=True
 
 # Setup output directory
 OUTPUT_DIR = "tutorial_reports_output"
@@ -97,33 +97,13 @@ stream_reporter.generate_report(
 print("Stream report generated.")
 
 # ============================================================
-# 4. PrivacyReporter (Privacy/Utility Trade-off)
+# 4. Privacy Assessment (via QualityReporter)
 # ============================================================
 
-print("\n--- Running PrivacyReporter ---")
-
-# Let's say we anonymize the real data
-from calm_data_generator.anonymizer import (
-    generalize_numeric_to_ranges,
-    add_laplace_noise,
-)
-
-private_df = real_df.copy()
-private_df = add_laplace_noise(private_df, ["salary"], epsilon=0.5)
-private_df = generalize_numeric_to_ranges(private_df, ["age"], num_bins=5)
-
-# Generate privacy-specific visualization report
-privacy_report_path = PrivacyReporter.generate_privacy_report(
-    original_df=real_df,
-    private_df=private_df,
-    output_dir=os.path.join(OUTPUT_DIR, "privacy_report"),
-    filename="privacy_dashboard.html",
-)
-
-if privacy_report_path:
-    print(f"Privacy report generated at: {privacy_report_path}")
-else:
-    print("Privacy report generation skipped (Plotly missing?)")
+print("\n--- Privacy Assessment with QualityReporter ---")
+print("Privacy features are now integrated into QualityReporter.")
+print("Use privacy_check=True to calculate Distance to Closest Record (DCR) metrics.")
+print("See the quality_report above - it already includes privacy metrics!")
 
 print("\nReports tutorial completed!")
 print(

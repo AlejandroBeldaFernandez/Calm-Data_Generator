@@ -21,7 +21,6 @@
 > - [StreamBlockGenerator](./STREAM_BLOCK_GENERATOR_REFERENCE.md)
 > - [ClinicalDataGenerator](./CLINICAL_GENERATOR_REFERENCE.md)
 > - [ClinicalBlockGenerator](./CLINICAL_BLOCK_GENERATOR_REFERENCE.md)
-> - [Anonymizer](./ANONYMIZER_REFERENCE.md)
 > - [Reports](./REPORTS_REFERENCE.md)
 > - [DriftInjector](./DRIFT_INJECTOR_REFERENCE.md)
 > - [ScenarioInjector](./SCENARIO_INJECTOR_REFERENCE.md)
@@ -31,38 +30,35 @@
 
 ## Installation
 
-### System Requirements (Linux/Ubuntu)
-
-For optional dependencies that require compilation (like `river`), you may need build tools:
+### Standard Installation
+The library is available on PyPI. For a stable and fast installation, we recommend using a virtual environment:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y build-essential python3-dev
-```
+# 1. Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-### Basic Installation
-```bash
-pip install calm_data_generator
+# 2. Install the core library
+pip install calm-data-generator
 ```
 
 ### Optional Dependencies
 
 | Extra | Command | Includes |
 |-------|---------|----------|
-| stream | `pip install calm_data_generator[stream]` | River (streaming ML) |
-| timeseries | `pip install calm_data_generator[timeseries]` | gretel-synthetics (DGAN) |
-| full | `pip install calm_data_generator[full]` | All optional dependencies above |
+| stream | `pip install "calm-data-generator[stream]"` | River (streaming ML) |
+| timeseries | `pip install "calm-data-generator[timeseries]"` | gretel-synthetics (DGAN) |
+| full | `pip install "calm-data-generator[full]"` | All optional dependencies above |
 
-> **Note:** If `river` fails to build, try installing the binary wheel first:
-> ```bash
-> pip install river --only-binary :all:
-> pip install calm_data_generator[stream]
-> ```
+> [!NOTE]
+> **Installation Speed**: In version 1.0.0, we have pinned high-level dependencies (`pydantic`, `xgboost`, `cloudpickle`) to avoid the previous ~40-minute resolution loop caused by `synthcity`'s complex requirements. Installation now takes significantly less time.
 
-> **Advanced Time Series:** For `TimeGAN` support, please install `ydata-synthetic` manually. It is excluded from default installation due to heavy dependencies (TensorFlow) and potential conflicts:
-> ```bash
-> pip install ydata-synthetic tensorflow>=2.10.0
-> ```
+### Troubleshooting
+If `river` fails to build on Linux, ensure you have the necessary tools:
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential python3-dev
+```
 
 ---
 
@@ -76,7 +72,6 @@ calm_data_generator/
 │   ├── stream/     → StreamGenerator
 │   ├── drift/      → DriftInjector
 │   └── dynamics/   → ScenarioInjector
-├── anonymizer/     → Privacy transformations
 └── reports/        → Visualization & reporting
 ```
 
@@ -116,35 +111,32 @@ synthetic = gen.generate(df, 1000, method='lgbm')
 
 # Gaussian Mixture Model
 synthetic = gen.generate(df, 1000, method='gmm')
+
+# Copula
+synthetic = gen.generate(df, 1000, method='copula')
 ```
 
-#### Deep Learning Methods
+#### Deep Learning Methods (via Synthcity)
 
 ```python
 # CTGAN - Conditional GAN for Tabular Data
 synthetic = gen.generate(
     df, 1000, 
     method='ctgan',
-    model_params={'sdv_epochs': 300}
+    epochs=300
 )
 
 # TVAE - Variational Autoencoder
 synthetic = gen.generate(
     df, 1000,
     method='tvae',
-    model_params={'sdv_epochs': 300}
-)
-
-# Gaussian Copula
-synthetic = gen.generate(df, 1000, method='copula')
-
-# Tabular Diffusion (DDPM)
-synthetic = gen.generate(
-    df, 1000,
-    method='diffusion',
-    model_params={'diffusion_steps': 50}
+    epochs=300
 )
 ```
+
+> [!TIP]
+> These methods now use **Synthcity** as the backend engine, providing state-of-the-art performance and stability.
+
 
 #### Augmentation Methods
 
@@ -164,88 +156,21 @@ synthetic = gen.generate(
 )
 ```
 
-#### Privacy-Preserving Methods
 
-```python
-# Differential Privacy (PATE-CTGAN)
-synthetic = gen.generate(
-    df, 1000,
-    method='dp',
-    model_params={
-        'dp_epsilon': 1.0,
-        'dp_delta': 1e-5
-    }
-)
-```
 
-#### Time Series Methods
-
-```python
-# PAR (Probabilistic AutoRegressive)
-synthetic = gen.generate(
-    df, 100,
-    method='par',
-    block_column='entity_id',
-    model_params={'par_epochs': 100}
-)
-
-# TimeGAN
-synthetic = gen.generate(
-    df, 100,
-    method='timegan',
-    block_column='entity_id',
-    model_params={
-        'seq_len': 24,
-        'timegan_epochs': 100
-    }
-)
-
-# DGAN (DoppelGANger)
-synthetic = gen.generate(
-    df, 100,
-    method='dgan',
-    block_column='entity_id',
-    model_params={'seq_len': 24}
-)
-
-# Temporal Copula
-synthetic = gen.generate(
-    df, 100,
-    method='copula_temporal',
-    block_column='entity_id',
-    model_params={'time_col': 'timestamp'}
-)
-```
-
-#### Single-Cell / Gene Expression Methods
-
-```python
 # scVI - Variational Autoencoder for single-cell data
 synthetic = gen.generate(
     expression_df, 1000,
     method='scvi',
     target_col='cell_type',  # Optional metadata column
-    model_params={
-        'epochs': 100,
-        'n_latent': 10,   # Latent space dimensions
-        'n_layers': 1     # Encoder/decoder depth
-    }
+    epochs=100,
+    n_latent=10,
+    n_layers=1
 )
 
-# scGen - Perturbation prediction and batch effect removal
-synthetic = gen.generate(
-    expression_df, 1000,
-    method='scgen',
-    target_col='cell_type',
-    model_params={
-        'epochs': 100,
-        'n_latent': 10,
-        'condition_col': 'treatment'  # Required for scGen
-    }
-)
-```
 
 > **Note:** Single-cell methods expect data where rows are cells/samples and columns are genes/features. Requires `scvi-tools` and `anndata` packages.
+
 
 ### Constraints
 
@@ -615,78 +540,35 @@ future = injector.project_to_future_period(
 )
 ```
 
+
 ---
 
-## Anonymizer (Privacy Module)
+## Privacy Features
 
-### Pseudonymization
+> [!NOTE]
+> **Privacy Module Removed**: The standalone `anonymizer` module has been removed in favor of integrated privacy features.
 
-```python
-from calm_data_generator.anonymizer import pseudonymize_columns
+Privacy features are now available through:
 
-data = pseudonymize_columns(
-    df,
-    columns=['patient_id', 'name'],
-    salt='optional_salt_string'  # Recommended for security
-)
-```
-
-### Differential Privacy (Laplace Noise)
-
-```python
-from calm_data_generator.anonymizer import add_laplace_noise
-
-data = add_laplace_noise(
-    df,
-    columns=['age', 'salary'],
-    epsilon=1.0  # Privacy budget (smaller = more privacy)
-)
-```
-
-### Generalization
-
-```python
-from calm_data_generator.anonymizer import generalize_numeric_to_ranges
-
-data = generalize_numeric_to_ranges(
-    df,
-    columns=['age'],       # List of columns
-    num_bins=5             # Number of bins/ranges to create
-)
-```
-
-### Shuffling
-
-```python
-from calm_data_generator.anonymizer import shuffle_columns
-
-data = shuffle_columns(
-    df,
-    columns=['salary', 'diagnosis'],
-    random_state=42
-)
-```
-
-### Privacy Reporting (DCR Analysis)
-
-To measure the effectiveness of your anonymization (risk of re-identification), use the `QualityReporter` with `privacy_check=True`. This calculates the **Distance to Closest Record (DCR)**.
+1. **QualityReporter with DCR Metrics**: Use `privacy_check=True` to calculate Distance to Closest Record (DCR) metrics, which measure re-identification risk.
 
 ```python
 from calm_data_generator.generators.tabular import QualityReporter
 
 reporter = QualityReporter()
-
 reporter.generate_comprehensive_report(
     real_df=original_df,
-    synthetic_df=anonymized_df,
-    generator_name="Anonymization_Process",
+    synthetic_df=synthetic_df,
+    generator_name="MyGenerator",
     output_dir="./privacy_report",
     privacy_check=True  # Calculates DCR metrics
 )
 ```
 
+2. **Synthcity's Differential Privacy Models**: Some Synthcity plugins support differential privacy natively. Refer to Synthcity documentation for details.
 
 ---
+
 
 ## Configuration Options
 
@@ -776,3 +658,66 @@ calm_data_generator docs
 For issues and questions:
 - GitHub Issues: [https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator/issues](https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator/issues)
 - Email: alejandrobeldafernandez@gmail.com
+
+## Time Series Synthesis
+
+CALM-Data-Generator now supports advanced time series synthesis methods through Synthcity integration.
+
+### Available Time Series Methods
+
+| Method | Type | Best For |
+|--------|------|----------|
+| `timegan` | GAN | Complex temporal patterns, multi-entity sequences |
+| `timevae` | VAE | Regular time series, faster training |
+
+### Basic Usage
+
+```python
+from calm_data_generator import RealGenerator
+
+gen = RealGenerator()
+
+# TimeGAN for complex patterns
+synth = gen.generate(
+    time_series_data,
+    method='timegan',
+    n_samples=100,
+    n_iter=1000
+)
+
+# TimeVAE for faster generation
+synth = gen.generate(
+    time_series_data,
+    method='timevae',
+    n_samples=100,
+    n_iter=500
+)
+```
+
+For detailed parameters and usage scenarios, see [REAL_GENERATOR_REFERENCE.md](REAL_GENERATOR_REFERENCE.md).
+
+## Advanced Diffusion Models
+
+### DDPM vs Custom Diffusion
+
+| Feature | `diffusion` (custom) | `ddpm` (Synthcity) |
+|---------|---------------------|-------------------|
+| Speed | ⚡ Fast | 🐢 Slower |
+| Quality | ⭐⭐⭐ Good | ⭐⭐⭐⭐ Excellent |
+| Architectures | MLP | MLP/ResNet/TabNet |
+| Use Case | Prototyping | Production |
+
+```python
+# Quick prototyping
+synth = gen.generate(data, method='diffusion', n_samples=1000)
+
+# Production quality
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    model_type='resnet',
+    scheduler='cosine'
+)
+```
+

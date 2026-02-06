@@ -111,7 +111,7 @@ class SyntheticBlockGenerator:
         for i, params in enumerate(method_params):
             config_params = params.copy()
             if random_state is not None:
-                config_params["random_state"] = random_state + i
+                config_params["random_state"] = (random_state + i) % (2**32 - 1)
 
             config = GeneratorConfig(**config_params)
             generator_instance = factory.create_generator(

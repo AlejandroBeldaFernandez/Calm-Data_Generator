@@ -8,11 +8,16 @@
 
 **CALM-Data-Generator** es una biblioteca completa en Python para la generación de datos sintéticos con características avanzadas para:
 - **Datos Clínicos/Médicos** - Genera demografía de pacientes, genes y proteínas realistas.
-- **Síntesis Tabular** - CTGAN, TVAE, Copula, CART y más.
-- **Series Temporales** - TimeGAN, DGAN, PAR, Cópula Temporal.
+- **Síntesis Tabular** - CTGAN, TVAE, CART y más.
+- **Series Temporales** - TimeGAN, DGAN
+- **Single-Cell** - scVI (Modelos Generativos Profundos para scRNA-seq)
 - **Inyección de Drift (Desviación)** - Prueba la robustez de modelos ML con drift controlado.
 - **Preservación de Privacidad** - Privacidad diferencial, pseudonimización, generalización.
 - **Evolución de Escenarios** - Evolución de features y construcción de targets.
+
+![Arquitectura CALM](assets/architecture.png)
+
+![Flujo de Trabajo CALM](assets/ecosystem.png)
 
 ## Alcance y Capacidades
 
@@ -33,12 +38,21 @@
 
 Esta biblioteca aprovecha y unifica las mejores herramientas de código abierto para proporcionar una experiencia de generación de datos fluida:
 
-- **SDV (Synthetic Data Vault)**: El motor principal para modelos tabulares de deep learning (CTGAN, TVAE) y métodos estadísticos (Copula). **Incluido por defecto**.
-  > **Nota:** Las versiones de SDV 1.0+ usan la licencia Business Source License (BSL). Aunque es libre para desarrollo e investigación, el uso comercial en producción puede requerir una licencia de DataCebo. Por favor revisa sus términos.
+- **Synthcity**: El motor principal para modelos tabulares de deep learning (CTGAN, TVAE) y privacidad. **Incluido por defecto**.
 - **River**: Potencia las capacidades de generación en streaming (`[stream]` extra).
-- **Gretel Synthetics**: Proporciona generación avanzada de series temporales vía DoppelGANger (`[timeseries]` extra).
 - **YData Profiling**: Genera informes de calidad automatizados y completos.
-- **SmartNoise**: Habilita mecanismos de privacidad diferencial.
+
+## Librerías Clave y Ecosistema
+ 
+ | Librería | Rol | Uso en Calm-Data-Generator |
+ | :--- | :--- | :--- |
+ | **Synthcity** | Motor de Deep Learning | Potencia `CTGAN`, `TVAE`, `DDPM`, `TimeGAN`. Manejo de privacidad y fidelidad. |
+ | **scvi-tools** | Análisis Single-Cell | Potencia el método `scvi` para datos genómicos/transcriptómicos de alta dimensión. |
+ | **River** | Streaming ML | Potencia `StreamGenerator` para simulación de concept drift y flujo de datos en tiempo real. |
+ | **YData Profiling**| Reportes | Genera reportes de calidad automatizados (`QualityReporter`). |
+ | **Pydantic** | Validación | Asegura chequeo de tipos estricto y gestión de configuración. |
+ | **PyTorch** | Backend | Computación tensorial subyacente para todos los modelos de deep learning. |
+ | **Copulae** | Modelado Estadístico | Potencia el método `copula` para modelado de dependencia multivariante. |
 
 ## Intercambio Seguro de Datos
 
@@ -59,20 +73,36 @@ Una ventaja clave de **Calm-Data-Generator** es permitir el uso de datos privado
 ---
 
 ## Instalación
+ 
+ > [!WARNING]
+ > **Aviso Importante**: Esta librería depende de frameworks de Deep Learning pesados como `PyTorch`, `Synthcity` y librerías `CUDA`.
+ > La instalación puede ser **pesada (~2-3 GB)** y tardar unos minutos dependiendo de tu conexión. Recomendamos encarecidamente usar un entorno virtual limpio.
+
+### Instalación Estándar
+La librería está disponible en PyPI. Para una experiencia estable, recomendamos usar un entorno virtual:
 
 ```bash
-# Instalación básica
+# 1. Crear y activar el entorno virtual
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Instalar la librería (optimizada para velocidad)
 pip install calm-data-generator
+```
 
+### Extras de Instalación
+Puedes añadir capacidades específicas según tu caso de uso:
+```bash
 # Para Stream Generator (River)
-pip install calm-data-generator[stream]
+pip install "calm-data-generator[stream]"
 
-# Para Series Temporales (Gretel Synthetics)
-pip install calm-data-generator[timeseries]
 
 # Instalación completa
-pip install calm-data-generator[full]
+pip install "calm-data-generator[full]"
 ```
+
+> [!NOTE]
+> **Nota de Rendimiento**: Hemos optimizado el árbol de dependencias en la versión 1.0.0 bloqueando versiones específicas de `pydantic`, `xgboost` y `cloudpickle`. Esto reduce drásticamente el tiempo de instalación inicial, de unos ~40 minutos a solo un par de minutos. 🚀
 
 **Desde el código fuente:**
 ```bash
@@ -128,17 +158,16 @@ data = pd.read_csv("your_data.csv")  # o "your_data.h5ad"
 gen = RealGenerator()
 
 # Generar 1000 muestras sintéticas usando CTGAN
-# model_params acepta cualquier hiperparámetro soportado por el modelo subyacente
+
 synthetic = gen.generate(
     data=data,
     n_samples=1000,
     method='ctgan',
     target_col='label',
-    model_params={
-        'epochs': 300,           # Épocas de entrenamiento
-        'batch_size': 500,       # Tamaño del batch
-        'discriminator_steps': 1 # Parámetro específico de CTGAN
-    }
+    epochs=300, 
+    batch_size=500,
+    discriminator_steps=1
+   
 )
 
 print(f"Generadas {len(synthetic)} muestras")
@@ -150,21 +179,23 @@ print(f"Generadas {len(synthetic)} muestras")
 
 | Método | Soporte GPU | Parámetro |
 |--------|-------------|-----------|
-| `ctgan`, `tvae`, `copula` | ✅ CUDA/MPS | `enable_gpu=True` |
-| `par` (series temporales) | ✅ CUDA/MPS | `enable_gpu=True` |
-| `dgan` (DoppelGANger) | ✅ PyTorch | Auto-detectado |
+| `ctgan`, `tvae` | ✅ CUDA/MPS | `enable_gpu=True` |
 | `diffusion` | ✅ PyTorch | Auto-detectado |
-| `smote`, `adasyn`, `cart`, `rf`, `lgbm`, `gmm`, `dp`, `datasynth` | ❌ Solo CPU | - |
+| `ddpm` | ✅ PyTorch + Synthcity | Auto-detectado |
+| `timegan` | ✅ PyTorch + Synthcity | Auto-detectado |
+| `timevae` | ✅ PyTorch + Synthcity | Auto-detectado |
+
+
+| `smote`, `adasyn`, `cart`, `rf`, `lgbm`, `gmm`, `copula` | ❌ Solo CPU | - |
 
 ```python
 synthetic = gen.generate(
     data=data,
     n_samples=1000,
     method='ctgan',
-    model_params={
-        'epochs': 300,
-        'enable_gpu': True  # GPU explícita - auto-detectado por defecto
-    }
+    epochs=300, 
+    enable_gpu=True,
+   
 )
 ```
 
@@ -289,7 +320,6 @@ reporter.generate_report(
 | **Blocks** | `generators.tabular` | RealBlockGenerator |
 | **Drift** | `generators.drift` | DriftInjector |
 | **Dynamics** | `generators.dynamics` | ScenarioInjector |
-| **Anonymizer** | `anonymizer` | Transformaciones de privacidad |
 | **Reports** | `reports` | Visualizer |
 
 ---
@@ -297,25 +327,21 @@ reporter.generate_report(
 ## Métodos de Síntesis
 
 | Método | Tipo | Descripción | Requisitos / Notas |
-|--------|------|-------------|--------------------|
+|--------|------|-------------|-------------------|
 | `cart` | ML | Síntesis iterativa basada en CART (rápido) | Instalación base |
 | `rf` | ML | Síntesis con Random Forest | Instalación base |
 | `lgbm` | ML | Síntesis basada en LightGBM | Instalación base (Requiere `lightgbm`) |
-| `ctgan` | DL | Conditional GAN para tabular | Requiere `sdv` (dependencia DL pesada) |
-| `tvae` | DL | Variational Autoencoder | Requiere `sdv` (dependencia DL pesada) |
-| `copula` | Estadístico | Cópula Gaussiana | Instalación base |
-| `diffusion` | DL | Difusión Tabular (DDPM) | **Experimental**. Requiere `calm-data-generator[deeplearning]` |
+| `ctgan` | DL | GAN Condicional para datos tabulares | Requiere `synthcity` |
+| `tvae` | DL | Autoencoder Variacional | Requiere `synthcity` |
+| `diffusion` | DL | Difusión Tabular (custom, rápida) | Instalación base (PyTorch) |
+| `ddpm` | DL | Synthcity TabDDPM (avanzado) | Requiere `synthcity` |
+| `timegan` | Series Temp. | TimeGAN para datos secuenciales | Requiere `synthcity` |
+| `timevae` | Series Temp. | TimeVAE para datos secuenciales | Requiere `synthcity` |
 | `smote` | Aumento | Sobremuestreo SMOTE | Instalación base |
 | `adasyn` | Aumento | Muestreo adaptativo ADASYN | Instalación base |
-| `dp` | Privacidad | Privacidad Diferencial (PATE-CTGAN) | Requiere `smartnoise-synth` |
-| `timegan` | Series Temp. | TimeGAN para secuencias | **Instalación Manual**. Requiere `ydata-synthetic` & `tensorflow` |
-| `dgan` | Series Temp. | DoppelGANger | Requiere `calm-data-generator[timeseries]` (`gretel-synthetics`) |
-| `par` | Series Temp. | Probabilistic AutoRegressive | Requiere `sdv` |
-| `copula_temporal` | Series Temp. | Cópula Gaussiana con lags temporales | Instalación base |
+| `copula` | Copula | Síntesis basada en Copulas | Instalación base |
 | `gmm` | Estadístico | Modelos de Mezcla Gaussiana | Instalación base |
-| `datasynth` | Estadístico | DataSynthesizer (Greedy Bayes) | Requiere `DataSynthesizer` |
 | `scvi` | Single-Cell | scVI (Variational Inference) para RNA-seq | Requiere `scvi-tools` |
-| `scgen` | Single-Cell | scGen (Requiere scgen 2.1.1 desde GitHub) | Requiere `scvi-tools` |
 
 ---
 

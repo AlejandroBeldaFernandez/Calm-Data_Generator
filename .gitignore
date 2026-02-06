@@ -79,6 +79,7 @@ output/
 drift_output/
 tutorial_drifts_output/
 tutorial_reports_output/
+workspace/
 
 # Documentation builds
 docs/site/

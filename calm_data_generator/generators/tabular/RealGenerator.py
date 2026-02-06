@@ -12,8 +12,7 @@ Key Features:
   - `rf`: FCS-like method using Random Forests.
   - `lgbm`: FCS-like method using LightGBM.
   - `gmm`: Gaussian Mixture Models (for numeric data).
-  - `ctgan`, `tvae`, `copula`: Advanced deep learning models from the Synthetic Data Vault (SDV) library.
-  - `datasynth`: Correlated attribute mode synthesis from the DataSynthesizer library.
+  - `ctgan`, `tvae`: Advanced deep learning/graph
   - `resample`: Simple resampling with replacement.
 - **Conditional Synthesis**: Can generate data that follows custom-defined distributions for specified columns.
 - **Target Balancing**: Automatically balances the distribution of the target variable.
@@ -31,7 +30,7 @@ import math
 import tempfile
 
 
-# SDV and DataSynthesizer imports are now lazy-loaded
+# Synthcity and customized dependencies are lazy-loaded
 
 # Model imports
 # Custom logger and reporter
@@ -39,6 +38,8 @@ from calm_data_generator.generators.base import BaseGenerator
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.configs import DateConfig
+
+# Synthcity import
 
 
 # Suppress common warnings for cleaner output
@@ -82,24 +83,19 @@ class RealGenerator(BaseGenerator):
         self, method: str, user_params: Optional[Dict] = None
     ) -> Dict:
         """Merges user parameters with defaults based on the method."""
-        # Standard parameter names (matching sklearn/lightgbm/SDV APIs)
+        # Standard parameter names (matching sklearn/lightgbm/Synthcity APIs)
         defaults = {
             # FCS methods (CART, RF, LGBM)
             "iterations": 10,
             # GMM
             "n_components": 5,
             "covariance_type": "full",
-            # SDV (CTGAN, TVAE, Copula)
+            # Synthcity (CTGAN, TVAE)
             "epochs": 300,
             "batch_size": 100,
-            # DataSynthesizer
-            "k": 5,
             # SMOTE/ADASYN
             "k_neighbors": 5,  # SMOTE
             "n_neighbors": 5,  # ADASYN
-            # Differential Privacy
-            "epsilon": 1.0,
-            "delta": 1e-5,
             # Time Series
             "sequence_key": None,
             # Diffusion
@@ -117,80 +113,37 @@ class RealGenerator(BaseGenerator):
             "rf",
             "lgbm",
             "gmm",
+            "copula",
             "ctgan",
             "tvae",
-            "copula",
-            "datasynth",
             "resample",
-            "smote",
             "adasyn",
-            "dp",
-            "par",
+            "smote",
             "diffusion",
+            "ddpm",
             "timegan",
-            "dgan",
-            "copula_temporal",
+            "timevae",
             "scvi",
-            "scgen",
         ]
         if method not in valid_methods:
             raise ValueError(
                 f"Unknown synthesis method '{method}'. Valid methods are: {valid_methods}"
             )
 
-    def _build_metadata(self, data: pd.DataFrame):
-        """Builds SDV metadata from a DataFrame."""
-        self.logger.info("Building SDV metadata...")
-        try:
-            from sdv.metadata import SingleTableMetadata
-        except ImportError:
-            raise ImportError(
-                "The 'sdv' library is required for this method. Please install it using 'pip install sdv'."
-            )
-        metadata = SingleTableMetadata()
-        metadata.detect_from_dataframe(data)
-        return metadata
-
     def _get_synthesizer(
         self,
         method: str,
         **model_kwargs,
     ):
-        """Initializes and returns the appropriate SDV synthesizer based on the method."""
+        """Initializes and returns the appropriate Synthcity plugin."""
         try:
-            from sdv.single_table import (
-                CTGANSynthesizer,
-                TVAESynthesizer,
-                CopulaGANSynthesizer,
-            )
+            from synthcity.plugins import Plugins
         except ImportError:
             raise ImportError(
-                "The 'sdv' library is required for deep learning methods. Please install it using 'pip install sdv'."
+                "synthcity is required for this method. Please install it."
             )
 
-        # metadata is built externally or stored
-        if self.metadata is None:
-            raise ValueError("Metadata must be built before getting synthesizer.")
-
-        if method == "ctgan":
-            return CTGANSynthesizer(
-                metadata=self.metadata,
-                verbose=True,
-                **model_kwargs,
-            )
-        elif method == "tvae":
-            return TVAESynthesizer(
-                metadata=self.metadata,
-                **model_kwargs,
-            )
-        elif method == "copula":
-            return CopulaGANSynthesizer(
-                metadata=self.metadata,
-                verbose=True,
-                **model_kwargs,
-            )
-        else:
-            raise ValueError(f"No SDV synthesizer for method '{method}'")
+        return Plugins().get(method, **model_kwargs)
 
     def _validate_custom_distributions(
         self, custom_distributions: Dict, data: pd.DataFrame
@@ -225,7 +178,41 @@ class RealGenerator(BaseGenerator):
                 }
         return validated_distributions
 
-    def _synthesize_sdv(
+    def _synthesize_ctgan(
+        self,
+        data: pd.DataFrame,
+        n_samples: int,
+        target_col: Optional[str] = None,
+        custom_distributions: Optional[Dict] = None,
+        **model_kwargs,
+    ) -> pd.DataFrame:
+        """Synthesizes data using CTGAN via Synthcity."""
+        self.logger.info("Starting CTGAN synthesis via Synthcity...")
+        if "epochs" in model_kwargs:
+            model_kwargs["n_iter"] = model_kwargs.pop("epochs")
+
+        syn = self._get_synthesizer("ctgan", **model_kwargs)
+        syn.fit(data)
+        return syn.generate(count=n_samples).dataframe()
+
+    def _synthesize_tvae(
+        self,
+        data: pd.DataFrame,
+        n_samples: int,
+        target_col: Optional[str] = None,
+        custom_distributions: Optional[Dict] = None,
+        **model_kwargs,
+    ) -> pd.DataFrame:
+        """Synthesizes data using TVAE via Synthcity."""
+        self.logger.info("Starting TVAE synthesis via Synthcity...")
+        if "epochs" in model_kwargs:
+            model_kwargs["n_iter"] = model_kwargs.pop("epochs")
+
+        syn = self._get_synthesizer("tvae", **model_kwargs)
+        syn.fit(data)
+        return syn.generate(count=n_samples).dataframe()
+
+    def _synthesize_copula(
         self,
         data: pd.DataFrame,
         n_samples: int,
@@ -234,70 +221,54 @@ class RealGenerator(BaseGenerator):
         custom_distributions: Optional[Dict] = None,
         **model_kwargs,
     ) -> pd.DataFrame:
-        """Synthesizes data using an SDV model, with support for conditional sampling."""
-        self.logger.info(f"Starting conditional SDV synthesis with method: {method}...")
-        # Always rebuild/refit for stateless operation on new data.
-        # (Optimization: could cache if data/method matches, but keeping it simple/safe first)
-        self.metadata = self._build_metadata(data)
-        self.synthesizer = self._get_synthesizer(method, **model_kwargs)
-        self.synthesizer.fit(data)
-
-        if not custom_distributions:
-            self.logger.info(
-                "No custom distributions provided. Generating samples unconditionally."
+        """Synthesizes data using Copulae (Gaussian Copula)."""
+        self.logger.info("Starting synthesis using Gaussian Copula...")
+        try:
+            from copulae import GaussianCopula
+            from sklearn.preprocessing import MinMaxScaler
+        except ImportError:
+            raise ImportError(
+                "copulae and scikit-learn are required for the 'copula' method."
             )
-            return self.synthesizer.sample(num_rows=n_samples)
-        self.logger.info(
-            f"Applying custom distributions via conditional sampling: {custom_distributions}"
+
+        # Preprocessing: Copulas work on [0, 1] margins
+        # We'll use a simple MinMax scaler for now to get to [0, 1],
+        # but true copulas usually use empirical CDF transofmration.
+        numeric_cols = data.select_dtypes(include=[np.number]).columns
+        if numeric_cols.empty:
+            raise ValueError("Copula synthesis requires at least some numeric columns.")
+
+        scaler = MinMaxScaler()
+        X_scaled = scaler.fit_transform(data[numeric_cols])
+
+        # Fit copula
+        cop = GaussianCopula(dim=len(numeric_cols))
+        cop.fit(X_scaled)
+
+        # Sample
+        samples = cop.random(n_samples)
+
+        # Inverse transform
+        synth_numeric = pd.DataFrame(
+            scaler.inverse_transform(samples), columns=numeric_cols
         )
-        if len(custom_distributions.keys()) > 1:
+
+        # Handle non-numeric columns by simple resampling (naive approach for consistency)
+        non_numeric_cols = data.select_dtypes(exclude=[np.number]).columns
+        if not non_numeric_cols.empty:
             self.logger.warning(
-                f"Multiple columns found in custom_distributions. Conditioning on first column: '{next(iter(custom_distributions))}'."
+                "Copula method currently only models numeric correlations. Non-numeric columns will be resampled independently."
             )
-        col_to_condition = (
-            target_col
-            if target_col and target_col in custom_distributions
-            else next(iter(custom_distributions))
-        )
-        dist = custom_distributions[col_to_condition]
-        remaining_samples = n_samples
-        all_synth_parts = []
-        for value, proportion in dist.items():
-            num_rows_for_val = int(n_samples * proportion)
-            if num_rows_for_val > 0 and remaining_samples > 0:
-                num_rows_for_val = min(num_rows_for_val, remaining_samples)
-                self.logger.info(
-                    f"Generating {num_rows_for_val} samples for '{col_to_condition}' = '{value}'"
-                )
-                try:
-                    from sdv.sampling import Condition
+            synth_non_numeric = (
+                data[non_numeric_cols]
+                .sample(n=n_samples, replace=True)
+                .reset_index(drop=True)
+            )
+            synth = pd.concat([synth_numeric, synth_non_numeric], axis=1)
+        else:
+            synth = synth_numeric
 
-                    synth_part = self.synthesizer.sample_from_conditions(
-                        conditions=[
-                            Condition(
-                                num_rows=num_rows_for_val,
-                                column_values={col_to_condition: value},
-                            )
-                        ]
-                    )
-                    all_synth_parts.append(synth_part)
-                    remaining_samples -= len(synth_part)
-                except Exception as e:
-                    self.logger.warning(
-                        f"Could not generate conditional samples for {col_to_condition}='{value}': {e}"
-                    )
-        if remaining_samples > 0:
-            self.logger.info(
-                f"Generating {remaining_samples} remaining samples unconditionally."
-            )
-            all_synth_parts.append(self.synthesizer.sample(num_rows=remaining_samples))
-        if not all_synth_parts:
-            raise RuntimeError("Conditional synthesis failed to generate any data.")
-        return (
-            pd.concat(all_synth_parts, ignore_index=True)
-            .sample(frac=1, random_state=self.random_state)
-            .reset_index(drop=True)
-        )
+        return synth[data.columns]  # Restore original order
 
     def _synthesize_resample(
         self,
@@ -438,394 +409,9 @@ class RealGenerator(BaseGenerator):
             self.logger.error(f"ADASYN synthesis failed: {e}")
             raise e
 
-    def _synthesize_dp(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes data using Differential Privacy (via SmartNoise/SNSynth).
-        """
-        eps = kwargs.get("epsilon", 1.0)
-        self.logger.info(f"Starting Differential Privacy synthesis (epsilon={eps})...")
-        try:
-            from snsynth import Synthesizer
-        except ImportError:
-            # Try alternate import or raise
-            try:
-                import smartnoise.synthesizers  # noqa: F401 - Verify package availability
-            except ImportError:
-                raise ImportError(
-                    "smartnoise-synth (snsynth) is required for DP synthesis."
-                )
-
-        try:
-            epsilon = kwargs.get("epsilon", 1.0)
-            _delta = kwargs.get("delta", 1e-5)  # noqa: F841 - Reserved for future use
-            # We'll use PATE-CTGAN or MWEM as default. Let's try PATE-CTGAN for deep learning quality.
-            # SNSynth wrapper
-            synth_type = kwargs.get("synth_type", "pate_ctgan")
-            synth = Synthesizer.create(synth_type, epsilon=epsilon, verbose=True)
-            synth.fit(data, preprocessor_eps=epsilon / 2.0)  # Split budget
-            return synth.sample(n_samples)
-        except Exception as e:
-            self.logger.error(f"DP synthesis failed: {e}")
-            raise e
-
-    def _synthesize_par(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes data using Probabilistic AutoRegressive (PAR) model for Time Series.
-        Uses SDV's PARSynthesizer.
-        """
-        self.logger.info("Starting PAR (Time Series) synthesis...")
-        sequence_key = kwargs.get("sequence_key")
-        sequence_index = kwargs.get("sequence_index")
-
-        try:
-            from sdv.sequential import PARSynthesizer
-            # SDV 1.0+ sequential models require sequence_key in metadata
-        except ImportError:
-            raise ImportError("sdv is required for PAR synthesis.")
-
-        if not sequence_key:
-            raise ValueError(
-                "sequence_key (column name for entity ID) is required for PAR synthesis."
-            )
-
-        try:
-            metadata = self._build_metadata(data)
-
-            # Set sequential properties in metadata
-            metadata.set_sequence_key(column_name=sequence_key)
-            if sequence_index:
-                metadata.set_sequence_index(column_name=sequence_index)
-            elif "timestamp" in data.columns:
-                metadata.set_sequence_index(column_name="timestamp")
-            elif "date" in data.columns:
-                metadata.set_sequence_index(column_name="date")
-
-            # Simple PAR usage
-            epochs = kwargs.get("epochs", 100)
-
-            # Filter kwargs for PAR constructor
-            par_args = {
-                k: v
-                for k, v in kwargs.items()
-                if k
-                not in [
-                    "epochs",
-                    "par_epochs",
-                    "sequence_key",
-                    "sequence_index",
-                    "entity_columns",
-                    "target_col",
-                ]
-            }
-
-            synthesizer = PARSynthesizer(
-                metadata=metadata, epochs=epochs, verbose=True, **par_args
-            )
-
-            synthesizer.fit(data)
-
-            # For sampling, PAR generates sequences. n_samples usually means number of SEQUENCES (Entities)
-            # not total rows.
-            # We assume n_samples is number of entities to generate for now, or we approximation.
-            # If n_samples is total rows, it's hard to control exactly with PAR.
-            # We'll assume n_samples = num_sequences (num entities)
-
-            synth_data = synthesizer.sample(num_sequences=n_samples)
-            return synth_data
-
-        except Exception as e:
-            self.logger.error(f"PAR synthesis failed: {e}")
-            raise e
-
-    def _synthesize_timegan(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes time series data using TimeGAN.
-        Requires ydata-synthetic library.
-        """
-        epochs = kwargs.get("epochs", 100)
-        seq_len = kwargs.get("seq_len", 24)
-        sequence_key = kwargs.get("sequence_key")
-
-        self.logger.info(
-            f"Starting TimeGAN synthesis (epochs={epochs}, seq_len={seq_len})..."
-        )
-
-        if not sequence_key:
-            raise ValueError("sequence_key is required for TimeGAN synthesis.")
-
-        try:
-            from ydata_synthetic.synthesizers.timeseries import TimeSeriesSynthesizer
-            from ydata_synthetic.synthesizers import ModelParameters, TrainParameters
-        except ImportError:
-            self.logger.warning("ydata-synthetic not available. Falling back to PAR.")
-            return self._synthesize_par(
-                data,
-                n_samples,
-                target_col=target_col,
-                sequence_key=sequence_key,
-                epochs=epochs,
-                **kwargs,
-            )
-
-        try:
-            # Prepare data: TimeGAN expects 3D array (samples, timesteps, features)
-            # Group by sequence_key and create sequences
-            numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-            if sequence_key in numeric_cols:
-                numeric_cols.remove(sequence_key)
-
-            groups = data.groupby(sequence_key)
-            sequences = []
-            for _, group in groups:
-                seq_data = group[numeric_cols].values
-                if len(seq_data) >= seq_len:
-                    # Take first seq_len rows
-                    sequences.append(seq_data[:seq_len])
-                elif len(seq_data) > 0:
-                    # Pad with last value
-                    padded = np.vstack(
-                        [seq_data, np.tile(seq_data[-1], (seq_len - len(seq_data), 1))]
-                    )
-                    sequences.append(padded)
-
-            if not sequences:
-                raise ValueError("No valid sequences found in data.")
-
-            X = np.array(sequences)
-
-            # Model parameters
-            gan_args = ModelParameters(
-                batch_size=min(32, len(X)), lr=5e-4, noise_dim=32, layers_dim=128
-            )
-
-            train_args = TrainParameters(
-                epochs=epochs, sequence_length=seq_len, number_sequences=len(X)
-            )
-
-            # Create and train synthesizer
-            synth = TimeSeriesSynthesizer(
-                modelname="timegan", model_parameters=gan_args
-            )
-            synth.fit(X, train_args, num_cols=numeric_cols)
-
-            # Generate synthetic data
-            n_sequences = max(1, n_samples // seq_len)
-            synth_sequences = synth.sample(n_sequences)
-
-            # Convert back to DataFrame
-            all_rows = []
-            for i, seq in enumerate(synth_sequences):
-                for t, row in enumerate(seq):
-                    row_dict = {col: row[j] for j, col in enumerate(numeric_cols)}
-                    row_dict[sequence_key] = f"synth_{i}"
-                    row_dict["timestep"] = t
-                    all_rows.append(row_dict)
-
-            synth_df = pd.DataFrame(all_rows)
-            self.logger.info(
-                f"TimeGAN synthesis complete. Generated {len(synth_df)} samples."
-            )
-            return synth_df
-
-        except Exception as e:
-            self.logger.error(f"TimeGAN synthesis failed: {e}")
-            raise e
-
-    def _synthesize_dgan(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes time series data using DGAN (DoppelGANger-style).
-        Requires ydata-synthetic library.
-        """
-        epochs = kwargs.get("epochs", 100)
-        seq_len = kwargs.get("seq_len", 24)
-        sequence_key = kwargs.get("sequence_key")
-
-        self.logger.info(f"Starting DGAN synthesis (epochs={epochs})...")
-
-        if not sequence_key:
-            raise ValueError("sequence_key is required for DGAN synthesis.")
-
-        try:
-            from ydata_synthetic.synthesizers.timeseries import TimeSeriesSynthesizer
-            from ydata_synthetic.synthesizers import ModelParameters, TrainParameters
-        except ImportError:
-            self.logger.warning(
-                "ydata-synthetic not available. Falling back to TimeGAN."
-            )
-            return self._synthesize_timegan(
-                data,
-                n_samples,
-                target_col=target_col,
-                sequence_key=sequence_key,
-                epochs=epochs,
-                seq_len=seq_len,
-                **kwargs,
-            )
-
-        try:
-            # Similar preprocessing as TimeGAN
-            numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-            if sequence_key in numeric_cols:
-                numeric_cols.remove(sequence_key)
-
-            groups = data.groupby(sequence_key)
-            sequences = []
-            for _, group in groups:
-                seq_data = group[numeric_cols].values
-                if len(seq_data) >= seq_len:
-                    sequences.append(seq_data[:seq_len])
-                elif len(seq_data) > 0:
-                    padded = np.vstack(
-                        [seq_data, np.tile(seq_data[-1], (seq_len - len(seq_data), 1))]
-                    )
-                    sequences.append(padded)
-
-            if not sequences:
-                raise ValueError("No valid sequences found in data.")
-
-            X = np.array(sequences)
-
-            # Model parameters for DGAN
-            gan_args = ModelParameters(
-                batch_size=min(32, len(X)), lr=1e-4, noise_dim=64, layers_dim=256
-            )
-
-            train_args = TrainParameters(
-                epochs=epochs, sequence_length=seq_len, number_sequences=len(X)
-            )
-
-            # Use doppelganger model
-            synth = TimeSeriesSynthesizer(
-                modelname="doppelganger", model_parameters=gan_args
-            )
-            synth.fit(X, train_args, num_cols=numeric_cols)
-
-            # Generate
-            n_sequences = max(1, n_samples // seq_len)
-            synth_sequences = synth.sample(n_sequences)
-
-            # Convert to DataFrame
-            all_rows = []
-            for i, seq in enumerate(synth_sequences):
-                for t, row in enumerate(seq):
-                    row_dict = {col: row[j] for j, col in enumerate(numeric_cols)}
-                    row_dict[sequence_key] = f"synth_{i}"
-                    row_dict["timestep"] = t
-                    all_rows.append(row_dict)
-
-            synth_df = pd.DataFrame(all_rows)
-            self.logger.info(
-                f"DGAN synthesis complete. Generated {len(synth_df)} samples."
-            )
-            return synth_df
-
-        except Exception as e:
-            self.logger.error(f"DGAN synthesis failed: {e}")
-            raise e
-
-    def _synthesize_copula_temporal(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes time series data using Gaussian Copula with temporal correlations.
-        Lighter alternative to GAN-based methods.
-        """
-        self.logger.info("Starting Temporal Copula synthesis...")
-
-        sequence_key = kwargs.get("sequence_key")
-        time_col = kwargs.get("time_col")
-
-        if not sequence_key:
-            raise ValueError("sequence_key is required for Temporal Copula synthesis.")
-
-        try:
-            from sdv.single_table import GaussianCopulaSynthesizer
-        except ImportError:
-            raise ImportError("sdv is required for Copula synthesis.")
-
-        try:
-            # Sort by sequence and time if available
-            if time_col and time_col in data.columns:
-                data = data.sort_values([sequence_key, time_col])
-            else:
-                data = data.sort_values(sequence_key)
-
-            # Create lag features to capture temporal dependencies
-            numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-            if sequence_key in numeric_cols:
-                numeric_cols.remove(sequence_key)
-            if time_col and time_col in numeric_cols:
-                numeric_cols.remove(time_col)
-
-            df_with_lags = data.copy()
-
-            # Add lag-1 features for each numeric column within each sequence
-            for col in numeric_cols[:5]:  # Limit to 5 columns to avoid explosion
-                df_with_lags[f"{col}_lag1"] = df_with_lags.groupby(sequence_key)[
-                    col
-                ].shift(1)
-
-            # Fill NaN from lag with column mean
-            df_with_lags = df_with_lags.fillna(df_with_lags.mean(numeric_only=True))
-
-            # Build metadata
-            metadata = self._build_metadata(df_with_lags)
-
-            # Train Copula
-            synthesizer = GaussianCopulaSynthesizer(
-                metadata=metadata,
-                enforce_min_max_values=True,
-                enforce_rounding=True,
-            )
-            synthesizer.fit(df_with_lags)
-
-            # Sample
-            synth_df = synthesizer.sample(n_samples)
-
-            # Remove lag columns from output
-            lag_cols = [c for c in synth_df.columns if "_lag1" in c]
-            synth_df = synth_df.drop(columns=lag_cols, errors="ignore")
-
-            # Sort output by sequence
-            if sequence_key in synth_df.columns:
-                synth_df = synth_df.sort_values(sequence_key).reset_index(drop=True)
-
-            self.logger.info(
-                f"Temporal Copula synthesis complete. Generated {len(synth_df)} samples."
-            )
-            return synth_df
-
-        except Exception as e:
-            self.logger.error(f"Temporal Copula synthesis failed: {e}")
-            raise e
+    # REMOVED: _synthesize_timegan and _synthesize_dgan methods
+    # These methods required ydata-synthetic library which is not used in this project.
+    # For time series synthesis, use Synthcity's time series models or other alternatives.
 
     def _synthesize_diffusion(
         self, data: pd.DataFrame, n_samples: int, **kwargs
@@ -843,7 +429,7 @@ class RealGenerator(BaseGenerator):
             from sklearn.preprocessing import StandardScaler, LabelEncoder
         except ImportError:
             self.logger.warning("PyTorch not available. Falling back to CTGAN.")
-            return self._synthesize_sdv(data, n_samples, "ctgan", 300, 100)
+            return self._synthesize_synthcity(data, n_samples, "ctgan", 300, 100)
 
         # Preprocess: encode categoricals and scale numerics
         df = data.copy()
@@ -952,6 +538,214 @@ class RealGenerator(BaseGenerator):
 
         self.logger.info(
             f"Diffusion synthesis complete. Generated {len(synth_df)} samples."
+        )
+        return synth_df
+
+    def _synthesize_ddpm(
+        self, data: pd.DataFrame, n_samples: int, **kwargs
+    ) -> pd.DataFrame:
+        """
+        Synthesizes data using Synthcity's TabDDPM (Tabular Denoising Diffusion).
+
+        TabDDPM is a more advanced diffusion model specifically designed for tabular data.
+        It supports multiple architectures (MLP, ResNet, TabNet) and advanced schedulers.
+
+        Args:
+            data: Input DataFrame
+            n_samples: Number of samples to generate
+            **kwargs: Additional parameters for TabDDPM:
+                - n_iter: int = 1000 - Training epochs
+                - lr: float = 0.002 - Learning rate
+                - batch_size: int = 1024 - Batch size
+                - num_timesteps: int = 1000 - Diffusion timesteps
+                - model_type: str = "mlp" - Model architecture ("mlp", "resnet", "tabnet")
+                - scheduler: str = "cosine" - Beta scheduler ("cosine", "linear")
+                - gaussian_loss_type: str = "mse" - Loss type ("mse", "kl")
+                - is_classification: bool = False - Whether task is classification
+
+        Returns:
+            Synthetic DataFrame
+        """
+        self.logger.info("Starting TabDDPM synthesis (Synthcity)...")
+
+        try:
+            from synthcity.plugins import Plugins
+            from synthcity.plugins.core.dataloader import GenericDataLoader
+        except ImportError:
+            self.logger.warning(
+                "Synthcity not available. Falling back to custom diffusion."
+            )
+            return self._synthesize_diffusion(data, n_samples, **kwargs)
+
+        # Extract DDPM-specific parameters
+        n_iter = kwargs.get("n_iter", kwargs.get("epochs", 1000))
+        lr = kwargs.get("lr", 0.002)
+        batch_size = kwargs.get("batch_size", 1024)
+        num_timesteps = kwargs.get("num_timesteps", 1000)
+        model_type = kwargs.get("model_type", "mlp")
+        scheduler = kwargs.get("scheduler", "cosine")
+        gaussian_loss_type = kwargs.get("gaussian_loss_type", "mse")
+        is_classification = kwargs.get("is_classification", False)
+
+        # Load plugin
+        plugin = Plugins().get(
+            "ddpm",
+            n_iter=n_iter,
+            lr=lr,
+            batch_size=batch_size,
+            num_timesteps=num_timesteps,
+            model_type=model_type,
+            scheduler=scheduler,
+            gaussian_loss_type=gaussian_loss_type,
+            is_classification=is_classification,
+        )
+
+        # Prepare data
+        loader = GenericDataLoader(data)
+
+        # Train
+        self.logger.info(f"Training TabDDPM for {n_iter} epochs...")
+        plugin.fit(loader)
+
+        # Generate
+        self.logger.info(f"Generating {n_samples} synthetic samples...")
+        synth = plugin.generate(count=n_samples)
+        synth_df = synth.dataframe()
+
+        self.logger.info(
+            f"TabDDPM synthesis complete. Generated {len(synth_df)} samples."
+        )
+        return synth_df
+
+    def _synthesize_timegan(
+        self, data: pd.DataFrame, n_samples: int, **kwargs
+    ) -> pd.DataFrame:
+        """
+        Synthesizes time series data using Synthcity's TimeGAN.
+
+        TimeGAN is designed for sequential/temporal data with multiple entities.
+        It learns both temporal dynamics and feature distributions.
+
+        Args:
+            data: Input DataFrame with temporal structure
+            n_samples: Number of sequences to generate
+            **kwargs: Additional parameters for TimeGAN:
+                - n_iter: int = 1000 - Training epochs
+                - n_units_hidden: int = 100 - Hidden units
+                - batch_size: int = 128 - Batch size
+                - lr: float = 0.001 - Learning rate
+
+        Returns:
+            Synthetic DataFrame with temporal structure
+        """
+        self.logger.info("Starting TimeGAN synthesis (Synthcity)...")
+
+        try:
+            from synthcity.plugins import Plugins
+            from synthcity.plugins.core.dataloader import TimeSeriesDataLoader
+        except ImportError:
+            self.logger.error("Synthcity not available for TimeGAN.")
+            raise ImportError(
+                "TimeGAN requires synthcity. Install with: pip install synthcity"
+            )
+
+        # Extract TimeGAN-specific parameters
+        n_iter = kwargs.get("n_iter", kwargs.get("epochs", 1000))
+        n_units_hidden = kwargs.get("n_units_hidden", 100)
+        batch_size = kwargs.get("batch_size", 128)
+        lr = kwargs.get("lr", 0.001)
+
+        # Load plugin
+        plugin = Plugins().get(
+            "timegan",
+            n_iter=n_iter,
+            n_units_hidden=n_units_hidden,
+            batch_size=batch_size,
+            lr=lr,
+        )
+
+        # Prepare time series data
+        # TimeSeriesDataLoader expects data in specific format
+        loader = TimeSeriesDataLoader(data)
+
+        # Train
+        self.logger.info(f"Training TimeGAN for {n_iter} epochs...")
+        plugin.fit(loader)
+
+        # Generate
+        self.logger.info(f"Generating {n_samples} synthetic sequences...")
+        synth = plugin.generate(count=n_samples)
+        synth_df = synth.dataframe()
+
+        self.logger.info(
+            f"TimeGAN synthesis complete. Generated {len(synth_df)} samples."
+        )
+        return synth_df
+
+    def _synthesize_timevae(
+        self, data: pd.DataFrame, n_samples: int, **kwargs
+    ) -> pd.DataFrame:
+        """
+        Synthesizes time series data using Synthcity's TimeVAE.
+
+        TimeVAE is a variational autoencoder designed for temporal data.
+        It's generally faster than TimeGAN and works well for regular time series.
+
+        Args:
+            data: Input DataFrame with temporal structure
+            n_samples: Number of sequences to generate
+            **kwargs: Additional parameters for TimeVAE:
+                - n_iter: int = 1000 - Training epochs
+                - decoder_n_layers_hidden: int = 2 - Decoder layers
+                - decoder_n_units_hidden: int = 100 - Decoder units
+                - batch_size: int = 128 - Batch size
+                - lr: float = 0.001 - Learning rate
+
+        Returns:
+            Synthetic DataFrame with temporal structure
+        """
+        self.logger.info("Starting TimeVAE synthesis (Synthcity)...")
+
+        try:
+            from synthcity.plugins import Plugins
+            from synthcity.plugins.core.dataloader import TimeSeriesDataLoader
+        except ImportError:
+            self.logger.error("Synthcity not available for TimeVAE.")
+            raise ImportError(
+                "TimeVAE requires synthcity. Install with: pip install synthcity"
+            )
+
+        # Extract TimeVAE-specific parameters
+        n_iter = kwargs.get("n_iter", kwargs.get("epochs", 1000))
+        decoder_n_layers_hidden = kwargs.get("decoder_n_layers_hidden", 2)
+        decoder_n_units_hidden = kwargs.get("decoder_n_units_hidden", 100)
+        batch_size = kwargs.get("batch_size", 128)
+        lr = kwargs.get("lr", 0.001)
+
+        # Load plugin
+        plugin = Plugins().get(
+            "timevae",
+            n_iter=n_iter,
+            decoder_n_layers_hidden=decoder_n_layers_hidden,
+            decoder_n_units_hidden=decoder_n_units_hidden,
+            batch_size=batch_size,
+            lr=lr,
+        )
+
+        # Prepare time series data
+        loader = TimeSeriesDataLoader(data)
+
+        # Train
+        self.logger.info(f"Training TimeVAE for {n_iter} epochs...")
+        plugin.fit(loader)
+
+        # Generate
+        self.logger.info(f"Generating {n_samples} synthetic sequences...")
+        synth = plugin.generate(count=n_samples)
+        synth_df = synth.dataframe()
+
+        self.logger.info(
+            f"TimeVAE synthesis complete. Generated {len(synth_df)} samples."
         )
         return synth_df
 
@@ -1201,240 +995,6 @@ class RealGenerator(BaseGenerator):
             )
 
         self.logger.info(f"scVI synthesis complete. Generated {len(synth_df)} samples.")
-        return synth_df
-
-    def _synthesize_scgen(
-        self,
-        data: Union[pd.DataFrame, Any],
-        n_samples: int,
-        target_col: Optional[str] = None,
-        condition_col: Optional[str] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes single-cell-like data using scGen (perturbation prediction).
-
-        scGen is particularly useful for:
-        - Generating cells under different conditions
-        - Batch effect removal
-        - Perturbation response prediction
-
-        Args:
-            data: DataFrame or AnnData with numeric expression values
-            n_samples: Number of synthetic samples to generate
-            target_col: Column identifying cell types/labels
-            condition_col: Column identifying conditions/batches (required for scGen)
-            **kwargs: Additional parameters (n_latent, epochs, etc.)
-
-        Returns:
-            DataFrame with synthetic samples
-        """
-        self.logger.info("Starting scGen synthesis for single-cell data...")
-
-        if condition_col is None:
-            self.logger.warning(
-                "No condition_col provided. scGen works best with condition labels. "
-                "Falling back to scVI synthesis."
-            )
-            return self._synthesize_scvi(data, n_samples, target_col, **kwargs)
-
-        try:
-            import anndata
-            import scgen
-        except ImportError:
-            try:
-                # Legacy import for older scvi-tools
-                from scvi.external import SCGEN
-
-                # Mock scgen module structure for compatibility
-                import types
-
-                scgen = types.ModuleType("scgen")
-                scgen.SCGEN = SCGEN
-            except ImportError:
-                raise ImportError(
-                    "scgen and anndata are required for scGen synthesis. "
-                    "Install with: pip install scgen anndata"
-                )
-
-        # Create or use AnnData object
-        if (
-            hasattr(data, "obs")
-            and hasattr(data, "X")
-            and not isinstance(data, pd.DataFrame)
-        ):
-            adata = data
-            # Ensure target_col/condition_col are in obs and renamed if necessary for internal use
-            if (
-                target_col
-                and target_col in adata.obs.columns
-                and target_col != "cell_type"
-            ):
-                adata.obs["cell_type"] = adata.obs[target_col].astype(str).values
-            elif "cell_type" not in adata.obs.columns:
-                adata.obs["cell_type"] = "unknown"
-
-            if (
-                condition_col
-                and condition_col in adata.obs.columns
-                and condition_col != "condition"
-            ):
-                adata.obs["condition"] = adata.obs[condition_col].astype(str).values
-            elif "condition" not in adata.obs.columns:
-                # If scgen but no condition, we already handled fallback in generate or will fail setup
-                pass
-        else:
-            # Get expression columns
-            metadata_cols = []
-            if target_col and target_col in data.columns:
-                metadata_cols.append(target_col)
-            if condition_col and condition_col in data.columns:
-                metadata_cols.append(condition_col)
-
-            expr_cols = [c for c in data.columns if c not in metadata_cols]
-            expr_data = data[expr_cols].select_dtypes(include=[np.number])
-
-            if expr_data.empty:
-                raise ValueError("No numeric columns found for scGen synthesis.")
-
-            # Create AnnData object
-            adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
-            adata.obs_names = [f"cell_{i}" for i in range(len(data))]
-            adata.var_names = list(expr_data.columns)
-
-            # Add metadata
-            if target_col and target_col in data.columns:
-                adata.obs["cell_type"] = data[target_col].astype(str).values
-            else:
-                adata.obs["cell_type"] = "unknown"
-
-            if condition_col and condition_col in data.columns:
-                adata.obs["condition"] = data[condition_col].astype(str).values
-
-        # Setup and train scGen
-        n_latent = kwargs.get("n_latent", 10)
-        epochs = kwargs.get("epochs", 100)
-
-        SCGEN = scgen.SCGEN
-
-        # Work on a copy of adata to avoid modifying the original if passed
-        if (
-            hasattr(data, "obs")
-            and hasattr(data, "X")
-            and not isinstance(data, pd.DataFrame)
-        ):
-            adata_to_train = adata.copy()
-        else:
-            adata_to_train = adata
-
-        SCGEN.setup_anndata(
-            adata_to_train, batch_key="condition", labels_key="cell_type"
-        )
-        model = SCGEN(adata_to_train, n_latent=n_latent)
-
-        # Monkeypatch scGen inference to match scvi-tools 1.0+ expected keys ('qzm', 'qzv')
-        # instead of scgen defaults ('qz_m', 'qz_v')
-        original_inference = model.module.inference
-
-        def patched_inference(*args, **kwargs):
-            outputs = original_inference(*args, **kwargs)
-            if "qz_m" in outputs:
-                outputs["qzm"] = outputs["qz_m"]
-            if "qz_v" in outputs:
-                outputs["qzv"] = outputs["qz_v"]
-            return outputs
-
-        model.module.inference = patched_inference
-
-        self.logger.info(f"Training scGen model with {epochs} epochs...")
-        model.train(max_epochs=epochs, early_stopping=True)
-
-        # Generate synthetic samples
-        self.logger.info(f"Generating {n_samples} synthetic samples...")
-
-        # Get latent representation and sample
-        latent = model.get_latent_representation()
-
-        # Sample random latent codes (mixing existing ones)
-        indices = np.random.choice(len(latent), size=n_samples, replace=True)
-        sampled_latent = latent[indices]
-
-        # Add noise for diversity
-        noise_scale = kwargs.get("noise_scale", 0.1)
-        sampled_latent += np.random.randn(*sampled_latent.shape) * noise_scale
-
-        # Decode
-        import torch
-
-        with torch.no_grad():
-            latent_tensor = torch.tensor(sampled_latent.astype(np.float32))
-            # Use the model's decoder
-            # Use the model's decoder
-            # scGen generative output might differ slightly, checking output
-            generative_outputs = model.module.generative(latent_tensor)
-
-            # Usually SCGEN uses NegativeBinomial or ZINB, outputting 'px' as distribution
-            try:
-                if "px" in generative_outputs:
-                    px_dist = generative_outputs["px"]
-                    if hasattr(px_dist, "sample"):
-                        synthetic_expression = px_dist.sample()
-                    elif isinstance(px_dist, torch.Tensor):
-                        synthetic_expression = px_dist
-                    else:
-                        synthetic_expression = px_dist.mean
-                elif "px_rate" in generative_outputs:
-                    synthetic_expression = generative_outputs["px_rate"]
-                else:
-                    # Fallback for some scGen versions that might return tensor directly if not using likelihood
-                    synthetic_expression = generative_outputs
-            except Exception:
-                # Fallback if sampling fails
-                if "px" in generative_outputs:
-                    try:
-                        synthetic_expression = generative_outputs["px"].mean
-                    except Exception:
-                        synthetic_expression = torch.zeros(
-                            (n_samples, adata.n_vars), dtype=torch.float32
-                        )
-                else:
-                    raise
-
-            if hasattr(synthetic_expression, "cpu"):
-                synthetic_expression = synthetic_expression.cpu()
-
-            decoded = synthetic_expression.numpy()
-
-        # Use adata.var_names for column names (works for both DataFrame and AnnData input)
-        synth_df = pd.DataFrame(decoded, columns=adata.var_names)
-
-        # Add metadata with random sampling
-        if target_col and target_col in (
-            data.obs.columns if hasattr(data, "obs") else data.columns
-        ):
-            source_target = (
-                data.obs[target_col].values
-                if hasattr(data, "obs")
-                else data[target_col].values
-            )
-            synth_df[target_col] = np.random.choice(
-                source_target, size=n_samples, replace=True
-            )
-        if condition_col and condition_col in (
-            data.obs.columns if hasattr(data, "obs") else data.columns
-        ):
-            source_cond = (
-                data.obs[condition_col].values
-                if hasattr(data, "obs")
-                else data[condition_col].values
-            )
-            synth_df[condition_col] = np.random.choice(
-                source_cond, size=n_samples, replace=True
-            )
-
-        self.logger.info(
-            f"scGen synthesis complete. Generated {len(synth_df)} samples."
-        )
         return synth_df
 
     def _synthesize_fcs_generic(
@@ -1724,10 +1284,30 @@ class RealGenerator(BaseGenerator):
 
             model_params = {"random_state": self.random_state}
             model_params.update(kwargs)
+
+            # Filter valid params for DecisionTree to avoid the garbage defaults bug
+            valid_params = {
+                "criterion",
+                "splitter",
+                "max_depth",
+                "min_samples_split",
+                "min_samples_leaf",
+                "min_weight_fraction_leaf",
+                "max_features",
+                "random_state",
+                "max_leaf_nodes",
+                "min_impurity_decrease",
+                "class_weight",
+                "ccp_alpha",
+            }
+            filtered_params = {
+                k: v for k, v in model_params.items() if k in valid_params
+            }
+
             return (
-                DecisionTreeClassifier(**model_params)
+                DecisionTreeClassifier(**filtered_params)
                 if is_classification
-                else DecisionTreeRegressor(**model_params)
+                else DecisionTreeRegressor(**filtered_params)
             )
 
         return self._synthesize_fcs_generic(
@@ -1762,10 +1342,36 @@ class RealGenerator(BaseGenerator):
 
             model_params = {"random_state": self.random_state, "n_jobs": 1}
             model_params.update(kwargs)
+
+            # Filter valid params for RandomForest
+            valid_params = {
+                "n_estimators",
+                "criterion",
+                "max_depth",
+                "min_samples_split",
+                "min_samples_leaf",
+                "min_weight_fraction_leaf",
+                "max_features",
+                "max_leaf_nodes",
+                "min_impurity_decrease",
+                "bootstrap",
+                "oob_score",
+                "n_jobs",
+                "random_state",
+                "verbose",
+                "warm_start",
+                "class_weight",
+                "ccp_alpha",
+                "max_samples",
+            }
+            filtered_params = {
+                k: v for k, v in model_params.items() if k in valid_params
+            }
+
             return (
-                RandomForestClassifier(**model_params)
+                RandomForestClassifier(**filtered_params)
                 if is_classification
-                else RandomForestRegressor(**model_params)
+                else RandomForestRegressor(**filtered_params)
             )
 
         return self._synthesize_fcs_generic(
@@ -1812,90 +1418,6 @@ class RealGenerator(BaseGenerator):
             iterations,
             target_col,
         )
-
-    def _synthesize_datasynth(
-        self,
-        data: pd.DataFrame,
-        n_samples: int,
-        target_col: Optional[str] = None,
-        custom_distributions: Optional[Dict] = None,
-        **kwargs,
-    ) -> pd.DataFrame:
-        """
-        Synthesizes data using DataSynthesizer in correlated attribute mode.
-        Uses a secure temporary directory to avoid issues with file paths.
-        """
-        self.logger.info("Starting DataSynthesizer synthesis...")
-
-        # Use tempfile.TemporaryDirectory() to create a unique and secure directory.
-        # The 'with' block ensures the directory and its contents are removed upon exit.
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_csv_path = os.path.join(temp_dir, "temp_data.csv")
-            temp_description_file = os.path.join(temp_dir, "description.json")
-
-            try:
-                # Lazy import DataSynthesizer
-                try:
-                    from DataSynthesizer.DataDescriber import DataDescriber
-                    from DataSynthesizer.DataGenerator import DataGenerator
-                except ImportError:
-                    raise ImportError(
-                        "The 'DataSynthesizer' library is required for this method. Please install it."
-                    )
-                # Save the original data to the secure temporary location.
-                data.to_csv(temp_csv_path, index=False)
-
-                # Describe the dataset
-                k = kwargs.get("k", 5)
-                describer = DataDescriber()
-                describer.describe_dataset_in_correlated_attribute_mode(
-                    dataset_file=temp_csv_path, k=k
-                )
-
-                # Save the DataDescriber object for the DataGenerator to read.
-                describer.save_dataset_description_to_file(temp_description_file)
-
-                # Generate the dataset
-                generator = DataGenerator()
-                synth = generator.generate_dataset_in_correlated_attribute_mode(
-                    n_samples=n_samples, description_file=temp_description_file
-                )
-
-                # Apply custom distributions (Post-processing)
-                if custom_distributions:
-                    self.logger.warning(
-                        "Applying custom distributions to DataSynthesizer output via post-processing."
-                    )
-                    col_to_condition = (
-                        target_col
-                        if target_col and target_col in custom_distributions
-                        else next(iter(custom_distributions))
-                    )
-                    dist = custom_distributions[col_to_condition]
-                    n_synth_samples = len(synth)
-
-                    # Resample values to match custom distribution
-                    new_values = []
-                    for value, proportion in dist.items():
-                        count = int(n_synth_samples * proportion)
-                        new_values.extend([value] * count)
-
-                    # Fill if necessary and shuffle
-                    if len(new_values) < n_synth_samples:
-                        new_values.extend(
-                            [list(dist.keys())[-1]]
-                            * (n_synth_samples - len(new_values))
-                        )
-
-                    self.rng.shuffle(new_values)
-                    synth[col_to_condition] = new_values[:n_synth_samples]
-
-                return synth
-
-            except Exception as e:
-                self.logger.error(f"Synthesis with method 'datasynth' failed: {e}")
-                # The 'with' statement will handle cleanup, just re-raise the error.
-                raise e
 
     def _inject_dates(
         self,
@@ -2033,6 +1555,13 @@ class RealGenerator(BaseGenerator):
                 except Exception as e:
                     self.logger.error(f"Failed to load .h5 file: {e}")
                     return None
+            elif ext == ".csv":
+                try:
+                    self.logger.info(f"Loading CSV data from {data}...")
+                    data = pd.read_csv(data)
+                except Exception as e:
+                    self.logger.error(f"Failed to load .csv file: {e}")
+                    return None
             else:
                 self.logger.error(f"Unsupported file format for direct loading: {ext}")
                 return None
@@ -2092,18 +1621,21 @@ class RealGenerator(BaseGenerator):
             }
         try:
             synth = None
-            if method in ["ctgan", "tvae", "copula"]:
-                # Pass model_params as kwargs, filtering out non-SDV params if needed
-                sdv_params = kwargs if kwargs else {}
-                # Ensure we don't pass sdv_epochs/sdv_batch_size if they were already in params
-                # but sdv_params should just be the kwargs
-                synth = self._synthesize_sdv(
+            if method == "ctgan":
+                synth = self._synthesize_ctgan(
                     data,
                     n_samples,
-                    method,
                     target_col=target_col,
                     custom_distributions=custom_distributions,
-                    **sdv_params,
+                    **kwargs,
+                )
+            elif method == "tvae":
+                synth = self._synthesize_tvae(
+                    data,
+                    n_samples,
+                    target_col=target_col,
+                    custom_distributions=custom_distributions,
+                    **kwargs,
                 )
             elif method == "resample":
                 synth = self._synthesize_resample(
@@ -2116,6 +1648,15 @@ class RealGenerator(BaseGenerator):
                 synth = self._synthesize_cart(
                     data,
                     n_samples,
+                    target_col=target_col,
+                    custom_distributions=custom_distributions,
+                    **(kwargs or {}),
+                )
+            elif method == "copula":
+                synth = self._synthesize_copula(
+                    data,
+                    n_samples,
+                    "copula",
                     target_col=target_col,
                     custom_distributions=custom_distributions,
                     **(kwargs or {}),
@@ -2144,14 +1685,7 @@ class RealGenerator(BaseGenerator):
                     custom_distributions=custom_distributions,
                     **(kwargs or {}),
                 )
-            elif method == "datasynth":
-                synth = self._synthesize_datasynth(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
+
             elif method == "smote":
                 synth = self._synthesize_smote(
                     data,
@@ -2168,39 +1702,18 @@ class RealGenerator(BaseGenerator):
                     custom_distributions=custom_distributions,
                     **(kwargs or {}),
                 )
-            elif method == "dp":
-                synth = self._synthesize_dp(
-                    data, n_samples, target_col=target_col, **(kwargs or {})
-                )
-            elif method == "par":
-                synth = self._synthesize_par(
-                    data, n_samples, target_col=target_col, **(kwargs or {})
-                )
+
             elif method == "diffusion":
                 synth = self._synthesize_diffusion(data, n_samples, **(kwargs or {}))
+            elif method == "ddpm":
+                synth = self._synthesize_ddpm(data, n_samples, **(kwargs or {}))
             elif method == "timegan":
-                synth = self._synthesize_timegan(
-                    data, n_samples, target_col=target_col, **(kwargs or {})
-                )
-            elif method == "dgan":
-                synth = self._synthesize_dgan(
-                    data, n_samples, target_col=target_col, **(kwargs or {})
-                )
-            elif method == "copula_temporal":
-                synth = self._synthesize_copula_temporal(
-                    data, n_samples, target_col=target_col, **(kwargs or {})
-                )
+                synth = self._synthesize_timegan(data, n_samples, **(kwargs or {}))
+            elif method == "timevae":
+                synth = self._synthesize_timevae(data, n_samples, **(kwargs or {}))
             elif method == "scvi":
                 # Pass original_adata if available to avoid redundant conversion
                 synth = self._synthesize_scvi(
-                    original_adata if original_adata is not None else data,
-                    n_samples,
-                    target_col=target_col,
-                    **(kwargs or {}),
-                )
-            elif method == "scgen":
-                # Pass original_adata if available to avoid redundant conversion
-                synth = self._synthesize_scgen(
                     original_adata if original_adata is not None else data,
                     n_samples,
                     target_col=target_col,

@@ -1,139 +1,0 @@
-============================= test session starts ==============================
-platform linux -- Python 3.10.12, pytest-7.4.4, pluggy-1.6.0 -- /home/alex/venv_prueba_instalacion/bin/python3
-cachedir: .pytest_cache
-rootdir: /home/alex/calm_data_generator
-plugins: Faker-40.1.2, typeguard-4.2.1
-collecting ... 2026-02-03 11:16:11.484664: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
-2026-02-03 11:16:11.968153: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
-2026-02-03 11:16:11.968906: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
-2026-02-03 11:16:12.015421: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
-2026-02-03 11:16:12.168462: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
-To enable the following instructions: AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2026-02-03 11:16:16.712886: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
-[1;34mUpgrade to ydata-sdk[0m
-Improve your data and profiling with ydata-sdk, featuring data quality scoring, redundancy detection, outlier identification, text validation, and synthetic data generation.
-Register at https://ydata.ai/register
-DEBUG: RealGenerator file: /home/alex/calm_data_generator/calm_data_generator/generators/tabular/RealGenerator.py
-collected 1 item
-
-tests/test_anndata_support.py::test_anndata_support_scgen 2026-02-03 11:16:28,682 - RealGenerator - INFO - RealGenerator.py:1992 - AnnData input detected. Converting to DataFrame for general processing.
-2026-02-03 11:16:28,688 - RealGenerator - INFO - RealGenerator.py:2005 - Starting generation of 30 samples using method 'scgen'...
-2026-02-03 11:16:28,688 - RealGenerator - INFO - RealGenerator.py:1234 - Starting scGen synthesis for single-cell data...
-DEBUG: Entering _synthesize_scgen with data type: <class 'anndata._core.anndata.AnnData'>
-2026-02-03 11:16:39,323 - RealGenerator - INFO - RealGenerator.py:1338 - Training scGen model with 5 epochs...
-INFO: GPU available: False, used: False
-INFO: TPU available: False, using: 0 TPU cores
-Training:   0%|          | 0/5 [00:00<?, ?it/s]Epoch 1/5:   0%|          | 0/5 [00:00<?, ?it/s]Epoch 1/5:  20%|██        | 1/5 [00:00<00:02,  1.51it/s]Epoch 1/5:  20%|██        | 1/5 [00:00<00:02,  1.51it/s, v_num=1, train_loss_step=314, train_loss_epoch=314]Epoch 2/5:  20%|██        | 1/5 [00:00<00:02,  1.51it/s, v_num=1, train_loss_step=314, train_loss_epoch=314]Epoch 2/5:  40%|████      | 2/5 [00:00<00:01,  2.69it/s, v_num=1, train_loss_step=314, train_loss_epoch=314]Epoch 2/5:  40%|████      | 2/5 [00:00<00:01,  2.69it/s, v_num=1, train_loss_step=281, train_loss_epoch=281]Epoch 3/5:  40%|████      | 2/5 [00:00<00:01,  2.69it/s, v_num=1, train_loss_step=281, train_loss_epoch=281]Epoch 3/5:  60%|██████    | 3/5 [00:00<00:00,  3.78it/s, v_num=1, train_loss_step=281, train_loss_epoch=281]Epoch 3/5:  60%|██████    | 3/5 [00:00<00:00,  3.78it/s, v_num=1, train_loss_step=252, train_loss_epoch=252]Epoch 4/5:  60%|██████    | 3/5 [00:00<00:00,  3.78it/s, v_num=1, train_loss_step=252, train_loss_epoch=252]Epoch 4/5:  80%|████████  | 4/5 [00:01<00:00,  3.56it/s, v_num=1, train_loss_step=252, train_loss_epoch=252]Epoch 4/5:  80%|████████  | 4/5 [00:01<00:00,  3.56it/s, v_num=1, train_loss_step=223, train_loss_epoch=223]Epoch 5/5:  80%|████████  | 4/5 [00:01<00:00,  3.56it/s, v_num=1, train_loss_step=223, train_loss_epoch=223]Epoch 5/5: 100%|██████████| 5/5 [00:01<00:00,  3.53it/s, v_num=1, train_loss_step=223, train_loss_epoch=223]Epoch 5/5: 100%|██████████| 5/5 [00:01<00:00,  3.53it/s, v_num=1, train_loss_step=197, train_loss_epoch=197]INFO: `Trainer.fit` stopped: `max_epochs=5` reached.
-Epoch 5/5: 100%|██████████| 5/5 [00:01<00:00,  3.16it/s, v_num=1, train_loss_step=197, train_loss_epoch=197]
-2026-02-03 11:16:41,489 - RealGenerator - INFO - RealGenerator.py:1342 - Generating 30 synthetic samples...
-DEBUG: Synthesis with method 'scgen' failed with exception: 'NoneType' object has no attribute 'sqrt'
-2026-02-03 11:16:41,500 - RealGenerator - ERROR - RealGenerator.py:2336 - Synthesis with method 'scgen' failed: 'NoneType' object has no attribute 'sqrt'
-Traceback (most recent call last):
-  File "/home/alex/calm_data_generator/calm_data_generator/generators/tabular/RealGenerator.py", line 2150, in generate
-    synth = self._synthesize_scgen(
-  File "/home/alex/calm_data_generator/calm_data_generator/generators/tabular/RealGenerator.py", line 1345, in _synthesize_scgen
-    latent = model.get_latent_representation()
-  File "/home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
-    return func(*args, **kwargs)
-  File "/home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/scvi/model/base/_vaemixin.py", line 331, in get_latent_representation
-    qz: Distribution = Normal(qzm, qzv.sqrt())
-AttributeError: 'NoneType' object has no attribute 'sqrt'
-FAILED
-
-=================================== FAILURES ===================================
-__________________________ test_anndata_support_scgen __________________________
-
-    def test_anndata_support_scgen():
-        """Test passing AnnData directly to scgen method."""
-        # 1. Create dummy AnnData
-        n_cells = 50
-        n_genes = 20
-        X = np.random.poisson(lam=5, size=(n_cells, n_genes)).astype(np.float32)
-        obs = pd.DataFrame(
-            {
-                "cell_type": np.random.choice(["A", "B"], size=n_cells),
-                "batch": np.random.choice(["b1", "b2"], size=n_cells),
-            }
-        )
-        var = pd.DataFrame(index=[f"gene_{i}" for i in range(n_genes)])
-        adata = anndata.AnnData(X=X, obs=obs, var=var)
-    
-        # 2. Run generator with AnnData
-        gen = RealGenerator(auto_report=False)
-        synthetic_df = gen.generate(
-            data=adata,
-            n_samples=30,
-            method="scgen",
-            target_col="cell_type",
-            model_params={"epochs": 5, "n_latent": 5, "condition_col": "batch"},
-        )
-    
-        # 3. Assertions
->       assert synthetic_df is not None
-E       assert None is not None
-
-tests/test_anndata_support.py:67: AssertionError
------------------------------- Captured log call -------------------------------
-INFO     RealGenerator:RealGenerator.py:1992 AnnData input detected. Converting to DataFrame for general processing.
-INFO     RealGenerator:RealGenerator.py:2005 Starting generation of 30 samples using method 'scgen'...
-INFO     RealGenerator:RealGenerator.py:1234 Starting scGen synthesis for single-cell data...
-INFO     RealGenerator:RealGenerator.py:1338 Training scGen model with 5 epochs...
-INFO     lightning.pytorch.utilities.rank_zero:setup.py:164 GPU available: False, used: False
-INFO     lightning.pytorch.utilities.rank_zero:setup.py:167 TPU available: False, using: 0 TPU cores
-INFO     lightning.pytorch.utilities.rank_zero:fit_loop.py:192 `Trainer.fit` stopped: `max_epochs=5` reached.
-INFO     RealGenerator:RealGenerator.py:1342 Generating 30 synthetic samples...
-ERROR    RealGenerator:RealGenerator.py:2336 Synthesis with method 'scgen' failed: 'NoneType' object has no attribute 'sqrt'
-Traceback (most recent call last):
-  File "/home/alex/calm_data_generator/calm_data_generator/generators/tabular/RealGenerator.py", line 2150, in generate
-    synth = self._synthesize_scgen(
-  File "/home/alex/calm_data_generator/calm_data_generator/generators/tabular/RealGenerator.py", line 1345, in _synthesize_scgen
-    latent = model.get_latent_representation()
-  File "/home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
-    return func(*args, **kwargs)
-  File "/home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/scvi/model/base/_vaemixin.py", line 331, in get_latent_representation
-    qz: Distribution = Normal(qzm, qzv.sqrt())
-AttributeError: 'NoneType' object has no attribute 'sqrt'
-=============================== warnings summary ===============================
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:64
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:64: DeprecationWarning: 'oneOf' deprecated - use 'one_of'
-    prop = Group((name + Suppress("=") + comma_separated(value)) | oneOf(_CONSTANTS))
-
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:85: DeprecationWarning: 'parseString' deprecated - use 'parse_string'
-    parse = parser.parseString(pattern)
-
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_fontconfig_pattern.py:89: DeprecationWarning: 'resetCache' deprecated - use 'reset_cache'
-    parser.resetCache()
-
-../venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_mathtext.py:45
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/matplotlib/_mathtext.py:45: DeprecationWarning: 'enablePackrat' deprecated - use 'enable_packrat'
-    ParserElement.enablePackrat()
-
-tests/test_anndata_support.py::test_anndata_support_scgen
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/anndata/_core/aligned_df.py:68: ImplicitModificationWarning: Transforming to str index.
-    warnings.warn("Transforming to str index.", ImplicitModificationWarning)
-
-tests/test_anndata_support.py::test_anndata_support_scgen
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=11` in the `DataLoader` to improve performance.
-
-tests/test_anndata_support.py::test_anndata_support_scgen
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/lightning/pytorch/loops/fit_loop.py:317: The number of training batches (1) is smaller than the logging interval Trainer(log_every_n_steps=10). Set a lower value for log_every_n_steps if you want to see logs for the training epoch.
-
-tests/test_anndata_support.py::test_anndata_support_scgen
-  /home/alex/venv_prueba_instalacion/lib/python3.10/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=11` in the `DataLoader` to improve performance.
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/test_anndata_support.py::test_anndata_support_scgen - assert Non...
-================== 1 failed, 18 warnings in 90.07s (0:01:30) ===================

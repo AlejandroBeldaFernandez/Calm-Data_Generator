@@ -40,13 +40,8 @@ try:
 except ImportError:
     SKLEARN_AVAILABLE = False
 
-try:
-    import shap
-    import matplotlib.pyplot as plt
-
-    SHAP_AVAILABLE = True
-except ImportError:
-    SHAP_AVAILABLE = False
+# SHAP removed
+SHAP_AVAILABLE = False
 
 try:
     import plotly.graph_objects as go
@@ -378,54 +373,6 @@ class DiscriminatorReporter:
         shap_div = ""
         shap_warning = ""
 
-        # 2. SHAP (if available and feasible)
-        if SHAP_AVAILABLE:
-            try:
-                # Use small sample for SHAP to be fast
-                sample_size = min(100, len(X_test))
-                X_sample = X_test[:sample_size]
-
-                explainer = shap.TreeExplainer(clf)
-                shap_values = explainer.shap_values(X_sample)
-
-                # Check shape of shap_values (binary classification usually returns list of 2 arrays)
-                if isinstance(shap_values, list):
-                    shap_vals_target = shap_values[1]  # For class 1
-                else:
-                    shap_vals_target = shap_values
-
-                # Save SHAP plots as static images/HTML is tricky.
-                # We will save a summary plot as a PNG and embed it.
-                shap_img_path = os.path.join(
-                    output_dir, "discriminator_shap_summary.png"
-                )
-
-                plt.figure(figsize=(10, 6))
-
-                # Suppress SHAP warnings about matplotlib/numpy versions
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    shap.summary_plot(
-                        shap_vals_target,
-                        X_sample,
-                        feature_names=feature_names,
-                        show=False,
-                    )
-
-                plt.tight_layout()
-                plt.savefig(shap_img_path)
-                plt.close()
-
-                shap_div = f'<img src="discriminator_shap_summary.png" style="max-width:100%;" alt="SHAP Summary Plot">'
-
-            except Exception as e:
-                self.logger.warning(f"Failed to generate SHAP plots: {e}")
-                shap_warning = f"<p>Could not generate SHAP plots: {str(e)}</p>"
-        else:
-            shap_warning = (
-                "<p>SHAP library not installed. Install 'shap' for deeper insights.</p>"
-            )
-
         # HTML Structure
         html_content = f"""
         <html>
@@ -442,10 +389,7 @@ class DiscriminatorReporter:
             <h2>1. Feature Importance (Random Forest)</h2>
             {importance_div}
             
-            <h2>2. SHAP Values (Impact on Classification)</h2>
-            <p>Shows how each feature pushes the prediction towards "Real" (0) or "Synthetic" (1).</p>
-            {shap_warning}
-            {shap_div}
+            <p><i>SHAP values are disabled in this version.</i></p>
         </body>
         </html>
         """

@@ -9,7 +9,7 @@ Generates comprehensive reports comparing real and synthetic tabular data.
 
 ### `generate_comprehensive_report`
 Generates a static report including:
-- **SDV Quality Scores**: Overall and column-wise similarity metrics.
+- **Overall Quality Scores**: Overall and column-wise similarity metrics.
 - **Privacy Assessment**: Distance to Closest Record (DCR) metrics.
 - **Visualizations**: Histograms, density plots, PCA/UMAP projections.
 - **Drift Analysis**: Visual comparison of feature distributions.
@@ -68,24 +68,6 @@ reporter.generate_report(
 )
 ```
 
-## Privacy Reporter (`Anonymizer`)
-**Module:** `calm_data_generator.anonymizer.PrivacyReporter`
-
-Focuses specifically on privacy metrics and the trade-off between privacy and utility.
-
-### `generate_privacy_report`
-Generates an HTML report visualizing:
-- **Uniqueness Change**: How anonymization affected record uniqueness.
-- **Correlation Loss**: Changes in feature correlations.
-- **Distribution Overlay**: Visual comparison of original vs. anonymized features.
-
-```python
-PrivacyReporter.generate_privacy_report(
-    original_df=df,
-    private_df=anonymized_df,
-    output_dir="./privacy_report"
-)
-```
 
 ## Clinic Reporter (`Clinical`)
 **Module:** `calm_data_generator.generators.clinical.ClinicReporter`
@@ -96,3 +78,7 @@ A specialized version of `StreamReporter` for clinical data. It inherits standar
 reporter = ClinicReporter()
 reporter.generate_report(...)
 ```
+
+> [!NOTE]
+> **Privacy Reporting**: Privacy features (DCR metrics) are now integrated into `QualityReporter`. Use `privacy_check=True` when generating reports.
+

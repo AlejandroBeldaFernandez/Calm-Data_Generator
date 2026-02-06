@@ -34,7 +34,7 @@ def test_real_generator_all_methods(sample_data):
     numeric_data = sample_data.select_dtypes(include=[np.number])
 
     # Methods to test
-    methods = ["gmm", "copula"]
+    methods = ["gmm"]
     for method in methods:
         data_to_use = numeric_data if method == "gmm" else sample_data
 
@@ -78,7 +78,11 @@ def test_clinical_data_generator_longitudinal():
 
 def test_stream_generator_basic(sample_data):
     """Basic StreamGenerator test."""
-    from calm_data_generator.generators.stream import StreamGenerator
+
+    try:
+        from calm_data_generator.generators.stream import StreamGenerator
+    except ImportError:
+        pytest.skip("StreamGenerator dependencies not met")
 
     stream_gen = StreamGenerator(auto_report=False)
 

@@ -17,15 +17,16 @@ from calm_data_generator.generators.tabular import RealGenerator, QualityReporte
 | `lgbm` | LightGBM synthesis |
 | `ctgan` | CTGAN (deep learning) |
 | `tvae` | TVAE (variational autoencoder) |
-| `copula` | Gaussian Copula |
+| `bayesian` | Bayesian Network |
 | `smote` | SMOTE oversampling |
 | `adasyn` | ADASYN adaptive sampling |
-| `dp` | Differential Privacy (PATE-CTGAN) |
-| `par` | PAR time series |
-| `timegan` | TimeGAN (ydata-synthetic) |
-| `dgan` | DoppelGANger (ydata-synthetic) |
-| `copula_temporal` | Temporal Copula |
+
 | `diffusion` | Tabular Diffusion (DDPM) |
+| `ddpm` | Synthcity TabDDPM (advanced) |
+| `timegan` | TimeGAN (time series) |
+| `timevae` | TimeVAE (time series) |
+
+
 
 ---
 
@@ -91,32 +92,21 @@ from calm_data_generator.generators.dynamics import ScenarioInjector
 
 ---
 
-### privacy - Privacy Transformations
-
-```python
-from calm_data_generator.privacy import (
-    pseudonymize_columns,
-    add_laplace_noise,
-    generalize_numeric_to_ranges,
-    generalize_categorical_by_mapping,
-    shuffle_columns
-)
-```
-
----
-
 ## Installation
 
 ```bash
 # Basic
-pip install calm_data_generator
+pip install calm-data-generator
 
 # Stream (River)
-pip install calm_data_generator[stream]
+pip install calm-data-generator[stream]
 
 # Time Series (Gretel)
-pip install calm_data_generator[timeseries]
+pip install calm-data-generator[timeseries]
 
 # Full
-pip install calm_data_generator[full]
+pip install calm-data-generator[full]
 ```
+
+> [!NOTE]
+> **Privacy Features**: Privacy assessment (DCR metrics) is now integrated into `QualityReporter`. Use `privacy_check=True` when generating reports.

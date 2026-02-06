@@ -237,14 +237,14 @@ class Visualizer:
             return None
 
     @staticmethod
-    def generate_sdv_scores_card(
+    def generate_quality_scores_card(
         overall_score: float,
         weighted_score: float,
         output_dir: str,
-        filename: str = "sdv_scores.html",
+        filename: str = "quality_scores.html",
     ) -> Optional[str]:
         """
-        Generates a clean, simple HTML card showing SDV scores.
+        Generates a clean, simple HTML card showing Quality scores.
         """
         try:
             # Determine color based on score
@@ -313,26 +313,26 @@ class Visualizer:
             return output_path
 
         except Exception as e:
-            logger.error(f"Failed to generate SDV scores card: {e}")
+            logger.error(f"Failed to generate Quality scores card: {e}")
             return None
 
     @staticmethod
-    def generate_sdv_evolution_plot(
+    def generate_quality_evolution_plot(
         scores: List[Dict[str, Any]],
         output_dir: str,
-        filename: str = "sdv_evolution.html",
+        filename: str = "quality_evolution.html",
         x_labels: Optional[List[str]] = None,
     ) -> Optional[str]:
         """
-        Generates SDV quality evolution plot showing overall and weighted scores.
+        Generates Quality evolution plot showing overall and weighted scores.
         """
         if not PLOTLY_AVAILABLE:
-            logger.warning("Plotly not available. Skipping SDV evolution plot.")
+            logger.warning("Plotly not available. Skipping Quality evolution plot.")
             return None
 
         try:
             if not scores:
-                logger.warning("No scores provided for SDV evolution plot.")
+                logger.warning("No scores provided for Quality evolution plot.")
                 return None
 
             overall_scores = [s.get("overall", 0) for s in scores]
@@ -348,7 +348,7 @@ class Visualizer:
                     x=x_labels,
                     y=overall_scores,
                     mode="lines+markers",
-                    name="Overall SDV Score",
+                    name="Overall Quality Score",
                     line=dict(color="blue", width=2),
                     marker=dict(size=10),
                 )
@@ -359,14 +359,14 @@ class Visualizer:
                     x=x_labels,
                     y=weighted_scores,
                     mode="lines+markers",
-                    name="Weighted SDV Score",
+                    name="Weighted Quality Score",
                     line=dict(color="green", width=2),
                     marker=dict(size=10),
                 )
             )
 
             fig.update_layout(
-                title="SDV Quality Evolution",
+                title="Quality Evolution",
                 xaxis_title="Block / Time Period",
                 yaxis_title="Quality Score",
                 yaxis=dict(range=[0, 1]),
@@ -381,7 +381,7 @@ class Visualizer:
             return output_path
 
         except Exception as e:
-            logger.error(f"Failed to generate SDV evolution plot: {e}")
+            logger.error(f"Failed to generate Quality evolution plot: {e}")
             return None
 
     @staticmethod
@@ -463,7 +463,7 @@ class Visualizer:
                         else 0
                     )
 
-                    # Severity classification based on JS Divergence
+                    # The 'Quality Score' is typically an aggregate metric.JS Divergence
                     if js_div > 0.15:
                         severity = "HIGH"
                         severity_color = "#dc3545"

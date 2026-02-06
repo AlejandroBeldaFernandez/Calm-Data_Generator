@@ -85,23 +85,26 @@ synthetic_df = gen.generate(
 
 The `model_params` dictionary allows fine-tuning internal parameters for each synthesis method.
 
-### Deep Learning (SDV)
+### Deep Learning (Synthcity)
 
 | Parameter | Methods | Description |
 |-----------|---------|-------------|
-| `epochs` | All SDV | Number of training epochs |
-| `batch_size` | All SDV | Training batch size |
-| `verbose` | All SDV | Enable detailed training logs |
-| `**kwargs` | All | Any parameter supported by the underlying model (e.g., `discriminator_steps` for CTGAN) |
+| `epochs` | `ctgan`, `tvae` | Number of training epochs (default: 300) |
+| `batch_size` | `ctgan`, `tvae` | Training batch size (default: 500) |
+| `n_units_conditional` | `ctgan`, `tvae` | Number of units in conditional layers |
+| `n_units_in` | `ctgan`, `tvae` | Number of units in input layers |
+| `lr` | `ctgan`, `tvae` | Learning rate |
 
 **Example:**
 ```python
-model_params={
-    "epochs": 500, 
-    "batch_size": 256,
-    "discriminator_steps": 5  # Specific to CTGAN
-}
+gen.generate(
+    df, 1000, 
+    method="ctgan",
+    epochs=500, 
+    batch_size=256
+)
 ```
+
 
 ### CART (Decision Trees)
 
@@ -177,11 +180,11 @@ model_params={"n_neighbors": 5}  # For ADASYN
 |-----------|-------------|
 | `epsilon` | Privacy ε parameter (default: 1.0, lower = more private) |
 | `delta` | Privacy δ parameter (default: 1e-5) |
-| `synth_type` | Synthesizer type: "pate_ctgan", "mwem", etc. (default: "pate_ctgan") |
+| `synth_type` | Synthesizer type: "dpgan", "pategan", "adsgan" (default: "dpgan") |
 
 **Example:**
 ```python
-model_params={"epsilon": 0.5, "delta": 1e-6, "synth_type": "pate_ctgan"}
+model_params={"epsilon": 0.5, "delta": 1e-6, "synth_type": "dpgan"}
 ```
 
 ### DataSynthesizer
@@ -193,19 +196,6 @@ model_params={"epsilon": 0.5, "delta": 1e-6, "synth_type": "pate_ctgan"}
 **Example:**
 ```python
 model_params={"k": 3}  # Higher k captures more correlations
-```
-
-### Time Series (PAR)
-
-| Parameter | Description |
-|-----------|-------------|
-| `epochs` | PAR training epochs (default: 100) |
-| `sequence_key` | Column identifying each sequence/entity |
-| `**kwargs` | Any parameter supported by SDV's PARSynthesizer |
-
-**Example:**
-```python
-model_params={"epochs": 200, "sequence_key": "patient_id"}
 ```
 
 ### Diffusion Models
@@ -227,17 +217,16 @@ model_params={"diffusion_steps": 100}
 
 | Method | Description | Key Parameters | Dependencies |
 |--------|-------------|----------------|--------------|
-| `ctgan` | Conditional Tabular GAN | `epochs`, `batch_size` | SDV |
-| `tvae` | Tabular Variational Autoencoder | `epochs`, `batch_size` | SDV |
-| `copulagan` | Copula-based GAN | `epochs`, `batch_size` | SDV |
+| `ctgan` | Conditional Tabular GAN | `epochs`, `batch_size`, `lr` | Synthcity |
+| `tvae` | Tabular Variational Autoencoder | `epochs`, `batch_size` | Synthcity |
 | `diffusion` | Tabular Diffusion Models | `steps` | PyTorch |
 
 ### Statistical Models
 
 | Method | Description | Key Parameters |
 |--------|-------------|----------------|
-| `gaussian_copula` | Gaussian Copula | - |
 | `gmm` | Gaussian Mixture Model | `gmm_n_components`, `gmm_covariance_type` |
+| `copula` | Copula | Copula-based synthesis | Base installation |
 
 ### Fully Conditional Specification (FCS)
 
@@ -262,21 +251,13 @@ model_params={"diffusion_steps": 100}
 | `dp` | Differential Privacy | `epsilon`, `delta` |
 | `datasynth` | DataSynthesizer | `k` |
 
-### Time Series
-
-| Method | Description | Key Parameters | Dependencies |
-|--------|-------------|----------------|--------------|
-| `par` | Probabilistic AutoRegressive | `epochs`, `sequence_key` | SDV |
-| `timegan` | TimeGAN | `epochs`, `seq_len`, `sequence_key` | ydata-synthetic |
-| `dgan` | DoppelGANger | `epochs`, `seq_len`, `sequence_key` | ydata-synthetic |
-| `copula_temporal` | Temporal Copula | `sequence_key`, `time_col` | SDV |
 
 ### Single-Cell / High-Dimensional
 
 | Method | Description | Key Parameters | Dependencies |
 |--------|-------------|----------------|--------------|
 | `scvi` | scVI Variational Autoencoder | `epochs`, `n_latent`, `n_layers` | scvi-tools |
-| `scgen` | scGen (perturbation prediction) | `epochs`, `n_latent`, `condition_col` | scgen 2.1.1 (GitHub) |
+|
 
 ---
 
@@ -289,12 +270,10 @@ Choose the right method based on your data and requirements:
 | **General tabular data** | `ctgan`, `tvae` | Best balance of quality and speed |
 | **Small datasets (< 1000 rows)** | `cart`, `rf`, `gmm` | Don't overfit, fast |
 | **Large datasets (> 100k rows)** | `lgbm`, `ctgan` | Scalable |
-| **Preserve correlations** | `ctgan`, `copulagan`, `datasynth` | Capture feature relationships |
+| **Preserve correlations** | `ctgan`| Capture feature relationships |
 | **Class imbalance** | `smote`, `adasyn` | Designed for oversampling |
-| **Privacy-sensitive** | `dp` | Formal privacy guarantees |
-| **Time series / Sequential** | `par`, `timegan`, `dgan` | Temporal dependencies |
-| **Single-cell / Gene expression** | `scvi`, `scgen` | Biological structure aware |
 | **Fast prototyping** | `resample`, `cart` | Instant results |
+
 | **Numeric-only data** | `gmm`, `diffusion` | Simple distributions |
 
 ### Single-Cell Methods Details
@@ -303,18 +282,19 @@ Choose the right method based on your data and requirements:
 
 Best for generating new single-cell-like observations from scratch. These methods are specifically designed for high-dimensional **transcriptomic data (RNA-seq)**. They use deep generative models to represent biological variation while handling the heavy sparsity and technical noise (dropout) typical of single-cell datasets. They are excellent for correcting "batch effects" and synthesizing coherent gene expression profiles.
 
-**Input Format:** Accepts `pd.DataFrame`, `AnnData` objects, or strings (paths to `.h5` or `.h5ad` files) directly.
+**Input Format:** Accepts `pd.DataFrame`, `AnnData` objects, or strings (paths to `.h5`, `.h5ad`, or `.csv` files) directly.
 
-**Using File Paths (H5/H5AD):**
+**Using File Paths (H5/H5AD/CSV):**
 ```python
 # Pass the file path directly - the generator loads it for you!
 synthetic = gen.generate(
-    data="path/to/data.h5ad",  # Or .h5
+    data="path/to/data.csv",  # Or .h5ad, .h5
     n_samples=1000,
     method="scvi",
     target_col="cell_type"
 )
 ```
+
 
 **DataFrame Input:**
 ```python
@@ -358,29 +338,10 @@ synthetic = gen.generate(
 | `n_latent` | 10 | Latent space dimensionality |
 | `n_layers` | 1 | Number of hidden layers |
 
-> [!NOTE]
-> **Why scVI + scGen?** Together, these methods provide a comprehensive suite for single-cell synthesis. **scVI** is the gold standard for representing biological variance and generating "unbiased" cell populations, while **scGen** excels at predicting response to treatments and experimental conditions.
 
 > **AnnData Support:** When passing `AnnData`, the object is used directly without conversion, preserving the original structure. The output is always a `pd.DataFrame` containing both the gene expression and the observations metadata.
 
-#### scGen (Perturbation Prediction)
 
-Best for generating cells under different conditions or removing batch effects.
-
-```python
-synthetic = gen.generate(
-    data=expression_df,
-    n_samples=1000,
-    method="scgen",
-    target_col="cell_type",
-    model_params={
-        "epochs": 100,
-        "n_latent": 10,
-        "condition_col": "treatment",  # Required: condition/batch column
-        "noise_scale": 0.1,            # Diversity noise
-    }
-)
-```
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -389,7 +350,7 @@ synthetic = gen.generate(
 | `condition_col` | None | Column with condition/batch labels (required) |
 | `noise_scale` | 0.1 | Noise for sample diversity |
 
-> **Note:** If `condition_col` is not provided, scGen automatically falls back to scVI.
+.
 
 ---
 
@@ -451,7 +412,7 @@ When `auto_report=True`, the following are generated:
 
 - `quality_report.html`: Data profiling report
 - `comparison_report.html`: Real vs. Synthetic comparison
-- `sdv_quality_report.json`: Detailed SDV metrics
+- `quality_scores.json`: Detailed quality metrics
 - `distribution_plots.png`: Distribution visualizations
 - `correlation_heatmap.png`: Correlation maps
 
@@ -492,49 +453,14 @@ synthetic_balanced = gen.generate(
     method="ctgan",
     target_col="is_fraud",
     custom_distributions={"is_fraud": {0: 0.5, 1: 0.5}}, # Force 50/50 split
-    model_params={"sdv_epochs": 500}
+    model_params={"epochs": 500}
 )
 ```
 
-### Case 2: Multi-Entity Time Series (Patients)
 
-**Scenario:** You have longitudinal data for multiple patients. Each patient has multiple rows (visits) ordered by time. You want to generate new synthetic patients with realistic visit trajectories.
 
-**Solution:** Use `par` (Probabilistic AutoRegressive) model.
 
-```python
-# Data structure: [patient_id, visit_date, heart_rate, blood_pressure]
-
-synthetic_patients = gen.generate(
-    data=patient_df,
-    n_samples=100,  # Generate 100 new patients (sequences)
-    method="par",
-    model_params={
-        "sequence_index": "patient_id",  # Column identifying entities
-        "par_epochs": 150
-    }
-)
-```
-
-### Case 3: Privacy-Preserving Dataset Sharing
-
-**Scenario:** You need to share a customer dataset with an external partner but must guarantee differential privacy to comply with GDPR.
-
-**Solution:** Use `dp` (Differential Privacy) with PATE-CTGAN algorithm.
-
-```python
-synthetic_safe = gen.generate(
-    data=customer_df,
-    n_samples=10000,
-    method="dp",
-    model_params={
-        "dp_epsilon": 0.5,  # Strict privacy budget (lower is more private)
-        "dp_delta": 1e-5
-    }
-)
-```
-
-### Case 4: High-Performance Upsampling for Large Datasets
+### Case 3: High-Performance Upsampling for Large Datasets
 
 **Scenario:** You have a 1M row dataset and need 5M rows for stress testing a database. Deep learning methods are too slow.
 
@@ -558,11 +484,8 @@ synthetic_large = gen.generate(
 ## Common Usage Scenarios (Quick Guide)
 
 ### 1. Time Series (Sequences)
-*   **Independent Sequences (Multi-Entity):** Use `method="par"` (Probabilistic AutoRegressive, requires SDV deep learning).
-    ```python
-    gen.generate(data, method="par", model_params={"sequence_key": "user_id"})
-    ```
-*   **Future Forecasting:** Not the primary use case. Use `StreamGenerator` for infinite flows or manual date injection.
+For time series data, use standard tabular methods (CTGAN, TVAE, etc.) on properly structured temporal data.
+*   **Future Forecasting:** Use `StreamGenerator` for infinite flows or manual date injection.
 
 ### 2. Classification and Regression (Supervised)
 If you have a `target` column (e.g., price, churn) and the relationship $X \rightarrow Y$ is critical:
@@ -606,3 +529,383 @@ If your target column has minority classes that you want to amplify:
     ```
     *Note: `balance_target=True` is a shortcut for `custom_distributions={"col": "balanced"}`. For extreme imbalances, Deep Learning methods like `method="ctgan"` usually provide better stability than tree-based methods.*
 ---
+# New Methods Documentation for REAL_GENERATOR_REFERENCE.md
+
+## Content to Add After Existing Methods Section
+
+---
+
+### `ddpm` - Synthcity TabDDPM (Advanced Tabular Diffusion)
+
+**Type:** Deep Learning (Diffusion Model)  
+**Best For:** High-quality tabular synthesis, production environments, large datasets  
+**Requirements:** `synthcity` (included in base installation)
+
+#### Description
+
+TabDDPM (Tabular Denoising Diffusion Probabilistic Model) is Synthcity's advanced implementation of diffusion models for tabular data. It offers multiple architectures, advanced schedulers, and superior quality compared to the custom `diffusion` method.
+
+#### When to Use
+
+✅ **Use `ddpm` when:**
+- You need **maximum quality** synthetic data
+- Working with **large datasets** (>100k rows)
+- In **production environments** requiring robust, maintained code
+- You need **advanced architectures** (ResNet, TabNet)
+- You want **cosine scheduling** for better diffusion
+- You have **time for longer training** (1000 epochs default)
+
+❌ **Don't use `ddpm` when:**
+- You need **quick prototyping** (use `diffusion` instead)
+- Working with **very small datasets** (<1k rows)
+- You have **limited computational resources**
+- You need **custom modifications** to the algorithm
+
+#### Parameters
+
+```python
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    
+    # Training parameters
+    n_iter=1000,                    # Training epochs (default: 1000)
+    lr=0.002,                       # Learning rate (default: 0.002)
+    batch_size=1024,                # Batch size (default: 1024)
+    
+    # Diffusion parameters
+    num_timesteps=1000,             # Diffusion timesteps (default: 1000)
+    scheduler='cosine',             # 'cosine' or 'linear' (default: 'cosine')
+    gaussian_loss_type='mse',       # 'mse' or 'kl' (default: 'mse')
+    
+    # Model architecture
+    model_type='mlp',               # 'mlp', 'resnet', or 'tabnet' (default: 'mlp')
+    model_params={                  # Architecture-specific parameters
+        'n_layers_hidden': 3,
+        'n_units_hidden': 256,
+        'dropout': 0.0
+    },
+    
+    # Task type
+    is_classification=False,        # True for classification tasks
+)
+```
+
+#### Parameter Details
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_iter` | int | 1000 | Number of training epochs |
+| `lr` | float | 0.002 | Learning rate for optimizer |
+| `batch_size` | int | 1024 | Training batch size |
+| `num_timesteps` | int | 1000 | Number of diffusion timesteps |
+| `scheduler` | str | `'cosine'` | Beta scheduler: `'cosine'` (recommended) or `'linear'` |
+| `gaussian_loss_type` | str | `'mse'` | Loss function: `'mse'` or `'kl'` |
+| `model_type` | str | `'mlp'` | Architecture: `'mlp'`, `'resnet'`, or `'tabnet'` |
+| `model_params` | dict | See above | Architecture-specific parameters |
+| `is_classification` | bool | False | Set to True for classification tasks |
+
+#### Model Types
+
+**MLP (Multi-Layer Perceptron)**
+- Best for: General tabular data
+- Speed: Fast
+- Parameters: `n_layers_hidden`, `n_units_hidden`, `dropout`
+
+**ResNet (Residual Network)**
+- Best for: Complex feature relationships
+- Speed: Medium
+- Parameters: `n_layers_hidden`, `n_units_hidden`, `dropout`
+
+**TabNet**
+- Best for: Tabular data with feature importance
+- Speed: Slower
+- Parameters: Specific to TabNet architecture
+
+#### Comparison: `diffusion` vs `ddpm`
+
+| Aspect | `diffusion` (custom) | `ddpm` (Synthcity) |
+|--------|---------------------|-------------------|
+| **Speed** | ⚡ Fast (100 epochs) | 🐢 Slower (1000 epochs) |
+| **Quality** | ⭐⭐⭐ Good | ⭐⭐⭐⭐ Excellent |
+| **Architectures** | MLP only | MLP/ResNet/TabNet |
+| **Scheduler** | Linear | Cosine/Linear |
+| **Batch Size** | 64 | 1024 |
+| **Use Case** | Quick prototyping | Production quality |
+| **Customization** | Easy to modify | Black box |
+| **Maintenance** | Your responsibility | Synthcity team |
+
+#### Usage Examples
+
+**Basic Usage:**
+```python
+from calm_data_generator import RealGenerator
+import pandas as pd
+
+gen = RealGenerator()
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    n_iter=500  # Reduce for faster training
+)
+```
+
+**Classification Task:**
+```python
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    is_classification=True,
+    target_col='label'
+)
+```
+
+**Advanced Architecture:**
+```python
+synth = gen.generate(
+    data,
+    method='ddpm',
+    n_samples=1000,
+    model_type='resnet',
+    model_params={
+        'n_layers_hidden': 5,
+        'n_units_hidden': 512,
+        'dropout': 0.1
+    },
+    scheduler='cosine',
+    n_iter=2000
+)
+```
+
+---
+
+### `timegan` - TimeGAN (Time Series GAN)
+
+**Type:** Deep Learning (GAN for Time Series)  
+**Best For:** Complex temporal patterns, multi-entity time series  
+**Requirements:** `synthcity` (included in base installation)
+
+#### Description
+
+TimeGAN (Time-series Generative Adversarial Network) is designed specifically for sequential/temporal data. It learns both temporal dynamics and feature distributions, making it ideal for time series with complex patterns.
+
+#### When to Use
+
+✅ **Use `timegan` when:**
+- You have **time series data** with temporal dependencies
+- Working with **multi-entity sequences** (e.g., multiple users/sensors)
+- You need to preserve **temporal dynamics**
+- You have **complex temporal patterns** to learn
+- You need **high-quality** time series synthesis
+
+❌ **Don't use `timegan` when:**
+- You have **simple tabular data** (use `ctgan` or `ddpm` instead)
+- Working with **very short sequences** (<10 timesteps)
+- You need **fast generation** (use `timevae` instead)
+- You have **limited computational resources**
+
+#### Data Requirements
+
+TimeGAN expects data in a specific temporal format:
+- **Temporal ordering**: Data must be sorted by time
+- **Entity grouping**: If multi-entity, group by entity ID
+- **Consistent timesteps**: Regular time intervals preferred
+
+#### Parameters
+
+```python
+synth = gen.generate(
+    data,
+    method='timegan',
+    n_samples=100,  # Number of sequences to generate
+    
+    # Training parameters
+    n_iter=1000,                    # Training epochs (default: 1000)
+    n_units_hidden=100,             # Hidden units in RNN (default: 100)
+    batch_size=128,                 # Batch size (default: 128)
+    lr=0.001,                       # Learning rate (default: 0.001)
+)
+```
+
+#### Parameter Details
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_iter` | int | 1000 | Number of training epochs |
+| `n_units_hidden` | int | 100 | Number of hidden units in RNN layers |
+| `batch_size` | int | 128 | Training batch size |
+| `lr` | float | 0.001 | Learning rate for optimizer |
+
+#### Usage Examples
+
+**Basic Time Series:**
+```python
+from calm_data_generator import RealGenerator
+import pandas as pd
+
+# Data must have temporal structure
+# Example: sensor readings over time
+gen = RealGenerator()
+synth = gen.generate(
+    time_series_data,
+    method='timegan',
+    n_samples=100,  # Generate 100 sequences
+    n_iter=1000,
+    n_units_hidden=100
+)
+```
+
+**Multi-Entity Time Series:**
+```python
+# Data with multiple entities (e.g., users, sensors)
+# Ensure data is sorted by entity_id and timestamp
+synth = gen.generate(
+    multi_entity_data,
+    method='timegan',
+    n_samples=50,  # Generate 50 entity sequences
+    n_iter=2000,
+    n_units_hidden=150,
+    batch_size=64
+)
+```
+
+---
+
+### `timevae` - TimeVAE (Time Series VAE)
+
+**Type:** Deep Learning (VAE for Time Series)  
+**Best For:** Regular time series, faster training than TimeGAN  
+**Requirements:** `synthcity` (included in base installation)
+
+#### Description
+
+TimeVAE is a variational autoencoder designed for temporal data. It's generally faster than TimeGAN and works well for regular time series with consistent patterns.
+
+#### When to Use
+
+✅ **Use `timevae` when:**
+- You have **regular time series** data
+- You need **faster training** than TimeGAN
+- Working with **consistent temporal patterns**
+- You want **good quality** with **less computation**
+- You have **moderate-length sequences**
+
+❌ **Don't use `timevae` when:**
+- You have **highly irregular** time series
+- You need **maximum quality** (use `timegan` instead)
+- Working with **very complex** temporal dynamics
+- You have **simple tabular data** (use `ctgan` or `ddpm`)
+
+#### Data Requirements
+
+Similar to TimeGAN:
+- **Temporal ordering**: Data sorted by time
+- **Regular intervals**: Works best with consistent timesteps
+- **Entity grouping**: If multi-entity, group by entity ID
+
+#### Parameters
+
+```python
+synth = gen.generate(
+    data,
+    method='timevae',
+    n_samples=100,  # Number of sequences to generate
+    
+    # Training parameters
+    n_iter=1000,                    # Training epochs (default: 1000)
+    decoder_n_layers_hidden=2,      # Decoder layers (default: 2)
+    decoder_n_units_hidden=100,     # Decoder units (default: 100)
+    batch_size=128,                 # Batch size (default: 128)
+    lr=0.001,                       # Learning rate (default: 0.001)
+)
+```
+
+#### Parameter Details
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `n_iter` | int | 1000 | Number of training epochs |
+| `decoder_n_layers_hidden` | int | 2 | Number of hidden layers in decoder |
+| `decoder_n_units_hidden` | int | 100 | Number of hidden units in decoder |
+| `batch_size` | int | 128 | Training batch size |
+| `lr` | float | 0.001 | Learning rate for optimizer |
+
+#### Comparison: `timegan` vs `timevae`
+
+| Aspect | `timegan` | `timevae` |
+|--------|-----------|-----------|
+| **Speed** | 🐢 Slower | ⚡ Faster |
+| **Quality** | ⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Good |
+| **Complexity** | Handles complex patterns | Best for regular patterns |
+| **Training Time** | Longer | Shorter |
+| **Use Case** | Complex temporal dynamics | Regular time series |
+
+#### Usage Examples
+
+**Basic Time Series:**
+```python
+from calm_data_generator import RealGenerator
+import pandas as pd
+
+gen = RealGenerator()
+synth = gen.generate(
+    time_series_data,
+    method='timevae',
+    n_samples=100,
+    n_iter=500,  # Faster than TimeGAN
+    decoder_n_units_hidden=100
+)
+```
+
+**Faster Training:**
+```python
+# Reduce parameters for quick prototyping
+synth = gen.generate(
+    time_series_data,
+    method='timevae',
+    n_samples=50,
+    n_iter=300,
+    decoder_n_layers_hidden=1,
+    decoder_n_units_hidden=50,
+    batch_size=64
+)
+```
+
+---
+
+## Method Selection Guide
+
+### For Tabular Data
+
+| Scenario | Recommended Method | Alternative |
+|----------|-------------------|-------------|
+| **Quick prototyping** | `diffusion` | `cart`, `rf` |
+| **Production quality** | `ddpm` | `ctgan` |
+| **Large datasets (>100k)** | `ddpm`, `lgbm` | `ctgan` |
+| **Small datasets (<1k)** | `cart`, `rf` | `diffusion` |
+| **Class imbalance** | `smote`, `adasyn` | `ctgan` |
+| **Preserve correlations** | `ctgan`, `ddpm` | `copula` |
+| **Fast generation** | `cart`, `diffusion` | `rf` |
+| **Maximum quality** | `ddpm` (ResNet) | `ctgan` |
+
+### For Time Series Data
+
+| Scenario | Recommended Method | Alternative |
+|----------|-------------------|-------------|
+| **Complex temporal patterns** | `timegan` | - |
+| **Regular time series** | `timevae` | `timegan` |
+| **Fast training** | `timevae` | - |
+| **Multi-entity sequences** | `timegan` | `timevae` |
+| **Maximum quality** | `timegan` | `timevae` |
+
+### For Special Cases
+
+| Data Type | Recommended Method |
+|-----------|-------------------|
+| **Single-cell RNA-seq** | `scvi` |
+| **Clinical/Medical** | Use `ClinicalDataGenerator` |
+| **Streaming data** | Use `StreamGenerator` |
+| **Block/Batch data** | Use `RealBlockGenerator` |

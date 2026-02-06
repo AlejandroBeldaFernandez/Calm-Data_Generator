@@ -17,17 +17,17 @@ from calm_data_generator.generators.tabular import RealGenerator, QualityReporte
 | `lgbm` | Síntesis con LightGBM |
 | `ctgan` | CTGAN (deep learning) |
 | `tvae` | TVAE (autoencoder variacional) |
-| `copula` | Cópula Gaussiana |
+| `bayesian` | Red Bayesiana |
 | `smote` | Sobremuestreo SMOTE |
 | `adasyn` | Muestreo adaptativo ADASYN |
-| `dp` | Privacidad Diferencial (PATE-CTGAN) |
-| `par` | PAR series temporales |
-| `timegan` | TimeGAN (ydata-synthetic) |
-| `dgan` | DoppelGANger (ydata-synthetic) |
-| `copula_temporal` | Cópula Temporal |
 | `diffusion` | Difusión Tabular (DDPM) |
+| `ddpm` | Synthcity TabDDPM (avanzado) |
+| `timegan` | TimeGAN (series temporales) |
+| `timevae` | TimeVAE (series temporales) |
 | `scvi` | scVI (Single-Cell VI) |
-| `scgen` | scGen (Single-Cell Perturbation) |
+
+
+
 
 ---
 

@@ -28,8 +28,8 @@ class TestImbalance(unittest.TestCase):
         )
 
         try:
-            # Try to use a faster method if possible, but CART/GaussianCopula is default
-            # We use GaussianCopula if available or just default 'cart'
+            # Try to use a faster method if possible, but CART/Bayesian is default
+            # We use Bayesian if available or just default 'cart'
             generator = RealGenerator()
 
             # Request balancing

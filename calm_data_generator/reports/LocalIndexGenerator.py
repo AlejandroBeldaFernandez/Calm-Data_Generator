@@ -1,6 +1,6 @@
 """
 Local Index Generator
-Generates a static index.html dashboard to navigate generated reports and plots.
+Generates a static index.html dashboard    - Uses synthetic data generation (e.g. via Synthcity) to augment the dataset.
 """
 
 import os
@@ -65,7 +65,7 @@ class LocalIndexGenerator:
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-             const priority = ['comparison', 'profile', 'sdv_scores', 'density', 'dimensionality', 'sdv_evolution'];
+             const priority = ['comparison', 'profile', 'quality_scores', 'density', 'dimensionality', 'quality_evolution'];
              for (const id of priority) {
                  if (document.getElementById(id)) {
                      showTab(id);
@@ -123,13 +123,13 @@ class LocalIndexGenerator:
             plotly_section = ""
 
             plotly_reports = {
-                "sdv_scores": {
-                    "file": "sdv_scores.html",
-                    "label": "SDV Quality Scores",
+                "quality_scores": {
+                    "file": "quality_scores.html",
+                    "label": "Quality Scores",
                 },
-                "sdv_evolution": {
-                    "file": "sdv_evolution.html",
-                    "label": "SDV Quality Evolution",
+                "quality_evolution": {
+                    "file": "quality_evolution.html",
+                    "label": "Quality Evolution",
                 },
                 "drift_stats": {
                     "file": "drift_stats.html",
