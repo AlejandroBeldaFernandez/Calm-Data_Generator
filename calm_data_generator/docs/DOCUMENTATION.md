@@ -169,7 +169,22 @@ synthetic = gen.generate(
 )
 
 
-> **Note:** Single-cell methods expect data where rows are cells/samples and columns are genes/features. Requires `scvi-tools` and `anndata` packages.
+# GEARS - Graph-based Perturbation Prediction
+synthetic = gen.generate(
+    expression_df, 500,
+    method='gears',
+    perturbations=['GENE1', 'GENE2'],  # Required: genes to perturb
+    epochs=20,
+    batch_size=32,
+    device='cpu'
+)
+
+> **IMPORTANT:** GEARS requires installation from source and specific PyTorch versions.
+> Ensure you have installed it via:
+> `pip install "git+https://github.com/snap-stanford/GEARS.git@f374e43"`
+> And PyTorch >= 2.4.0.
+
+> **Note:** Single-cell methods expect data where rows are cells/samples and columns are genes/features. Requires `scvi-tools`, `anndata`, and `gears` packages.
 
 
 ### Constraints

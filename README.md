@@ -11,7 +11,7 @@
 - **Clinical/Medical Data** - Generate realistic patient demographics, genes, proteins
 - **Tabular Data Synthesis** - CTGAN, TVAE, CART, and more
 - **Time Series** - TimeGAN, DGAN
-- **Single-Cell** - scVI (Deep Generative Models for scRNA-seq)
+- **Single-Cell** - scVI, GEARS (Perturbation Prediction)
 - **Drift Injection** - Test ML model robustness with controlled drift
 - **Privacy Assessment** - DCR metrics for re-identification risk
 - **Scenario Evolution** - Feature evolution and target construction
@@ -49,6 +49,7 @@ This library leverages and unifies best-in-class open-source tools to provide a 
  | :--- | :--- | :--- |
  | **Synthcity** | Deep Learning Engine | Powers `CTGAN`, `TVAE`, `DDPM`, `TimeGAN`. Handling privacy & fidelity. |
  | **scvi-tools** | Single-Cell Analysis | Powers `scvi` method for high-dimensional genomic/transcriptomic data. |
+ | **GEARS** | Graph Perturbation | Powers `gears` method for predicting single-cell perturbation effects. |
  | **River** | Streaming ML | Powers `StreamGenerator` for concept drift simulation and real-time data flow. |
  | **YData Profiling**| Reporting | Generates automated quality reports (`QualityReporter`). |
  | **Pydantic** | Validation | Ensures strict type checking and configuration management. |

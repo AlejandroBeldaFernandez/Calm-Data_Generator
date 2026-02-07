@@ -83,7 +83,7 @@ print("\nConstrained data - Min age:", synthetic_constrained["age"].min())
 print("Constrained data - Min income:", synthetic_constrained["income"].min())
 
 # ============================================================
-# 4. Single-Cell - scVI
+# 4. Single-Cell - scVI & GEARS
 # ============================================================
 
 # Generate with scVI
@@ -92,6 +92,19 @@ try:
     print("\nscVI synthetic data:", synthetic_scvi.shape)
 except Exception as e:
     print(f"scVI not available: {e}")
+
+# Generate with GEARS (Perturbation Prediction)
+try:
+    synthetic_gears = gen.generate(
+        data=data,
+        n_samples=50,
+        method="gears",
+        perturbations=["age", "income"],  # Genes/features to perturb
+        epochs=10,
+    )
+    print("\nGEARS synthetic data:", synthetic_gears.shape)
+except Exception as e:
+    print(f"GEARS not available: {e}")
 
 
 # ============================================================

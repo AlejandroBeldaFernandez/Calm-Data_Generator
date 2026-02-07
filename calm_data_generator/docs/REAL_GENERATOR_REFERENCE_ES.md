@@ -142,9 +142,19 @@ synthetic = gen.generate(
     n_layers=1,
     
 )
-```
 
-**Formato de Entrada:** Acepta objetos `pd.DataFrame`, `AnnData` o rutas de archivo (`.h5` o `.h5ad`) directamente.
+# GEARS - Predicción de Perturbaciones basada en Grafos
+synthetic = gen.generate(
+    expression_df, 500,
+    method='gears',
+    perturbations=['GENE1', 'GENE2'],  # Requerido: genes a perturbar
+    epochs=20,
+    batch_size=32,
+    device='cpu'
+)
+> **IMPORTANTE:** GEARS requiere instalación desde el código fuente (`pip install "git+https://github.com/snap-stanford/GEARS.git@f374e43"`) y PyTorch >= 2.4.0.
+
+**Formato de Entrada:** Acepta objetos `pd.DataFrame`, `AnnData` o rutas de archivo (`.h5`, `.h5ad` o `.csv`) directamente.
 
 **Formato de Entrada:** Acepta objetos `pd.DataFrame`, `AnnData` o rutas de archivo (`.h5`, `.h5ad` o `.csv`) directamente.
 
@@ -244,7 +254,7 @@ Si no se especifica ninguna opción, los modelos generativos avanzados (`ctgan`,
 
 | `gmm` | Estadístico | Modelos de Mezcla Gaussiana | Instalación base |
 | `scvi` | Single-Cell | scVI (Variational Inference) para RNA-seq | Requiere `scvi-tools` |
-|
+| `gears` | Single-Cell | GEARS (Predicción de Perturbaciones) | Requiere `gears` |
 
 ---
 

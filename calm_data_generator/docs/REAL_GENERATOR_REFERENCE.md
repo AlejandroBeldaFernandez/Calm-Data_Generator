@@ -174,6 +174,25 @@ model_params={"k_neighbors": 7}  # For SMOTE
 model_params={"n_neighbors": 5}  # For ADASYN
 ```
 
+### Single-Cell Methods
+
+**GEARS** (Graph-based Perturbation Prediction)
+```python
+synthetic = gen.generate(
+    expression_df, 500,
+    method='gears',
+    perturbations=['GENE1', 'GENE2'],  # Required: genes to perturb
+    epochs=20,
+    batch_size=32,
+    device='cpu'
+)
+```
+> **IMPORTANT:** GEARS requires installation from source via:
+> `pip install "git+https://github.com/snap-stanford/GEARS.git@f374e43"`
+> And PyTorch >= 2.4.0.
+
+> **Note:** Valid perturbations must be present in the GEARS Gene Ontology graph.
+
 ### Differential Privacy
 
 | Parameter | Description |
@@ -257,7 +276,7 @@ model_params={"diffusion_steps": 100}
 | Method | Description | Key Parameters | Dependencies |
 |--------|-------------|----------------|--------------|
 | `scvi` | scVI Variational Autoencoder | `epochs`, `n_latent`, `n_layers` | scvi-tools |
-|
+| `gears` | GEARS Perturbation Prediction | `perturbations`, `epochs`, `batch_size` | gears |
 
 ---
 

@@ -10,7 +10,7 @@
 - **Datos Clínicos/Médicos** - Genera demografía de pacientes, genes y proteínas realistas.
 - **Síntesis Tabular** - CTGAN, TVAE, CART y más.
 - **Series Temporales** - TimeGAN, DGAN
-- **Single-Cell** - scVI (Modelos Generativos Profundos para scRNA-seq)
+- **Single-Cell** - scVI, GEARS (Predicción de Perturbaciones)
 - **Inyección de Drift (Desviación)** - Prueba la robustez de modelos ML con drift controlado.
 - **Preservación de Privacidad** - Privacidad diferencial, pseudonimización, generalización.
 - **Evolución de Escenarios** - Evolución de features y construcción de targets.

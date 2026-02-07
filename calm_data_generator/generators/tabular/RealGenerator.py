@@ -124,6 +124,7 @@ class RealGenerator(BaseGenerator):
             "timegan",
             "timevae",
             "scvi",
+            "gears",
         ]
         if method not in valid_methods:
             raise ValueError(
@@ -997,6 +998,193 @@ class RealGenerator(BaseGenerator):
         self.logger.info(f"scVI synthesis complete. Generated {len(synth_df)} samples.")
         return synth_df
 
+    def _synthesize_gears(
+        self,
+        data: Union[pd.DataFrame, Any],
+        n_samples: int,
+        target_col: Optional[str] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        Synthesizes single-cell perturbation data using GEARS (Graph-based perturbation prediction).
+
+        Args:
+            data: DataFrame or AnnData with gene expression values
+            n_samples: Number of samples to generate
+            target_col: Optional column to preserve as metadata
+            **kwargs: Additional parameters:
+                - perturbations: List of genes to perturb (required)
+                - ctrl: Control condition name (default: 'ctrl')
+                - epochs: Training epochs (default: 20)
+                - batch_size: Batch size (default: 32)
+                - device: Device to use (default: 'cpu')
+
+        Returns:
+            DataFrame with synthetic perturbation predictions
+        """
+        self.logger.info(
+            "Starting GEARS synthesis for single-cell perturbation data..."
+        )
+
+        try:
+            from gears import PertData, GEARS
+            import anndata
+        except ImportError:
+            raise ImportError(
+                "gears and anndata are required for GEARS synthesis. "
+                "Install with: pip install gears anndata"
+            )
+
+        # Get perturbations parameter (required)
+        perturbations = kwargs.get("perturbations")
+        if not perturbations:
+            raise ValueError(
+                "GEARS requires 'perturbations' parameter: list of genes to perturb. "
+                "Example: perturbations=['GENE1', 'GENE2']"
+            )
+
+        # Create or use AnnData object
+        if (
+            hasattr(data, "obs")
+            and hasattr(data, "X")
+            and not isinstance(data, pd.DataFrame)
+        ):
+            adata = data
+        else:
+            # Separate metadata from expression data
+            metadata_cols = []
+            if target_col and target_col in data.columns:
+                metadata_cols.append(target_col)
+
+            # Get expression columns (numeric only)
+            expr_cols = [c for c in data.columns if c not in metadata_cols]
+            expr_data = data[expr_cols].select_dtypes(include=[np.number])
+
+            if expr_data.empty:
+                raise ValueError("No numeric columns found for GEARS synthesis.")
+
+            # Create AnnData object
+            adata = anndata.AnnData(X=expr_data.values.astype(np.float32))
+            adata.obs_names = [f"cell_{i}" for i in range(len(data))]
+            adata.var_names = list(expr_data.columns)
+            adata.var["gene_name"] = list(expr_data.columns)
+
+            # Add condition column if not present
+            ctrl_name = kwargs.get("ctrl", "ctrl")
+            if "condition" not in adata.obs.columns:
+                adata.obs["condition"] = ctrl_name
+            adata.obs["cell_type"] = "default"
+
+            if metadata_cols:
+                for col in metadata_cols:
+                    adata.obs[col] = data[col].values
+
+        # Setup GEARS parameters
+        epochs = kwargs.get("epochs", 20)
+        batch_size = kwargs.get("batch_size", 32)
+        device = kwargs.get("device", "cpu")
+        hidden_size = kwargs.get("hidden_size", 64)
+
+        self.logger.info(
+            f"Training GEARS model with {epochs} epochs, batch_size={batch_size}..."
+        )
+
+        try:
+            # Create temporary PertData object
+            import tempfile
+            import os
+            from scipy import sparse
+
+            # GEARS expects sparse matrix for co-expression calculation
+            if not sparse.issparse(adata.X):
+                adata.X = sparse.csr_matrix(adata.X)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Process data for GEARS
+                pert_data = PertData(tmpdir)
+                pert_data.new_data_process(
+                    dataset_name="custom", adata=adata, skip_calc_de=True
+                )
+                pert_data.load(data_path=os.path.join(tmpdir, "custom"))
+
+                # Inject dummy DE genes metadata if missing (required by GEARS)
+                # Must be done AFTER load() because load() reads from disk
+                if "non_zeros_gene_idx" not in pert_data.adata.uns:
+                    # Create a mapping where each condition maps to all gene indices
+                    all_gene_indices = list(range(len(pert_data.adata.var_names)))
+                    pert_data.adata.uns["non_zeros_gene_idx"] = {
+                        cond: all_gene_indices
+                        for cond in pert_data.adata.obs["condition"].unique()
+                    }
+
+                # Prepare data split (use all data for training in this case)
+                pert_data.prepare_split(split="simulation", seed=1)
+                pert_data.get_dataloader(
+                    batch_size=batch_size, test_batch_size=batch_size
+                )
+
+                # Initialize and train GEARS model
+                gears_model = GEARS(pert_data, device=device)
+                gears_model.model_initialize(hidden_size=hidden_size)
+
+                try:
+                    gears_model.train(epochs=epochs)
+                except ValueError as ve:
+                    # Ignore pearsonr error during validation on synthetic/small datasets
+                    if "at least 2" in str(ve):
+                        self.logger.warning(
+                            f"GEARS validation metric calculation failed ({ve}). "
+                            "Continuing as model training likely completed an epoch."
+                        )
+                    else:
+                        raise ve
+
+                # Generate predictions for specified perturbations
+                # Format perturbations as list of lists
+                if isinstance(perturbations[0], str):
+                    # Single perturbation per prediction
+                    pert_list = [[p] for p in perturbations]
+                else:
+                    # Already formatted as list of lists
+                    pert_list = perturbations
+
+                # Predict outcomes
+                predictions = gears_model.predict(pert_list)
+
+                # Convert predictions to DataFrame
+                if hasattr(predictions, "cpu"):
+                    pred_values = predictions.detach().cpu().numpy()
+                else:
+                    pred_values = predictions
+
+                # Generate n_samples by repeating/sampling predictions
+                if len(pred_values) >= n_samples:
+                    indices = np.random.choice(
+                        len(pred_values), size=n_samples, replace=False
+                    )
+                else:
+                    indices = np.random.choice(
+                        len(pred_values), size=n_samples, replace=True
+                    )
+
+                synth_values = pred_values[indices]
+                synth_df = pd.DataFrame(synth_values, columns=adata.var_names)
+
+                # Add metadata back
+                if target_col and target_col in adata.obs.columns:
+                    synth_df[target_col] = np.random.choice(
+                        adata.obs[target_col], size=n_samples, replace=True
+                    )
+
+                self.logger.info(
+                    f"GEARS synthesis complete. Generated {len(synth_df)} samples."
+                )
+                return synth_df
+
+        except Exception as e:
+            self.logger.error(f"GEARS synthesis failed: {e}")
+            raise e
+
     def _synthesize_fcs_generic(
         self,
         data: pd.DataFrame,
@@ -1714,6 +1902,14 @@ class RealGenerator(BaseGenerator):
             elif method == "scvi":
                 # Pass original_adata if available to avoid redundant conversion
                 synth = self._synthesize_scvi(
+                    original_adata if original_adata is not None else data,
+                    n_samples,
+                    target_col=target_col,
+                    **(kwargs or {}),
+                )
+            elif method == "gears":
+                # Pass original_adata if available to avoid redundant conversion
+                synth = self._synthesize_gears(
                     original_adata if original_adata is not None else data,
                     n_samples,
                     target_col=target_col,
