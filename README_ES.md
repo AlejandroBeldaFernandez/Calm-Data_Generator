@@ -34,6 +34,30 @@
 
 ---
 
+## ¿Qué hace única a esta librería?
+
+**CALM-Data-Generator** no es solo otra herramienta de datos sintéticos, es un **ecosistema unificado** que reúne las mejores librerías de código abierto bajo una API única y consistente:
+
+### 🔗 Integración Unificada Multi-Librería
+En lugar de aprender y gestionar múltiples librerías complejas por separado, CALM-Data-Generator proporciona:
+- **Una sola API** para 15+ métodos de síntesis de diferentes fuentes (Synthcity, scvi-tools, GEARS, imbalanced-learn, etc.)
+- **Interoperabilidad fluida** entre generadores tabulares, series temporales, streaming y datos genómicos
+- **Configuración consistente** en todos los métodos con validación automática de parámetros
+- **Reportes integrados** con YData Profiling para todos los métodos de generación
+
+### 🌊 Inyección Avanzada de Drift (Líder en la Industria)
+El módulo **DriftInjector** es una de las herramientas de simulación de drift más completas disponibles:
+- **14+ tipos de drift**: Drift de características (gradual, abrupto, incremental, recurrente), drift de etiquetas, concept drift, correlation drift, inyección de outliers, y más
+- **Drift consciente de correlaciones**: Propaga drift realista a través de características correlacionadas (ej. aumentar ingresos → aumentar gastos)
+- **Perfiles de drift multi-modales**: Transiciones sigmoid, lineales, coseno para drift gradual
+- **Drift condicional**: Aplica drift solo a subconjuntos específicos de datos basándose en reglas de negocio
+- **Integrado con generadores**: Inyecta drift directamente durante la síntesis o post-hoc sobre datos existentes
+- **Perfecto para MLOps**: Prueba monitorización de data drift, detección de concept drift, y robustez de modelos antes de producción
+
+> **En resumen**: Mientras otras herramientas se enfocan en un solo enfoque (ej. solo GANs, solo métodos estadísticos), CALM-Data-Generator **unifica el ecosistema** y añade **simulación de drift de grado de producción** que la mayoría de librerías no ofrecen.
+
+---
+
 ## Tecnologías Principales
 
 Esta biblioteca aprovecha y unifica las mejores herramientas de código abierto para proporcionar una experiencia de generación de datos fluida:

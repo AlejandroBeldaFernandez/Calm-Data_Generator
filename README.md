@@ -35,6 +35,30 @@
 
 ---
 
+## What Makes This Library Unique?
+
+**CALM-Data-Generator** is not just another synthetic data tool—it's a **unified ecosystem** that brings together the best open-source libraries under a single, consistent API:
+
+### 🔗 Unified Multi-Library Integration
+Instead of learning and managing multiple complex libraries separately, CALM-Data-Generator provides:
+- **One API** for 15+ synthesis methods from different sources (Synthcity, scvi-tools, GEARS, imbalanced-learn, etc.)
+- **Seamless interoperability** between tabular, time-series, streaming, and genomic data generators
+- **Consistent configuration** across all methods with automatic parameter validation
+- **Integrated reporting** with YData Profiling for all generation methods
+
+### 🌊 Advanced Drift Injection (Industry-Leading)
+The **DriftInjector** module is one of the most comprehensive drift simulation tools available:
+- **14+ drift types**: Feature drift (gradual, abrupt, incremental, recurrent), label drift, concept drift, correlation drift, outlier injection, and more
+- **Correlation-aware drift**: Propagate realistic drift across correlated features (e.g., increase income → increase spending)
+- **Multi-modal drift profiles**: Sigmoid, linear, cosine transitions for gradual drift
+- **Conditional drift**: Apply drift only to specific data subsets based on business rules
+- **Integrated with generators**: Inject drift directly during synthesis or post-hoc on existing data
+- **Perfect for MLOps**: Test data drift monitoring, concept drift detection, and model robustness before production
+
+> **In summary**: While other tools focus on a single approach (e.g., just GANs, just statistical methods), CALM-Data-Generator **unifies the ecosystem** and adds **production-grade drift simulation** that most libraries don't offer.
+
+---
+
 ## Core Technologies
 
 This library leverages and unifies best-in-class open-source tools to provide a seamless data generation experience:
