@@ -9,6 +9,7 @@ synthetic data that preserves the statistical properties of real data.
 import pandas as pd
 import numpy as np
 from calm_data_generator import RealGenerator
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
 
 # ============================================================
 # 1. Basic Usage - Generate synthetic data with CART
@@ -34,8 +35,26 @@ print(data.head())
 # Initialize generator
 gen = RealGenerator()
 
+# Define Configurations (New API)
+drift_config = [
+    DriftConfig(
+        method="inject_feature_drift",
+        params={"feature_cols": ["income"], "drift_magnitude": 0.5},
+    )
+]
+report_config = ReportConfig(output_dir="tutorial_output", target_column="target")
+
 # Generate synthetic data using CART (fast, tree-based)
-synthetic = gen.generate(data=data, n_samples=200, method="cart", target_col="target")
+# Passing configs to enable automatic drift injection and reporting
+synthetic = gen.generate(
+    data=data,
+    n_samples=200,
+    method="cart",
+    target_col="target",
+    drift_injection_config=drift_config,
+    report_config=report_config,
+    auto_report=True,
+)
 
 print("\nSynthetic data shape:", synthetic.shape)
 print(synthetic.head())
@@ -119,3 +138,13 @@ synthetic_smote = gen.generate(
 
 print("\nSMOTE class distribution:")
 print(synthetic_smote["target"].value_counts())
+
+# ============================================================
+# 6. Advanced Configuration (Drift & Reporting) - REMOVED AS REDUNDANT
+# ============================================================
+# The advanced configuration for Drift and Reporting has been integrated
+# into the "1. Basic Usage" section to streamline the tutorial.
+# The previous section 6 content is now redundant.
+#
+# print(f"Advanced synthetic data shape: {synthetic_advanced.shape}")
+# print(f"Check 'tutorial_real_output' for the generated report.")

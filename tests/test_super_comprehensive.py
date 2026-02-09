@@ -98,3 +98,24 @@ def test_stream_generator_basic(sample_data):
         assert len(result) == 20
     except ImportError:
         pytest.skip("River not installed")
+
+
+def test_drift_config_usage(sample_data):
+    """Test usage of DriftConfig object."""
+    from calm_data_generator.generators.drift import DriftInjector
+    from calm_data_generator.generators.configs import DriftConfig
+
+    injector = DriftInjector()
+    config = DriftConfig(
+        method="inject_drift",
+        params={
+            "columns": ["score"],
+            "drift_type": "shift",
+            "magnitude": 0.5,
+            "mode": "abrupt",
+        },
+    )
+
+    # Simulate how RealGenerator uses it: list of configs passed to inject_multiple_types_of_drift
+    drifted = injector.inject_multiple_types_of_drift(df=sample_data, schedule=[config])
+    assert len(drifted) == len(sample_data)

@@ -1,24 +1,21 @@
 import os
-import logging
 import random
 import warnings
-from typing import Optional, Dict, Tuple, List, Iterator, Any
+from typing import Optional, Dict, Tuple, List, Iterator, Any, Union
 import pandas as pd
 import numpy as np
 from collections import defaultdict
 
-from calm_data_generator.generators.configs import DateConfig
+from calm_data_generator.generators.configs import DateConfig, DriftConfig, ReportConfig
 from .StreamReporter import StreamReporter  # reporter to save JSON reports
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
+from calm_data_generator.generators.base import BaseGenerator
 
 # Suppress common warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-
-from calm_data_generator.generators.base import BaseGenerator
 
 
 class StreamGenerator(BaseGenerator):
@@ -79,8 +76,10 @@ class StreamGenerator(BaseGenerator):
         date_config: Optional[DateConfig] = None,  # New config object
         drift_type: str = "none",  # Kept for backward compat or ease of use if config not passed
         drift_options: Optional[Dict] = None,
+        drift_config: Optional[List[Union[Dict, DriftConfig]]] = None,  # Explicit arg
         save_dataset: bool = False,  # Changed default to False
         generate_report: Optional[bool] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
         # ... other specialized args can remain optionally or be grouped later
         constraints: Optional[List[Dict]] = None,
         sequence_config: Optional[Dict] = None,
@@ -96,6 +95,14 @@ class StreamGenerator(BaseGenerator):
             pd.DataFrame: The generated DataFrame.
         """
         out_dir = self._resolve_output_dir(output_dir) if output_dir else None
+
+        # Resolve ReportConfig
+        if report_config:
+            if isinstance(report_config, dict):
+                report_config = ReportConfig(**report_config)
+            # Update output_dir matches
+            if out_dir:
+                report_config.output_dir = out_dir
 
         # Backward compatibility for date args if unpacked params are used (simple logic)
         # Ideally we prefer date_config.
@@ -119,8 +126,10 @@ class StreamGenerator(BaseGenerator):
             balance=balance,
             drift_type=drift_type,
             drift_options=drift_options,
+            drift_config=drift_config,  # Pass explicit arg
             date_config=date_config,
             output_dir=out_dir,
+            report_config=report_config,  # Pass report config
             generate_report=generate_report,
             filename=filename,
             constraints=constraints,
@@ -265,10 +274,11 @@ class StreamGenerator(BaseGenerator):
                 df = injector.construct_target(df, **target_args)
 
         # --- Drift Injection ---
-        drift_config = kwargs.get("drift_config") or kwargs.get(
-            "drift_injection_config"
-        )
-        if drift_config:
+        drift_config_list = kwargs.get(
+            "drift_config"
+        )  # Can be passed via kwargs or explicit arg mapping in _generate_internal
+
+        if drift_config_list:
             self.logger.info("Applying drift injection...")
             injector = DriftInjector(
                 original_df=df,
@@ -279,9 +289,26 @@ class StreamGenerator(BaseGenerator):
                 time_col=kwargs.get("date_col"),
             )
 
-            for drift_conf in drift_config:
-                method_name = drift_conf.get("method")
-                params = drift_conf.get("params", {})
+            for drift_conf in drift_config_list:
+                # Determine method and params
+                method_name = "inject_feature_drift"  # Default
+                params = {}
+                drift_obj = None
+
+                if isinstance(drift_conf, DriftConfig):
+                    method_name = drift_conf.method
+                    drift_obj = drift_conf
+                    params = drift_conf.params or {}
+                elif isinstance(drift_conf, dict):
+                    if "method" in drift_conf and "params" in drift_conf:
+                        method_name = drift_conf.get("method")
+                        params = drift_conf.get("params", {})
+                    else:
+                        method_name = drift_conf.get(
+                            "drift_method",
+                            drift_conf.get("method", "inject_feature_drift"),
+                        )
+                        params = drift_conf
 
                 if hasattr(injector, method_name):
                     self.logger.info(f"Injecting drift: {method_name}")
@@ -290,7 +317,11 @@ class StreamGenerator(BaseGenerator):
                         if "df" not in params:
                             params["df"] = df
 
-                        res = drift_method(**params)
+                        if drift_obj:
+                            res = drift_method(drift_config=drift_obj, **params)
+                        else:
+                            res = drift_method(**params)
+
                         if isinstance(res, pd.DataFrame):
                             df = res
                     except Exception as e:
@@ -317,16 +348,32 @@ class StreamGenerator(BaseGenerator):
             )
 
             # Build drift_config for report if drift was applied
-            if drift_config:
-                drift_methods = [d.get("method", "unknown") for d in drift_config]
+            # Build drift_config for report if drift was applied
+            drift_config_list = kwargs.get("drift_config")
+            if drift_config_list:
+                drift_methods = []
+                for d in drift_config_list:
+                    if isinstance(d, DriftConfig):
+                        drift_methods.append(d.method)
+                    else:
+                        drift_methods.append(
+                            d.get("method", d.get("drift_method", "unknown"))
+                        )
+
                 report_kwargs["drift_config"] = {
                     "drift_type": ", ".join(drift_methods),
                     "drift_magnitude": "See config",
                     "affected_columns": "Multiple (via drift_config)",
                 }
 
+            # Pass report_config
+            report_config = kwargs.get("report_config")
+
             self._save_report_json(
-                df=df, output_dir=kwargs["output_dir"], **report_kwargs
+                df=df,
+                output_dir=kwargs.get("output_dir"),
+                report_config=report_config,
+                **report_kwargs,
             )
         return df
 
@@ -788,7 +835,13 @@ class StreamGenerator(BaseGenerator):
 
         return filtered_df
 
-    def _save_report_json(self, df: pd.DataFrame, output_dir: str, **kwargs):
+    def _save_report_json(
+        self,
+        df: pd.DataFrame,
+        output_dir: str,
+        report_config: Optional[ReportConfig] = None,
+        **kwargs,
+    ):
         """Saves a comprehensive JSON report of the generated data and its properties."""
         # Map kwargs to StreamReporter signature
         report_kwargs = {
@@ -808,32 +861,22 @@ class StreamGenerator(BaseGenerator):
             k: v for k, v in report_kwargs.items() if v is not None
         }
 
-        # Assuming 'dynamics_config', 'time_col', 'save_data', 'resample_rule' are available in kwargs or self
-        dynamics_config = kwargs.get("dynamics_config")
-        time_col = kwargs.get(
-            "date_col"
-        )  # Assuming date_col is used for time_col in dynamics
-        save_data = kwargs.get(
-            "save_dataset", False
-        )  # Assuming save_dataset controls output_dir for dynamics
-        resample_rule = kwargs.get("resample_rule")  # Assuming resample_rule is passed
+        # Prepare ReportConfig for StreamReporter
 
-        if dynamics_config:
-            injector = ScenarioInjector()
-            # Assuming 'df' is the 'synthetic_data' to be evolved
-            df = injector.evolve_features(
-                df,  # Use df as synthetic_data
-                evolution_config=dynamics_config,
-                time_col=time_col,
-                output_dir=output_dir if save_data else None,
-                auto_report=True,
-                resample_rule=resample_rule,
-            )
+        # Prepare ReportConfig for StreamReporter
+        # If report_config is passed, use it. But we also have kwargs that might override or supplement?
+        # StreamReporter.generate_report takes report_config OR individual args.
+        # We can pass report_config and filter kwargs.
+
         try:
-            StreamReporter(verbose=True, minimal=self.minimal_report).generate_report(
+            reporter = StreamReporter(verbose=True, minimal_report=self.minimal_report)
+            reporter.generate_report(
                 synthetic_df=df,
-                generator_name=kwargs["generator_instance"].__class__.__name__,
+                generator_name=kwargs.get(
+                    "generator_instance", self
+                ).__class__.__name__,  # kwargs["generator_instance"] was set in generate_report call
                 output_dir=output_dir,
+                report_config=report_config,
                 **report_kwargs_filtered,
             )
         except Exception as e:

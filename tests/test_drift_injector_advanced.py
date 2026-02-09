@@ -294,6 +294,46 @@ class TestUnifiedInjectDrift(unittest.TestCase):
             # But should still return valid data
             self.assertEqual(len(drifted_df), len(self.df))
 
+    def test_inject_multiple_types_of_drift_with_config_objects(self):
+        """Test inject_multiple_types_of_drift with DriftConfig objects."""
+        from calm_data_generator.generators.configs import DriftConfig
+
+        drift_configs = [
+            DriftConfig(
+                method="inject_drift",
+                params={
+                    "columns": ["age"],
+                    "drift_mode": "abrupt",
+                    "drift_magnitude": 0.5,
+                    "start_index": 50,
+                },
+            ),
+            DriftConfig(
+                method="inject_drift",
+                params={
+                    "columns": ["income"],
+                    "drift_mode": "gradual",
+                    "drift_magnitude": 0.3,
+                    "center": 100,
+                    "width": 50,
+                },
+            ),
+        ]
+
+        # Use inject_multiple_types_of_drift which accepts a schedule list
+        drifted_df = self.injector.inject_multiple_types_of_drift(
+            df=self.df, schedule=drift_configs
+        )
+
+        self.assertEqual(len(drifted_df), len(self.df))
+        # Age should be drifted abruptly (check second half vs first half of affected region)
+        # Note: simplistic check
+        self.assertNotEqual(
+            self.df["age"].iloc[50:].mean(), drifted_df["age"].iloc[50:].mean()
+        )
+        # Income should be drifted gradually
+        self.assertFalse(self.df["income"].equals(drifted_df["income"]))
+
 
 if __name__ == "__main__":
     unittest.main()

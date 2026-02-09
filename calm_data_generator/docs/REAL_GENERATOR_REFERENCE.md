@@ -33,27 +33,31 @@ gen = RealGenerator(
 ## Main Method: `generate()`
 
 ```python
+# New Config Imports
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig, DateConfig
+
 synthetic_df = gen.generate(
     data=df,                          # Original DataFrame (required)
     n_samples=1000,                   # Number of samples to generate (required)
     method="ctgan",                   # Synthesis method
-    target_col="target",              # Target column (optional)
-    output_dir="./output",            # Output directory
-    generator_name="my_generator",    # Base name for output files
-    save_dataset=False,               # Save resulting CSV
-    # Model parameters
-    model_params={...},               # Method-specific parameters
-    # Custom distributions
-    custom_distributions={"target": {0: 0.3, 1: 0.7}},
-    # Date injection
-    date_col="date",
-    date_start="2024-01-01",
-    date_step={"days": 1},
-    # Post-processing
-    drift_injection_config=[...],
-    dynamics_config={...},
-    constraints=[...],
-    adversarial_validation=True,      # Activate adversarial validation
+    
+    # Configuration Objects
+    report_config=ReportConfig(       # Reporting configuration
+        output_dir="./output",
+        target_column="target"
+    ),
+    
+    # Drift Injection
+    drift_injection_config=[
+        DriftConfig(
+            method="inject_feature_drift",
+            params={"feature_cols": ["age"], "drift_magnitude": 0.5}
+        )
+    ],
+    
+    # Legacy arguments are still supported but Config objects are recommended
+    # target_col="target", 
+    # output_dir="./output" 
 )
 ```
 
@@ -73,7 +77,7 @@ synthetic_df = gen.generate(
 | `date_start` | str | `None` | Start date ("YYYY-MM-DD") |
 | `date_step` | Dict | `None` | Time increment (e.g., `{"days": 1}`) |
 | `date_every` | int | `1` | Increment date every N rows |
-| `drift_injection_config` | List[Dict] | `None` | Configuration for post-generation drift injection |
+| `drift_injection_config` | List[Union[Dict, DriftConfig]] | `None` | Configuration for post-generation drift injection |
 | `dynamics_config` | Dict | `None` | Configuration for dynamic feature evolution |
 | `model_params` | Dict | `None` | Model-specific hyperparameters (passed as `**kwargs`) |
 | `constraints` | List[Dict] | `None` | Integrity constraints |

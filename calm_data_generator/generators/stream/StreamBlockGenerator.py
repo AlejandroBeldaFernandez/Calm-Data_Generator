@@ -6,7 +6,8 @@ from .GeneratorFactory import GeneratorFactory, GeneratorType, GeneratorConfig
 from .StreamGenerator import StreamGenerator
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
-from typing import List, Dict, Optional, Any
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
+from typing import List, Dict, Optional, Any, Union
 
 
 # Suppress common warnings for cleaner output
@@ -49,8 +50,9 @@ class SyntheticBlockGenerator:
         date_step: dict = None,
         date_col: str = "timestamp",
         generate_report: bool = True,
-        drift_config: Optional[List[Dict]] = None,
+        drift_config: Optional[List[Union[Dict, DriftConfig]]] = None,
         dynamics_config: Optional[Dict] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
     ):
         """
         A simplified interface for generating block-structured datasets using string-based method names.
@@ -134,6 +136,7 @@ class SyntheticBlockGenerator:
             generate_report=generate_report,
             drift_config=drift_config,
             dynamics_config=dynamics_config,
+            report_config=report_config,
         )
 
     def _ensure_list(self, value, n_blocks):
@@ -164,8 +167,9 @@ class SyntheticBlockGenerator:
         date_step: dict = None,
         date_col: str = "timestamp",
         generate_report: bool = True,
-        drift_config: Optional[List[Dict]] = None,
+        drift_config: Optional[List[Union[Dict, DriftConfig]]] = None,
         dynamics_config: Optional[Dict] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
         block_labels: Optional[List[Any]] = None,
     ) -> str:
         """
@@ -260,6 +264,7 @@ class SyntheticBlockGenerator:
                 df = injector.construct_target(df, **target_args)
 
         # --- Drift Injection ---
+        # --- Drift Injection ---
         if drift_config:
             injector = DriftInjector(
                 original_df=df,
@@ -269,28 +274,30 @@ class SyntheticBlockGenerator:
                 block_column="block",
                 time_col=date_col,
             )
-            for drift_conf in drift_config:
-                method_name = drift_conf.get("method")
-                params = drift_conf.get("params", {})
-                if hasattr(injector, method_name):
-                    drift_method = getattr(injector, method_name)
-                    try:
-                        if "df" not in params:
-                            params["df"] = df
-                        res = drift_method(**params)
-                        if isinstance(res, pd.DataFrame):
-                            df = res
-                    except Exception as e:
-                        print(f"Failed to apply drift {method_name}: {e}")
-                        raise e
-                else:
-                    print(f"Drift method '{method_name}' not found.")
+
+            # Use the updated inject_multiple_types_of_drift which handles DriftConfig objects
+            df = injector.inject_multiple_types_of_drift(
+                df=df,
+                schedule=drift_config,
+                time_col=date_col,
+                block_column="block",
+                target_column=target_col,
+            )
 
         df.to_csv(full_path, index=False)
 
         print(f"Generated {total_samples} samples in {n_blocks} blocks at: {full_path}")
 
         if generate_report:
+            # Resolve ReportConfig
+            effective_report_config = report_config
+            if report_config:
+                if isinstance(report_config, dict):
+                    effective_report_config = ReportConfig(**report_config)
+                # Update output_dir if needed
+                if output_dir and output_dir != effective_report_config.output_dir:
+                    effective_report_config.output_dir = output_dir
+
             reporter = StreamReporter(verbose=True)
             reporter.generate_report(
                 synthetic_df=df,
@@ -299,6 +306,7 @@ class SyntheticBlockGenerator:
                 target_column=target_col,
                 block_column="block",
                 time_col=date_col,
+                report_config=effective_report_config,
             )
 
         return full_path

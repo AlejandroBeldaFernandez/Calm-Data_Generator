@@ -3,6 +3,7 @@ import numpy as np
 import tempfile
 import os
 import pytest
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig, DateConfig
 
 
 @pytest.fixture
@@ -173,44 +174,46 @@ def test_single_call_workflow(sample_data):
             output_dir=tmpdir,
             save_dataset=True,
             drift_injection_config=[
-                {
-                    "method": "inject_feature_drift_gradual",
-                    "params": {
+                DriftConfig(
+                    method="inject_feature_drift_gradual",
+                    params={
                         "feature_cols": ["score"],
                         "drift_type": "shift",
                         "drift_magnitude": 0.3,
                         "start_index": 10,
                     },
-                }
+                )
             ],
+            report_config=ReportConfig(output_dir=tmpdir, target_column="target"),
         )
         assert result is not None
         assert len(result) == 20
         assert len(os.listdir(tmpdir)) > 0
 
+
 def test_new_synthesis_methods(sample_data):
     """Test new synthesis methods: ddpm, timegan, timevae."""
     from calm_data_generator.generators.tabular import RealGenerator
-    
+
     gen = RealGenerator(auto_report=False)
-    
+
     # Test DDPM (Synthcity TabDDPM)
     try:
         synth = gen.generate(
             sample_data,
             n_samples=10,
-            method='ddpm',
+            method="ddpm",
             n_iter=10,  # Very low for testing
-            batch_size=32
+            batch_size=32,
         )
         assert synth is not None and len(synth) == 10
         print("✅ DDPM test passed")
     except ImportError:
         pytest.skip("Synthcity not available for DDPM")
-    
+
     # Test TimeGAN (requires time series data structure)
     # Skipping for now as it requires specific data format
-    
+
     # Test TimeVAE (requires time series data structure)
     # Skipping for now as it requires specific data format
 
@@ -218,19 +221,19 @@ def test_new_synthesis_methods(sample_data):
 def test_ddpm_parameters(sample_data):
     """Test DDPM with different parameters."""
     from calm_data_generator.generators.tabular import RealGenerator
-    
+
     gen = RealGenerator(auto_report=False)
-    
+
     try:
         # Test with different model types
-        for model_type in ['mlp']:  # Only test MLP for speed
+        for model_type in ["mlp"]:  # Only test MLP for speed
             synth = gen.generate(
                 sample_data,
                 n_samples=5,
-                method='ddpm',
+                method="ddpm",
                 n_iter=5,
                 model_type=model_type,
-                scheduler='cosine'
+                scheduler="cosine",
             )
             assert synth is not None and len(synth) == 5
         print("✅ DDPM parameters test passed")

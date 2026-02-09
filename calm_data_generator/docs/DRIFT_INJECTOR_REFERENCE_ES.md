@@ -11,23 +11,21 @@ Un módulo para inyectar varios tipos de drift (desplazamiento de datos) en data
 Puedes inyectar drift directamente al generar datos sintéticos usando `RealGenerator.generate()`:
 
 ```python
-from calm_data_generator.generators.tabular import RealGenerator
-
-gen = RealGenerator()
+from calm_data_generator.generators.configs import DriftConfig
 
 synthetic = gen.generate(
     data=real_data,
     n_samples=1000,
     method='ctgan',
     drift_injection_config=[
-        {
-            "method": "inject_drift",
-            "params": {
+        DriftConfig(
+            method="inject_drift",
+            params={
                 "columns": ["age", "income"],
                 "drift_mode": "gradual",
                 "drift_magnitude": 0.3
             }
-        }
+        )
     ]
 )
 ```
@@ -35,6 +33,94 @@ synthetic = gen.generate(
 Cada elemento en `drift_injection_config` requiere:
 - `method`: Nombre del método de DriftInjector (ver abajo)
 - `params`: Diccionario de parámetros para ese método
+
+---
+
+## Referencia de la Clase DriftConfig
+
+**Importar:** `from calm_data_generator.generators.configs import DriftConfig`
+
+`DriftConfig` es un modelo Pydantic que proporciona configuración con tipos seguros para la inyección de drift. Soporta configuración basada en diccionarios y objetos.
+
+### Parámetros Principales
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `method` | str | `"inject_feature_drift"` | Método de DriftInjector a llamar |
+| `drift_type` | str | `"gaussian_noise"` | Tipo de operación de drift (ver Tipos de Operación) |
+| `feature_cols` | List[str] | `None` | Columnas a las que aplicar drift |
+| `magnitude` | float | `0.2` | Intensidad del drift (típicamente 0.0-1.0) |
+
+### Parámetros de Selección (Rango de Filas/Tiempo)
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `start_index` | int | `None` | Índice de fila inicial para drift |
+| `end_index` | int | `None` | Índice de fila final para drift |
+| `block_index` | int | `None` | Bloque específico para aplicar drift |
+| `block_column` | str | `None` | Nombre de columna que identifica bloques |
+| `time_start` | str | `None` | Timestamp de inicio (formato ISO) |
+| `time_end` | str | `None` | Timestamp final (formato ISO) |
+
+### Parámetros de Drift Gradual (Ventana/Perfil)
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `center` | int/float | `None` | Punto central de la ventana de drift |
+| `width` | int/float | `None` | Ancho de la transición de drift |
+| `profile` | str | `"sigmoid"` | Forma de transición: `"sigmoid"`, `"linear"`, `"cosine"` |
+| `speed_k` | float | `1.0` | Multiplicador de velocidad de transición |
+| `direction` | str | `"up"` | Dirección del drift: `"up"` o `"down"` |
+| `inconsistency` | float | `0.0` | Ruido aleatorio en aplicación de drift (0.0-1.0) |
+
+### Parámetros de Drift Especializado
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `drift_value` | float | `None` | Valor fijo para `add_value`, `multiply_value`, etc. |
+| `drift_values` | Dict[str, float] | `None` | Valores de drift por columna |
+| `params` | Dict[str, Any] | `{}` | Parámetros adicionales específicos del método |
+
+### Ejemplos de Uso
+
+**Uso Básico (Objeto):**
+```python
+from calm_data_generator.generators.configs import DriftConfig
+
+drift_config = DriftConfig(
+    method="inject_feature_drift",
+    feature_cols=["age", "income"],
+    drift_type="shift",
+    magnitude=0.3,
+    start_index=100,
+    end_index=500
+)
+```
+
+**Drift Gradual con Ventana:**
+```python
+drift_config = DriftConfig(
+    method="inject_feature_drift_gradual",
+    feature_cols=["temperature"],
+    drift_type="shift",
+    magnitude=0.5,
+    center=500,      # Drift alcanza el pico en fila 500
+    width=200,       # Transición sobre 200 filas
+    profile="sigmoid"  # Transición suave en curva S
+)
+```
+
+**Compatibilidad hacia Atrás (Diccionario):**
+```python
+# Todavía soportado para compatibilidad
+drift_config = {
+    "method": "inject_feature_drift",
+    "params": {
+        "feature_cols": ["age"],
+        "drift_magnitude": 0.3
+    }
+}
+```
 
 ---
 

@@ -41,21 +41,22 @@ def test_single_call_with_drift():
     print("\n[2/3] Configuring single-call generation with drift...")
 
     from calm_data_generator.generators.tabular import RealGenerator
+    from calm_data_generator.generators.configs import DriftConfig
 
     gen = RealGenerator()
 
-    # CORRECT FORMAT: List of dicts with 'method' and 'params'
+    # CORRECT FORMAT: List of DriftConfig objects
     drift_config = [
-        {
-            "method": "inject_gradual_drift",  # Method name in DriftInjector
-            "params": {
+        DriftConfig(
+            method="inject_gradual_drift",
+            params={
                 "columns": ["score"],
                 "drift_type": "mean_shift",
                 "drift_magnitude": 0.5,
                 "start_index": 20,
                 "end_index": 50,
             },
-        }
+        )
     ]
 
     # Create temp output dir

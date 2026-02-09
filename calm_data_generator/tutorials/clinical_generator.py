@@ -1,5 +1,6 @@
 import numpy as np
 from calm_data_generator.generators.clinical.Clinic import ClinicalDataGenerator
+from calm_data_generator.generators.configs import DriftConfig
 
 
 def build_correlation_matrix(n_demo, group_sizes, correlations):
@@ -99,8 +100,31 @@ def run_tutorial():
     for i in range(10):
         target_weights[f"G_{i}"] = 0.05
 
-    # 3. GENERATE (One Call)
-    print("\nExecuting generation pipeline...")
+    # 3. Configure Drift (New API)
+    # Drift for demographics (e.g., Age)
+    drift_demo = DriftConfig(
+        method="inject_feature_drift_gradual",
+        params={
+            "feature_cols": ["Age"],
+            "drift_magnitude": 0.5,
+            "drift_type": "shift",
+            "start_index": int(n_samples * 0.5),
+        },
+    )
+
+    # Drift for genes (e.g., G_0)
+    drift_genes = DriftConfig(
+        method="inject_feature_drift",
+        params={
+            "feature_cols": ["G_0"],
+            "drift_magnitude": 1.0,  # Large shift
+            "drift_type": "shift",
+            "start_index": int(n_samples * 0.7),
+        },
+    )
+
+    # 4. GENERATE (One Call)
+    print("\nExecuting generation pipeline with Drift...")
     output_dir = "tutorial_output"
 
     datasets = generator.generate(
@@ -121,6 +145,9 @@ def run_tutorial():
         },
         output_dir=output_dir,
         save_dataset=True,
+        # Pass Drift Configs
+        demographics_drift_config=[drift_demo],
+        genes_drift_config=[drift_genes],
     )
 
     # 4. Verify Results
@@ -135,6 +162,16 @@ def run_tutorial():
         print("Diagnosis balance:\n", demo_df["diagnosis"].value_counts(normalize=True))
     else:
         print("Warning: 'diagnosis' column not found in demographics.")
+
+    print("\nDrift Check:")
+    print(f"Age mean (first 100): {demo_df['Age'].head(100).mean():.2f}")
+    print(f"Age mean (last 100): {demo_df['Age'].tail(100).mean():.2f}")
+
+    # Check gene drift
+    if "genes" in datasets and "G_0" in datasets["genes"].columns:
+        g0 = datasets["genes"]["G_0"]
+        print(f"G_0 mean (first 100): {g0.head(100).mean():.2f}")
+        print(f"G_0 mean (last 100): {g0.tail(100).mean():.2f}")
 
 
 if __name__ == "__main__":

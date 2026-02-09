@@ -477,3 +477,13 @@ MIT License - see [LICENSE](LICENSE) file
 
 ---
 
+## Acknowledgements & Credits
+
+We stand on the shoulders of giants. This library is possible thanks to these amazing open-source projects:
+
+- **[Synthcity](https://github.com/vanderschaarlab/synthcity)** (Apache 2.0) - The engine behind our deep learning models.
+- **[River](https://github.com/online-ml/river)** (BSD-3-Clause) - Powering our streaming capabilities.
+- **[YData Profiling](https://github.com/ydataai/ydata-profiling)** (MIT) - Providing comprehensive data reporting.
+- **[scvi-tools](https://github.com/scverse/scvi-tools)** (BSD-3-Clause) - Enabling single-cell analysis.
+- **[GEARS](https://github.com/snap-stanford/GEARS)** (MIT) - Supporting graph-based perturbation prediction.
+- **[Imbalanced-learn](https://github.com/scikit-learn-contrib/imbalanced-learn)** (MIT) - Providing SMOTE and ADASYN implementations.

@@ -18,12 +18,17 @@ generator = StreamGenerator(random_state=42)
 # Crear instancia de generador River (ej. SEA)
 river_gen = synth.SEA()
 
+# Configuración de Drift
+drift_conf = [DriftConfig(method="inject_feature_drift", params={"feature_cols": ["col1"], "drift_magnitude": 0.5})]
+report_conf = ReportConfig(output_dir="./output", target_column="target")
+
 # Generar datos
 df = generator.generate(
     generator_instance=river_gen,
     n_samples=1000,
     filename="stream_data.csv",
-    output_dir="./output"
+    drift_injection_config=drift_conf,
+    report_config=report_conf
 )
 ```
 
@@ -50,7 +55,8 @@ Método principal para generar un dataset sintético.
     - `date_config` (DateConfig): Objeto de configuración para inyección de fechas.
     - `drift_type` (str): Tipo de drift a inyectar ('none', 'virtual_drift', 'gradual', 'abrupt', 'incremental').
     - `drift_options` (dict): Opciones para inyección de drift (ej. `missing_fraction` para virtual drift).
-    - `drift_injection_config` (list): Lista de configuraciones para usar `DriftInjector` post-generación (incluye el nuevo `inject_drift` unificado).
+    - `drift_injection_config` (List[DriftConfig]): Lista de objetos `DriftConfig` para inyección de drift post-generación.
+    - `report_config` (ReportConfig): Configuración para la generación de informes.
     - `dynamics_config` (dict): Configuración para `ScenarioInjector` (ej. evolución de features, construcción de targets).
     - `save_dataset` (bool): Si se debe guardar el archivo CSV (defecto: False).
 

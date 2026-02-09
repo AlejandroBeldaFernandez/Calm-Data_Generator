@@ -15,6 +15,7 @@ except ImportError:
 from calm_data_generator.generators.clinical.ClinicGeneratorBlock import (
     ClinicalDataGeneratorBlock,
 )
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
 
 
 @pytest.mark.skipif(not RIVER_AVAILABLE, reason="River/Synth not installed")
@@ -56,6 +57,35 @@ class TestClinicalBlockGenerator(unittest.TestCase):
         self.assertTrue("block" in df.columns)
         self.assertEqual(set(df["block"].unique()), {1, 2})
         self.assertTrue("Age" in df.columns)
+
+    def test_generate_with_config_objects(self):
+        """Test with DriftConfig and ReportConfig."""
+        if not RIVER_AVAILABLE:
+            pytest.skip("River not available")
+
+        gen = ClinicalDataGeneratorBlock()
+        river_gen = synth.Agrawal(seed=42)
+
+        drift_conf = DriftConfig(
+            method="inject_feature_drift", params={"missing_fraction": 0.1}
+        )
+        report_conf = ReportConfig(
+            output_dir=self.output_dir, target_column="diagnosis"
+        )
+
+        full_path = gen.generate(
+            output_dir=self.output_dir,
+            filename="test_clinic_config.csv",
+            n_blocks=1,
+            total_samples=10,
+            n_samples_block=[10],
+            generators=[river_gen],
+            target_col="diagnosis",
+            drift_config=[drift_conf],
+            report_config=report_conf,
+            generate_report=False,
+        )
+        self.assertTrue(os.path.exists(full_path))
 
 
 if __name__ == "__main__":

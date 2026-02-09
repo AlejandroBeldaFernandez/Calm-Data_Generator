@@ -247,6 +247,112 @@ Each item in `drift_injection_config` requires:
 
 ---
 
+## DriftConfig Class Reference
+
+**Import:** `from calm_data_generator.generators.configs import DriftConfig`
+
+`DriftConfig` is a Pydantic model that provides type-safe configuration for drift injection. It supports both dictionary and object-based configuration.
+
+### Core Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `method` | str | `"inject_feature_drift"` | DriftInjector method to call |
+| `drift_type` | str | `"gaussian_noise"` | Type of drift operation (see Operation Types) |
+| `feature_cols` | List[str] | `None` | Columns to apply drift to |
+| `magnitude` | float | `0.2` | Drift intensity (0.0-1.0 typical) |
+
+### Selection Parameters (Row/Time Range)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `start_index` | int | `None` | Starting row index for drift |
+| `end_index` | int | `None` | Ending row index for drift |
+| `block_index` | int | `None` | Specific block to apply drift (for block generators) |
+| `block_column` | str | `None` | Column name identifying blocks |
+| `time_start` | str | `None` | Start timestamp (ISO format) |
+| `time_end` | str | `None` | End timestamp (ISO format) |
+
+### Gradual Drift Parameters (Window/Profile)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `center` | int/float | `None` | Center point of drift window |
+| `width` | int/float | `None` | Width of drift transition |
+| `profile` | str | `"sigmoid"` | Transition shape: `"sigmoid"`, `"linear"`, `"cosine"` |
+| `speed_k` | float | `1.0` | Transition speed multiplier |
+| `direction` | str | `"up"` | Drift direction: `"up"` or `"down"` |
+| `inconsistency` | float | `0.0` | Random noise in drift application (0.0-1.0) |
+
+### Specialized Drift Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `drift_value` | float | `None` | Fixed value for `add_value`, `multiply_value`, etc. |
+| `drift_values` | Dict[str, float] | `None` | Per-column drift values |
+| `params` | Dict[str, Any] | `{}` | Additional method-specific parameters |
+
+### Usage Examples
+
+**Basic Usage (Object):**
+```python
+from calm_data_generator.generators.configs import DriftConfig
+
+drift_config = DriftConfig(
+    method="inject_feature_drift",
+    feature_cols=["age", "income"],
+    drift_type="shift",
+    magnitude=0.3,
+    start_index=100,
+    end_index=500
+)
+```
+
+**Gradual Drift with Window:**
+```python
+drift_config = DriftConfig(
+    method="inject_feature_drift_gradual",
+    feature_cols=["temperature"],
+    drift_type="shift",
+    magnitude=0.5,
+    center=500,      # Drift peaks at row 500
+    width=200,       # Transition over 200 rows
+    profile="sigmoid"  # Smooth S-curve transition
+)
+```
+
+**Backward Compatibility (Dictionary):**
+```python
+# Still supported for backward compatibility
+drift_config = {
+    "method": "inject_feature_drift",
+    "params": {
+        "feature_cols": ["age"],
+        "drift_magnitude": 0.3
+    }
+}
+```
+
+**Using with RealGenerator:**
+```python
+synthetic = gen.generate(
+    data=real_data,
+    n_samples=1000,
+    drift_injection_config=[
+        DriftConfig(
+            method="inject_drift",
+            params={
+                "columns": ["age", "income"],
+                "drift_mode": "gradual",
+                "drift_magnitude": 0.3
+            }
+        )
+    ]
+)
+```
+
+---
+
 ## Initialization
 
 ```python
@@ -396,19 +502,21 @@ drifted = injector.inject_drift(
     repeats=5,
 )
 
-# Use from generate() with drift_injection_config
+# Use from generate() with drift_injection_config (List of DriftConfig objects)
+from calm_data_generator.generators.configs import DriftConfig
+
 synthetic = gen.generate(
     data=real_data,
     n_samples=1000,
     drift_injection_config=[
-        {
-            "method": "inject_drift",
-            "params": {
+        DriftConfig(
+            method="inject_drift",
+            params={
                 "columns": ["age", "income", "status"],
                 "drift_mode": "gradual",
                 "drift_magnitude": 0.3,
             }
-        }
+        )
     ]
 )
 

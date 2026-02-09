@@ -76,12 +76,20 @@ gen = ClinicalDataGenerator(
 Generates a static cohort (single timepoint) with demographics and omics data.
 
 ```python
+from calm_data_generator.generators.configs import DateConfig, DriftConfig
+
 data = gen.generate(
     n_samples=100,
     n_genes=500,
     n_proteins=200,
     control_disease_ratio=0.5,
     date_config=DateConfig(start_date="2024-01-01"),
+    
+    # Drift Configuration (using DriftConfig objects)
+    demographics_drift_config=[
+        DriftConfig(method="inject_feature_drift", params={"feature_cols": ["Age"], "drift_magnitude": 0.5})
+    ],
+    
     # Detailed configurations
     demographic_correlations=None,
     gene_correlations=None,
@@ -167,10 +175,20 @@ longitudinal_data = gen.generate_longitudinal_data(
 
 You can pass configuration dictionaries directly to the internal injectors:
 
-*   `demographics_drift_config`: List of drift definitions for demographics.
-*   `genes_drift_config`: List of drift definitions for genes.
-*   `proteins_drift_config`: List of drift definitions for proteins.
+*   `demographics_drift_config`: List of `DriftConfig` objects for demographics.
+*   `genes_drift_config`: List of `DriftConfig` objects for genes.
+*   `proteins_drift_config`: List of `DriftConfig` objects for proteins.
 *   `genes_dynamics_config`: Scenarios for gene evolution.
+
+Example:
+```python
+drift_conf = DriftConfig(
+    method="inject_feature_drift_gradual", 
+    params={"feature_cols": ["Age"], "drift_magnitude": 0.5}
+)
+
+gen.generate(..., demographics_drift_config=[drift_conf])
+```
 
 ---
 

@@ -36,8 +36,8 @@ import tempfile
 # Custom logger and reporter
 from calm_data_generator.generators.base import BaseGenerator
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
+from calm_data_generator.generators.configs import DateConfig, DriftConfig, ReportConfig
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
-from calm_data_generator.generators.configs import DateConfig
 
 # Synthcity import
 
@@ -1674,10 +1674,11 @@ class RealGenerator(BaseGenerator):
         # End legacy
         balance_target: bool = False,
         save_dataset: bool = False,
-        drift_injection_config: Optional[List[Dict]] = None,
+        drift_injection_config: Optional[List[Union[Dict, DriftConfig]]] = None,
         dynamics_config: Optional[Dict] = None,
         constraints: Optional[List[Dict]] = None,
         adversarial_validation: bool = False,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
         **kwargs,
     ) -> Optional[pd.DataFrame]:
         """
@@ -1777,6 +1778,29 @@ class RealGenerator(BaseGenerator):
         self.logger.info(
             f"Starting generation of {n_samples} samples using method '{method}'..."
         )
+
+        # Resolve ReportConfig (defaults to None if not provided)
+        if report_config:
+            if isinstance(report_config, dict):
+                report_config = ReportConfig(**report_config)
+        # We don't necessarily force creation here, reporter handles None.
+        # But we might want to consolidate output_dir logic.
+
+        # Determine effective output_dir
+        # Logic: 1. report_config.output_dir (if provided/default 'output')?
+        #        2. output_dir arg
+        #        3. self.output_dir (if exists)
+        #        4. '.'
+
+        effective_output_dir = (
+            output_dir
+            or (report_config.output_dir if report_config else None)
+            or getattr(self, "output_dir", None)
+            or "."
+        )
+        # Update report_config if exists
+        if report_config:
+            report_config.output_dir = effective_output_dir
 
         # Resolve Date Config
         if date_config is None and date_start is not None:
@@ -2011,19 +2035,46 @@ class RealGenerator(BaseGenerator):
                     )
 
                     for drift_conf in drift_injection_config:
-                        method_name = drift_conf.get("method")
-                        params_drift = drift_conf.get("params", {})
+                        # Determine method and params
+                        method_name = "inject_feature_drift"  # Default
+                        params_drift = {}
+                        drift_obj = None
+
+                        if isinstance(drift_conf, DriftConfig):
+                            method_name = drift_conf.method
+                            drift_obj = drift_conf
+                            params_drift = drift_conf.params or {}
+                        elif isinstance(drift_conf, dict):
+                            # Support nested {"method": ..., "params": ...} or flat
+                            if "method" in drift_conf and "params" in drift_conf:
+                                method_name = drift_conf.get("method")
+                                params_drift = drift_conf.get("params", {})
+                            else:
+                                # Flat dict
+                                method_name = drift_conf.get(
+                                    "drift_method",
+                                    drift_conf.get("method", "inject_feature_drift"),
+                                )
+                                params_drift = drift_conf
 
                         if hasattr(drift_injector, method_name):
                             self.logger.info(f"Injecting drift: {method_name}")
                             drift_method = getattr(drift_injector, method_name)
                             try:
-                                # Most DriftInjector methods return the modified DF
-                                # We check if 'df' is in params, injecting it if needed.
+                                # Add 'df' if not present
                                 if "df" not in params_drift:
                                     params_drift["df"] = synth
 
-                                res = drift_method(**params_drift)
+                                # Call method
+                                if drift_obj:
+                                    # Pass config object explicitly
+                                    res = drift_method(
+                                        drift_config=drift_obj, **params_drift
+                                    )
+                                else:
+                                    # Pass params (will be converted to config internally if needed)
+                                    res = drift_method(**params_drift)
+
                                 # Update synth if result is dataframe
                                 if isinstance(res, pd.DataFrame):
                                     synth = res
@@ -2045,9 +2096,15 @@ class RealGenerator(BaseGenerator):
                     report_drift_config = None
                     if drift_injection_config:
                         # Summarize drift configuration for the report
-                        drift_methods = [
-                            d.get("method", "unknown") for d in drift_injection_config
-                        ]
+                        drift_methods = []
+                        for d in drift_injection_config:
+                            if isinstance(d, DriftConfig):
+                                drift_methods.append(d.method)
+                            else:
+                                drift_methods.append(
+                                    d.get("method", d.get("drift_method", "unknown"))
+                                )
+
                         report_drift_config = {
                             "drift_type": ", ".join(drift_methods),
                             "drift_magnitude": "See config",
@@ -2058,11 +2115,13 @@ class RealGenerator(BaseGenerator):
                         real_df=data,
                         synthetic_df=synth,
                         generator_name=f"RealGenerator_{method}",
-                        output_dir=output_dir,
+                        output_dir=effective_output_dir
+                        or output_dir,  # Use effective dir
                         target_column=target_col,
                         time_col=time_col_name,
                         drift_config=report_drift_config,
                         adversarial_validation=adversarial_validation,
+                        report_config=report_config,  # Pass the config object
                     )
 
                 # Save the generated dataset for inspection

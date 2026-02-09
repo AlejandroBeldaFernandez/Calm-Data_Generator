@@ -20,8 +20,9 @@ from calm_data_generator.reports.Visualizer import Visualizer
 from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
 from calm_data_generator.reports.base import BaseReporter
 from calm_data_generator.reports.DiscriminatorReporter import DiscriminatorReporter
+from calm_data_generator.generators.configs import ReportConfig
 
-# Direct usage of sdmetrics (MIT)
+# Direct usage of sdmetrics 
 try:
     from sdmetrics.reports.single_table import QualityReport
     from sdmetrics.reports.sequential import (
@@ -92,15 +93,58 @@ class QualityReporter(BaseReporter):
         privacy_check: bool = False,
         minimal: Optional[bool] = None,
         adversarial_validation: bool = False,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
     ) -> None:
         """
         Generates a comprehensive file-based report comparing real and synthetic data.
-
-        Args:
-            minimal: If True, skips expensive computations. Defaults to self.minimal.
+        Can use ReportConfig or individual arguments.
         """
-        # Resolve minimal mode
-        use_minimal = self.minimal if minimal is None else minimal
+        # Resolve Configuration
+        # Defaults if not provided in args
+        if report_config:
+            if isinstance(report_config, dict):
+                report_config = ReportConfig(**report_config)
+        else:
+            # Create from args
+            report_config = ReportConfig(
+                output_dir=output_dir,
+                target_column=target_column,
+                block_column=block_column,
+                focus_columns=focus_cols,
+                time_col=time_col,
+                resample_rule=resample_rule,
+                constraints_stats=constraints_stats,
+                privacy_check=privacy_check,
+                minimal=minimal if minimal is not None else self.minimal,
+                adversarial_validation=adversarial_validation,
+                auto_report=True,  # implied
+            )
+
+        # Override config with explicit non-None args (if mixed usage)
+        # But for simplicity, let's assume if report_config is passed, it is the source of truth,
+        # unless args are explicitly provided to override?
+        # A simple merge approach:
+        if (
+            output_dir != report_config.output_dir and output_dir != "output"
+        ):  # "output" is default
+            report_config.output_dir = output_dir
+
+        # Use config values
+        output_dir = report_config.output_dir
+        target_column = report_config.target_column
+        block_column = report_config.block_column
+        focus_cols = report_config.focus_columns
+        time_col = report_config.time_col
+        resample_rule = report_config.resample_rule
+        constraints_stats = report_config.constraints_stats
+        privacy_check = report_config.privacy_check
+        use_minimal = report_config.minimal
+        adversarial_validation = report_config.adversarial_validation
+
+        # Force minimal override if self.minimal is explicitly True?
+        # If config says False but self.minimal is True...
+        # Let's say config wins for this execution.
+
         if self.verbose:
             print("=" * 80)
             print("COMPREHENSIVE REAL DATA GENERATION REPORT")
@@ -227,14 +271,10 @@ class QualityReporter(BaseReporter):
             print("   -> Skipping PCA/UMAP (minimal mode)")
 
         # New quality score calculation based on minimal mode
+        # New quality score calculation based on minimal mode
         if use_minimal:
-            # Minimal: only basic metrics
-            quality_scores = {}
             if self.verbose:
                 print("   -> Skipping full quality assessment (minimal mode)")
-        else:
-            # Full: run SDMetrics
-            quality_scores = self._assess_quality_scores(real_df, synthetic_df)
 
         # Drift Analysis (comparing real vs synthetic)
         Visualizer.generate_comparison_plots(

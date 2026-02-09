@@ -387,3 +387,13 @@ Explora la documentación completa en el directorio `calm_data_generator/docs/`:
 ## Licencia
 
 Licencia MIT - ver archivo [LICENSE](LICENSE)
+## Agradecimientos y Créditos
+
+Nos apoyamos en hombros de gigantes. Esta librería es posible gracias a estos increíbles proyectos de código abierto:
+
+- **[Synthcity](https://github.com/vanderschaarlab/synthcity)** (Apache 2.0) - El motor detrás de nuestros modelos de deep learning.
+- **[River](https://github.com/online-ml/river)** (BSD-3-Clause) - Potenciando nuestras capacidades de streaming.
+- **[YData Profiling](https://github.com/ydataai/ydata-profiling)** (MIT) - Proporcionando reportes de datos exhaustivos.
+- **[scvi-tools](https://github.com/scverse/scvi-tools)** (BSD-3-Clause) - Habilitando análisis single-cell.
+- **[GEARS](https://github.com/snap-stanford/GEARS)** (MIT) - Soportando la predicción de perturbaciones basada en grafos.
+- **[Imbalanced-learn](https://github.com/scikit-learn-contrib/imbalanced-learn)** (MIT) - Proporcionando implementaciones de SMOTE y ADASYN.

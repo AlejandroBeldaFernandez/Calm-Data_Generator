@@ -8,6 +8,7 @@ stream-based generators (River library compatible).
 
 import numpy as np
 from calm_data_generator import StreamGenerator
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
 
 # ============================================================
 # 1. Create a stream generator
@@ -33,8 +34,27 @@ def simple_stream():
 
 gen = StreamGenerator()
 
-# Generate data from stream
-synthetic = gen.generate(generator_instance=simple_stream(), n_samples=100)
+# Define Configurations
+drift_config = [
+    DriftConfig(
+        method="inject_feature_drift",
+        params={
+            "feature_cols": ["feature1"],
+            "drift_magnitude": 0.5,
+            "drift_type": "shift",
+        },
+    )
+]
+report_config = ReportConfig(output_dir="stream_tutorial_output")
+
+# Generate data from stream with drift and reporting
+synthetic = gen.generate(
+    generator_instance=simple_stream(),
+    n_samples=100,
+    drift_config=drift_config,
+    report_config=report_config,
+    generate_report=True,
+)
 
 print("Generated data shape:", synthetic.shape)
 print(synthetic.head())

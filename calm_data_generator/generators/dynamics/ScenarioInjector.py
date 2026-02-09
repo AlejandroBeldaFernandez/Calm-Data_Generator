@@ -2,6 +2,10 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Optional, Union, Callable
 import os
+from calm_data_generator.generators.configs import (
+    ScenarioConfig,
+    EvolutionFeatureConfig,
+)
 
 
 class ScenarioInjector:
@@ -13,35 +17,61 @@ class ScenarioInjector:
         self.rng = np.random.default_rng(seed)
         self.minimal_report = minimal_report
 
+    def _resolve_evolution_feature_configs(
+        self,
+        evolution_config: Optional[Dict] = None,
+        scenario_config: Optional[Union[ScenarioConfig, Dict]] = None,
+    ) -> Dict[str, EvolutionFeatureConfig]:
+        """
+        Resolves evolution configuration into a dictionary of EvolutionFeatureConfig objects.
+        """
+        configs: Dict[str, EvolutionFeatureConfig] = {}
+
+        # 1. Load from ScenarioConfig
+        if scenario_config:
+            if isinstance(scenario_config, ScenarioConfig):
+                # Copy dict to avoid mutation of original if needed
+                for col, conf in scenario_config.evolve_features.items():
+                    # Handle if conf is dict inside ScenarioConfig (if deserialized partially)
+                    if isinstance(conf, dict):
+                        configs[col] = EvolutionFeatureConfig(**conf)
+                    else:
+                        configs[col] = conf
+            elif isinstance(scenario_config, dict):
+                # Extract evolve_features dict
+                raw_evolve = scenario_config.get("evolve_features", {})
+                for col, conf in raw_evolve.items():
+                    if isinstance(conf, dict):
+                        configs[col] = EvolutionFeatureConfig(**conf)
+                    elif isinstance(conf, EvolutionFeatureConfig):
+                        configs[col] = conf
+
+        # 2. explicit evolution_config (overrides)
+        if evolution_config:
+            for col, conf in evolution_config.items():
+                if isinstance(conf, EvolutionFeatureConfig):
+                    configs[col] = conf
+                elif isinstance(conf, dict):
+                    configs[col] = EvolutionFeatureConfig(**conf)
+
+        return configs
+
     def evolve_features(
         self,
         df: pd.DataFrame,
-        evolution_config: Dict[str, Dict[str, Union[str, float, int]]],
+        evolution_config: Optional[
+            Union[Dict, Dict[str, EvolutionFeatureConfig]]
+        ] = None,
         time_col: Optional[str] = None,
         output_dir: Optional[str] = None,
         auto_report: bool = True,
         generator_name: str = "ScenarioInjector",
         resample_rule: Optional[Union[str, int]] = None,
         correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
+        scenario_config: Optional[Union[ScenarioConfig, Dict]] = None,
     ) -> pd.DataFrame:
         """
         Evolves features in the DataFrame based on the provided configuration.
-
-        Args:
-            df (pd.DataFrame): Input DataFrame.
-            evolution_config (dict): Dictionary mapping column names to evolution specs.
-                Example: {'Age': {'type': 'linear', 'slope': 0.1},
-                          'Sales': {'type': 'cycle', 'period': 12, 'amplitude': 10}}
-            time_col (str, optional): Column to use as the time variable t.
-                                      If None, uses the DataFrame index (must be numeric or convertible).
-            resample_rule (str|int, optional): Resampling rule for reporting.
-            correlations (Optional[Union[pd.DataFrame, Dict, bool]]): Controls drift propagation to correlated features.
-                - If `True`: Calculates the correlation matrix from the current DataFrame and propagates drift.
-                - If `pd.DataFrame` or `Dict`: Uses the provided correlation structure to propagate drift.
-                - If `None` (default): No propagation is performed.
-
-        Returns:
-            pd.DataFrame: DataFrame with evolved features.
         """
         df_evolved = df.copy()
 
@@ -60,29 +90,33 @@ class ScenarioInjector:
         else:
             t = np.arange(len(df))
 
-        for col, config in evolution_config.items():
+        evolution_configs = self._resolve_evolution_feature_configs(
+            evolution_config, scenario_config
+        )
+
+        for col, config in evolution_configs.items():
             if col not in df_evolved.columns:
                 continue  # Or raise warning
 
-            drift_type = config.get("type")
+            drift_type = config.type
 
             delta = np.zeros_like(t, dtype=float)
 
             if drift_type == "linear":
-                slope = config.get("slope", 0.0)
-                intercept = config.get("intercept", 0.0)
+                slope = config.slope if config.slope is not None else 0.0
+                intercept = config.intercept if config.intercept is not None else 0.0
                 delta = slope * t + intercept
 
             elif drift_type == "cycle" or drift_type == "sinusoidal":
-                period = config.get("period", 100)
-                amplitude = config.get("amplitude", 1.0)
-                phase = config.get("phase", 0.0)
+                period = config.period if config.period is not None else 100.0
+                amplitude = config.amplitude if config.amplitude is not None else 1.0
+                phase = config.phase if config.phase is not None else 0.0
                 delta = amplitude * np.sin(2 * np.pi * t / period + phase)
 
             elif drift_type == "sigmoid":
-                center = config.get("center", len(t) / 2)
-                width = config.get("width", len(t) / 10)
-                amplitude = config.get("amplitude", 1.0)
+                center = config.center if config.center is not None else len(t) / 2
+                width = config.width if config.width is not None else len(t) / 10
+                amplitude = config.amplitude if config.amplitude is not None else 1.0
                 # Sigmoid function: 1 / (1 + exp(-(t-center)/width))
                 # Scaled by amplitude
                 # Avoid overflow
@@ -118,14 +152,18 @@ class ScenarioInjector:
             )
 
             reporter = QualityReporter(verbose=True, minimal=self.minimal_report)
-            affected_cols = list(evolution_config.keys())
+            affected_cols = list(evolution_configs.keys())
+
+            # Dump for reporting
+            evolution_config_dump = {k: v.dict() for k, v in evolution_configs.items()}
+
             drift_config = {
                 "generator_name": generator_name,
                 "feature_cols": affected_cols,
                 "drift_type": "Scenario Evolution",
                 "drift_magnitude": "See evolution_config",
                 "affected_columns": ", ".join(affected_cols),
-                "evolution_config": evolution_config,
+                "evolution_config": evolution_config_dump,
             }
             # Create output dir if needed
             os.makedirs(output_dir, exist_ok=True)

@@ -16,6 +16,7 @@ from calm_data_generator.reports.ExternalReporter import ExternalReporter
 from calm_data_generator.reports.Visualizer import Visualizer
 from calm_data_generator.reports.LocalIndexGenerator import LocalIndexGenerator
 from calm_data_generator.reports.base import BaseReporter
+from calm_data_generator.generators.configs import ReportConfig
 
 logger = logging.getLogger("StreamReporter")
 
@@ -50,10 +51,45 @@ class StreamReporter(BaseReporter):
         resample_rule: Optional[Union[str, int]] = None,
         constraints_stats: Optional[Dict[str, int]] = None,
         sequence_config: Optional[Dict] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
     ) -> None:
         """
         Generates a comprehensive file-based report for the synthetic dataset.
+        Can use ReportConfig or individual arguments.
         """
+        # Resolve Configuration
+        if report_config:
+            if isinstance(report_config, dict):
+                report_config = ReportConfig(**report_config)
+        else:
+            report_config = ReportConfig(
+                output_dir=output_dir,
+                target_column=target_column,
+                block_column=block_column,
+                focus_columns=focus_cols,
+                time_col=time_col,
+                resample_rule=resample_rule,
+                constraints_stats=constraints_stats,
+                sequence_config=sequence_config,
+                per_block_external_reports=per_block_external_reports,
+                auto_report=True,
+                # minimal? StreamReporter init has minimal_report.
+                minimal=self.minimal,
+            )
+
+        # Override config with explicit non-None args (simple merge)
+        if output_dir != report_config.output_dir and output_dir != "output":
+            report_config.output_dir = output_dir
+
+        # Use config values
+        output_dir = report_config.output_dir
+        target_column = report_config.target_column
+        block_column = report_config.block_column
+        focus_cols = report_config.focus_columns
+        time_col = report_config.time_col
+        resample_rule = report_config.resample_rule
+        per_block_external_reports = report_config.per_block_external_reports
+
         if self.verbose:
             print("=" * 80)
             print("SYNTHETIC DATA REPORT")

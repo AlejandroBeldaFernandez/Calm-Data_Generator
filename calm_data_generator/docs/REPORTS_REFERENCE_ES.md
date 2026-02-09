@@ -1,6 +1,77 @@
-# Referencia de Informes (Reports)
+# Referencia de Reportes
 
-La biblioteca `calm_data_generator` incluye un conjunto de herramientas de informes diseñadas para evaluar la calidad, privacidad y características de los datos generados.
+La biblioteca `calm_data_generator` incluye un conjunto de herramientas de reporte diseñadas para evaluar la calidad, privacidad y características de los datos generados.
+
+---
+
+## Referencia de la Clase ReportConfig
+
+**Importar:** `from calm_data_generator.generators.configs import ReportConfig`
+
+`ReportConfig` es un modelo Pydantic que proporciona configuración con tipos seguros para la generación de reportes en todas las clases de reportes.
+
+### Parámetros
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `output_dir` | str | `"output"` | Directorio para guardar reportes generados |
+| `auto_report` | bool | `True` | Generar reportes automáticamente después de la generación de datos |
+| `minimal` | bool | `False` | Generar reportes mínimos (más rápido, menos detalle) |
+| `target_column` | str | `None` | Columna objetivo/etiqueta para análisis de clasificación/regresión |
+| `time_col` | str | `None` | Columna de tiempo para análisis de series temporales |
+| `block_column` | str | `None` | Columna identificadora de bloques para datos basados en bloques |
+| `resample_rule` | str/int | `None` | Regla de remuestreo para series temporales (ej., `"1D"`, `"1H"`) |
+| `privacy_check` | bool | `False` | Habilitar evaluación de privacidad (métricas DCR) |
+| `adversarial_validation` | bool | `False` | Habilitar validación basada en discriminador |
+| `focus_columns` | List[str] | `None` | Columnas específicas en las que enfocar el análisis |
+| `constraints_stats` | Dict[str, int] | `None` | Estadísticas de violación de restricciones |
+| `sequence_config` | Dict | `None` | Configuración para análisis basado en secuencias |
+| `per_block_external_reports` | bool | `False` | Generar reportes separados por bloque |
+
+### Ejemplos de Uso
+
+**Configuración Básica de Reporte:**
+```python
+from calm_data_generator.generators.configs import ReportConfig
+
+report_config = ReportConfig(
+    output_dir="./mis_reportes",
+    target_column="target",
+    privacy_check=True,
+    adversarial_validation=True
+)
+```
+
+**Reporte de Series Temporales:**
+```python
+report_config = ReportConfig(
+    output_dir="./reporte_series_temporales",
+    time_col="timestamp",
+    resample_rule="1D",  # Agregación diaria
+    target_column="ventas"
+)
+```
+
+**Reporte Basado en Bloques:**
+```python
+report_config = ReportConfig(
+    output_dir="./reporte_bloques",
+    block_column="paciente_id",
+    per_block_external_reports=True,
+    target_column="diagnostico"
+)
+```
+
+**Reporte Mínimo (Rápido):**
+```python
+report_config = ReportConfig(
+    output_dir="./reporte_rapido",
+    minimal=True,
+    focus_columns=["edad", "ingresos", "target"]
+)
+```
+
+---
 
 ## Reporter de Calidad (`Tabular`)
 **Módulo:** `calm_data_generator.generators.tabular.QualityReporter`
@@ -15,12 +86,17 @@ Genera un informe estático incluyendo:
 - **Análisis de Drift**: Comparación visual de distribuciones de features.
 
 ```python
+from calm_data_generator.generators.configs import ReportConfig
+
 reporter = QualityReporter(verbose=True)
 reporter.generate_comprehensive_report(
     real_df=original_df,
     synthetic_df=synthetic_df,
     generator_name="MyGenerator",
-    output_dir="./report_output"
+    report_config=ReportConfig(
+        output_dir="./report_output",
+        target_column="target_col"
+    )
 )
 ```
 
@@ -44,7 +120,10 @@ Este reporter se integra automáticamente en `QualityReporter` si se activa el p
 ```python
 reporter.generate_comprehensive_report(
     ...,
-    adversarial_validation=True  # Activar Discriminator
+    report_config=ReportConfig(
+        output_dir="./report_output",
+        adversarial_validation=True  # Activar Discriminator
+    )
 )
 ```
 
@@ -64,7 +143,7 @@ reporter = StreamReporter()
 reporter.generate_report(
     synthetic_df=stream_df,
     generator_name="StreamGen",
-    output_dir="./stream_report"
+    report_config=ReportConfig(output_dir="./stream_report")
 )
 ```
 

@@ -2,6 +2,77 @@
 
 The `calm_data_generator` library includes a suite of reporting tools designed to assess the quality, privacy, and characteristics of generated data.
 
+---
+
+## ReportConfig Class Reference
+
+**Import:** `from calm_data_generator.generators.configs import ReportConfig`
+
+`ReportConfig` is a Pydantic model that provides type-safe configuration for report generation across all reporter classes.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `output_dir` | str | `"output"` | Directory to save generated reports |
+| `auto_report` | bool | `True` | Automatically generate reports after data generation |
+| `minimal` | bool | `False` | Generate minimal reports (faster, less detail) |
+| `target_column` | str | `None` | Target/label column for classification/regression analysis |
+| `time_col` | str | `None` | Time column for time-series analysis |
+| `block_column` | str | `None` | Block identifier column for block-based data |
+| `resample_rule` | str/int | `None` | Resampling rule for time-series (e.g., `"1D"`, `"1H"`) |
+| `privacy_check` | bool | `False` | Enable privacy assessment (DCR metrics) |
+| `adversarial_validation` | bool | `False` | Enable discriminator-based validation |
+| `focus_columns` | List[str] | `None` | Specific columns to focus analysis on |
+| `constraints_stats` | Dict[str, int] | `None` | Constraint violation statistics |
+| `sequence_config` | Dict | `None` | Configuration for sequence-based analysis |
+| `per_block_external_reports` | bool | `False` | Generate separate reports per block |
+
+### Usage Examples
+
+**Basic Report Configuration:**
+```python
+from calm_data_generator.generators.configs import ReportConfig
+
+report_config = ReportConfig(
+    output_dir="./my_reports",
+    target_column="target",
+    privacy_check=True,
+    adversarial_validation=True
+)
+```
+
+**Time-Series Report:**
+```python
+report_config = ReportConfig(
+    output_dir="./timeseries_report",
+    time_col="timestamp",
+    resample_rule="1D",  # Daily aggregation
+    target_column="sales"
+)
+```
+
+**Block-Based Report:**
+```python
+report_config = ReportConfig(
+    output_dir="./block_report",
+    block_column="patient_id",
+    per_block_external_reports=True,
+    target_column="diagnosis"
+)
+```
+
+**Minimal Report (Fast):**
+```python
+report_config = ReportConfig(
+    output_dir="./quick_report",
+    minimal=True,
+    focus_columns=["age", "income", "target"]
+)
+```
+
+---
+
 ## Quality Reporter (`Tabular`)
 **Module:** `calm_data_generator.generators.tabular.QualityReporter`
 
@@ -15,12 +86,17 @@ Generates a static report including:
 - **Drift Analysis**: Visual comparison of feature distributions.
 
 ```python
+from calm_data_generator.generators.configs import ReportConfig
+
 reporter = QualityReporter(verbose=True)
 reporter.generate_comprehensive_report(
     real_df=original_df,
     synthetic_df=synthetic_df,
     generator_name="MyGenerator",
-    output_dir="./report_output"
+    report_config=ReportConfig(
+        output_dir="./report_output",
+        target_column="target_col"
+    )
 )
 ```
 
@@ -44,7 +120,10 @@ This reporter is automatically integrated into `QualityReporter` if the optional
 ```python
 reporter.generate_comprehensive_report(
     ...,
-    adversarial_validation=True  # Activate Discriminator
+    report_config=ReportConfig(
+        output_dir="./report_output",
+        adversarial_validation=True  # Activate Discriminator
+    )
 )
 ```
 
@@ -64,7 +143,7 @@ reporter = StreamReporter()
 reporter.generate_report(
     synthetic_df=stream_df,
     generator_name="StreamGen",
-    output_dir="./stream_report"
+    report_config=ReportConfig(output_dir="./stream_report")
 )
 ```
 

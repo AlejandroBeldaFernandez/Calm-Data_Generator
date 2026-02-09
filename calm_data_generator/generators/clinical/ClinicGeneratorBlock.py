@@ -6,8 +6,13 @@ from calm_data_generator.generators.stream.StreamBlockGenerator import (
 )
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 from calm_data_generator.generators.dynamics.ScenarioInjector import ScenarioInjector
-from calm_data_generator.generators.clinical.Clinic import ClinicalDataGenerator, DateConfig
+from calm_data_generator.generators.clinical.Clinic import (
+    ClinicalDataGenerator,
+    DateConfig,
+)
 from calm_data_generator.generators.clinical.ClinicReporter import ClinicReporter
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
+from typing import Union
 
 
 class ClinicalDataGeneratorBlock(SyntheticBlockGenerator):
@@ -31,9 +36,10 @@ class ClinicalDataGeneratorBlock(SyntheticBlockGenerator):
         date_step: dict = None,
         date_col: str = "timestamp",
         generate_report: bool = True,
-        drift_config: Optional[List[Dict]] = None,
+        drift_config: Optional[List[Union[Dict, DriftConfig]]] = None,
         dynamics_config: Optional[Dict] = None,
         block_labels: Optional[List[Any]] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
     ) -> str:
         # Reuse helper from parent to ensure lists
         n_samples_block = self._ensure_list(n_samples_block, n_blocks)
@@ -143,6 +149,15 @@ class ClinicalDataGeneratorBlock(SyntheticBlockGenerator):
         print(f"Generated {total_samples} samples in {n_blocks} blocks at: {full_path}")
 
         if generate_report:
+            # Resolve ReportConfig
+            effective_report_config = report_config
+            if report_config:
+                if isinstance(report_config, dict):
+                    effective_report_config = ReportConfig(**report_config)
+                # Update output_dir matches
+                if output_dir and output_dir != effective_report_config.output_dir:
+                    effective_report_config.output_dir = output_dir
+
             # USE CLINIC REPORTER HERE
             reporter = ClinicReporter(verbose=True)
             reporter.generate_report(
@@ -152,6 +167,7 @@ class ClinicalDataGeneratorBlock(SyntheticBlockGenerator):
                 target_column=target_col,
                 block_column="block",
                 time_col=date_col,
+                report_config=effective_report_config,
             )
 
         return full_path

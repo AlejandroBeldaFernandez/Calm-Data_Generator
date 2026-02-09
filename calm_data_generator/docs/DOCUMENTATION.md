@@ -85,13 +85,15 @@ Generates synthetic data from existing real datasets.
 
 ```python
 from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator.generators.configs import ReportConfig
 
 gen = RealGenerator()
 
 # Generate with default method (CART)
 synthetic = gen.generate(
     data=df,
-    n_samples=1000
+    n_samples=1000,
+    report_config=ReportConfig(output_dir="output")
 )
 ```
 
@@ -215,15 +217,23 @@ Generates realistic clinical/medical datasets.
 ### Basic Generation
 
 ```python
-from calm_data_generator.generators.clinical import ClinicalDataGenerator, DateConfig
+from calm_data_generator.generators.clinical import ClinicalDataGenerator
+from calm_data_generator.generators.configs import DateConfig, DriftConfig
 
 gen = ClinicalDataGenerator()
+
+# Define Drift (Optional)
+drift_age = DriftConfig(
+    method="inject_feature_drift",
+    params={"feature_cols": ["Age"], "drift_magnitude": 0.5}
+)
 
 result = gen.generate(
     n_samples=100,
     n_genes=500,
     n_proteins=200,
-    date_config=DateConfig(start_date="2024-01-01")
+    date_config=DateConfig(start_date="2024-01-01"),
+    demographics_drift_config=[drift_age]
 )
 
 # Access generated data
@@ -292,13 +302,21 @@ synthetic = gen.generate(
 
 ```python
 from river import synth
+from calm_data_generator.generators.configs import DriftConfig
 
 # Use River's built-in generators
 stream = synth.Agrawal(seed=42)
 
+# Define Drift
+drift_conf = DriftConfig(
+    method="inject_feature_drift",
+    params={"feature_cols": ["salary"], "drift_magnitude": 0.5}
+)
+
 synthetic = gen.generate(
     generator_instance=stream,
-    n_samples=1000
+    n_samples=1000,
+    drift_config=[drift_conf]
 )
 ```
 
@@ -340,17 +358,25 @@ Use `inject_drift()` to apply drift across multiple column types automatically.
 
 ```python
 from calm_data_generator.generators.drift import DriftInjector
+from calm_data_generator.generators.configs import DriftConfig
 
 injector = DriftInjector(time_col='timestamp')
 
-# Gradual drift on mixed column types
-drifted = injector.inject_drift(
+# Unified interface using DriftConfig objects
+drift_conf = DriftConfig(
+    method="inject_feature_drift_gradual",
+    params={
+        "feature_cols": ['income', 'age'],
+        "drift_magnitude": 0.5,
+        "drift_type": "shift",
+        "center": 500,
+        "width": 200
+    }
+)
+
+drifted = injector.inject_multiple_types_of_drift(
     df=data,
-    columns=['income', 'age', 'status', 'group'],
-    drift_mode='gradual',
-    drift_magnitude=0.5,
-    center=500,
-    width=200
+    schedule=[drift_conf]
 )
 ```
 
@@ -569,14 +595,17 @@ Privacy features are now available through:
 
 ```python
 from calm_data_generator.generators.tabular import QualityReporter
+from calm_data_generator.generators.configs import ReportConfig
 
 reporter = QualityReporter()
 reporter.generate_comprehensive_report(
     real_df=original_df,
     synthetic_df=synthetic_df,
-    generator_name="MyGenerator",
-    output_dir="./privacy_report",
-    privacy_check=True  # Calculates DCR metrics
+    report_config=ReportConfig(
+        output_dir="./privacy_report",
+        privacy_check=True
+    ),
+    generator_name="MyGenerator"
 )
 ```
 
@@ -627,8 +656,12 @@ This approach is superior to global modeling when data has distinct regimes (e.g
 
 ```python
 from calm_data_generator.generators.stream import StreamBlockGenerator
+from calm_data_generator.generators.configs import DriftConfig
 
 gen = StreamBlockGenerator()
+
+# Define Drift per block (optional)
+drift_block2 = DriftConfig(method="inject_feature_drift", params={"drift_magnitude": 0.8})
 
 # Generate with scheduled concept drift
 gen.generate_blocks_simple(
@@ -637,7 +670,8 @@ gen.generate_blocks_simple(
     n_blocks=2,
     total_samples=1000,
     methods=['sea', 'sea'],
-    method_params=[{'variant': 0}, {'variant': 1}]  # Different concepts
+    method_params=[{'variant': 0}, {'variant': 1}],  # Different concepts
+    drift_config=[None, drift_block2] # Apply drift only to second block
 )
 ```
 

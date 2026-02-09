@@ -6,6 +6,89 @@ Un módulo para evolucionar variables (features), construir variables objetivo (
 
 ---
 
+## Referencia de las Clases ScenarioConfig y EvolutionFeatureConfig
+
+**Importar:** `from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig`
+
+`ScenarioConfig` es un modelo Pydantic para configurar la inyección de escenarios con evolución de features y construcción de targets.
+
+### Parámetros de ScenarioConfig
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `state_config` | Dict | `None` | Configuración de estado para el escenario |
+| `evolve_features` | Dict[str, Union[Dict, EvolutionFeatureConfig]] | `{}` | Configuraciones de evolución de features |
+| `construct_target` | Dict | `None` | Configuración de construcción de target |
+
+### Parámetros de EvolutionFeatureConfig
+
+| Parámetro | Tipo | Por Defecto | Descripción |
+|-----------|------|-------------|-------------|
+| `type` | str | - | Tipo de evolución: `"linear"`, `"cycle"`, `"sigmoid"`, `"trend"`, `"seasonal"`, `"noise"`, `"decay"` |
+| `slope` | float | `0.0` | Pendiente para evolución lineal/tendencia |
+| `intercept` | float | `0.0` | Intercepto para evolución lineal |
+| `amplitude` | float | `1.0` | Amplitud para patrones estacionales/cíclicos |
+| `period` | float | `100.0` | Longitud del periodo para patrones cíclicos |
+| `phase` | float | `0.0` | Desfase de fase para patrones cíclicos |
+| `center` | float | `None` | Punto central para evolución sigmoide |
+| `width` | float | `None` | Ancho para transición sigmoide |
+
+### Ejemplos de Uso
+
+**Evolución Básica de Features (Objeto):**
+```python
+from calm_data_generator.generators.configs import EvolutionFeatureConfig
+
+evolution_config = {
+    "ingresos": EvolutionFeatureConfig(
+        type="linear",
+        slope=100.0,  # Incremento de 100 por periodo
+        intercept=1000.0
+    ),
+    "temperatura": EvolutionFeatureConfig(
+        type="seasonal",
+        amplitude=10.0,
+        period=365,  # Ciclo anual
+        phase=0.0
+    )
+}
+```
+
+**Usando ScenarioConfig:**
+```python
+from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig
+
+scenario_config = ScenarioConfig(
+    evolve_features={
+        "ventas": EvolutionFeatureConfig(
+            type="trend",
+            slope=0.05  # 5% de crecimiento
+        ),
+        "abandono": EvolutionFeatureConfig(
+            type="decay",
+            slope=-0.02  # 2% de decaimiento
+        )
+    },
+    construct_target={
+        "formula": "0.3 * ventas - 0.5 * abandono",
+        "threshold": 0.7
+    }
+)
+```
+
+**Compatibilidad hacia Atrás (Diccionario):**
+```python
+# Todavía soportado
+evolution_config = {
+    "precio": {
+        "type": "trend",
+        "slope": 0.01
+    }
+}
+```
+
+---
+
 ## Inicialización
 
 ```python

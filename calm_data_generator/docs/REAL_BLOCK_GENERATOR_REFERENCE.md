@@ -7,6 +7,7 @@ The `calm_data_generator.generators.tabular.RealBlockGenerator` extends `RealGen
 ### Usage
 ```python
 from calm_data_generator.generators.tabular.RealBlockGenerator import RealBlockGenerator
+from calm_data_generator.generators.configs import DriftConfig
 import pandas as pd
 
 # Load data
@@ -22,10 +23,10 @@ synthetic_data = generator.generate(
     method="lgbm",
     block_column="Month",
     drift_config=[
-        {
-            "method": "inject_shift",
-            "params": {"shift_amount": 0.5, "feature_cols": ["FeatureA"]}
-        }
+        DriftConfig(
+            method="inject_shift",
+            params={"shift_amount": 0.5, "feature_cols": ["FeatureA"]}
+        )
     ]
 )
 ```

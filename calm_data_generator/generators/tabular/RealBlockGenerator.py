@@ -29,6 +29,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from .RealGenerator import RealGenerator
 from .QualityReporter import QualityReporter
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
 
 
 class RealBlockGenerator(RealGenerator):
@@ -189,12 +190,13 @@ class RealBlockGenerator(RealGenerator):
         chunk_size: Optional[int] = None,
         chunk_by_timestamp: Optional[str] = None,
         n_samples_block: Optional[Union[int, Dict[Any, int]]] = None,
-        drift_config: Optional[List[Dict[str, Any]]] = None,
+        drift_config: Optional[List[Union[Dict[str, Any], DriftConfig]]] = None,
         custom_distributions: Optional[Dict] = None,
         date_start: Optional[str] = None,
         date_step: Optional[Dict[str, int]] = None,
         date_col: str = "timestamp",
         model_params: Optional[Dict[str, Any]] = None,
+        report_config: Optional[Union[ReportConfig, Dict]] = None,
     ) -> pd.DataFrame:
         """
         Generates a complete synthetic dataset by processing each block and applying a drift schedule.
@@ -214,11 +216,21 @@ class RealBlockGenerator(RealGenerator):
             date_step (Optional[Dict[str, int]]): The time step for date injection (e.g., {'days': 1}).
             date_col (str): The name of the date column to be injected.
             model_params (Optional[Dict[str, Any]]): Dictionary of hyperparameters for the synthesis model.
+            report_config (Optional[Union[ReportConfig, Dict]]): Configuration for the report.
 
         Returns:
             pd.DataFrame: The complete synthetic dataset with all blocks and applied drift.
         """
         from calm_data_generator.generators.drift.DriftInjector import DriftInjector
+
+        # Resolve ReportConfig
+        effective_report_config = report_config
+        if report_config:
+            if isinstance(report_config, dict):
+                effective_report_config = ReportConfig(**report_config)
+            # Update output_dir if needed
+            if output_dir and output_dir != effective_report_config.output_dir:
+                effective_report_config.output_dir = output_dir
 
         # Work on a copy
         data = data.copy()
@@ -317,6 +329,7 @@ class RealBlockGenerator(RealGenerator):
                 block_col=block_col_name,
                 target_col=target_col,
                 method=method,
+                report_config=effective_report_config,
             )
 
         # Always save the final dataset
@@ -350,10 +363,14 @@ class RealBlockGenerator(RealGenerator):
         block_col: Optional[str] = None,
         target_col: Optional[str] = None,
         method: str = "unknown",
+        report_config: Optional[ReportConfig] = None,
     ):
         """Generates a comprehensive report for the full block-based dataset at the dataset level."""
         if not self.auto_report:
             return
+
+        # Override output_dir from arg if present, but pass report_config
+
         try:
             os.makedirs(output_dir, exist_ok=True)
 
@@ -365,6 +382,7 @@ class RealBlockGenerator(RealGenerator):
                 target_column=target_col,
                 block_column=block_col,
                 time_col=time_col,
+                report_config=report_config,
             )
             self.logger.info(
                 "Block dataset report and visualizations saved to: %s", output_dir

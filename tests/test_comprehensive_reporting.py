@@ -26,6 +26,7 @@ def output_base():
 def test_real_generator_drift_reporting(real_df, output_base):
     """Test RealGenerator with drift_injection_config report generation."""
     from calm_data_generator.generators.tabular.RealGenerator import RealGenerator
+    from calm_data_generator.generators.configs import DriftConfig
 
     output_dir = os.path.join(output_base, "1_real_generator_drift")
     gen = RealGenerator(auto_report=True)
@@ -38,15 +39,15 @@ def test_real_generator_drift_reporting(real_df, output_base):
         method="cart",
         output_dir=output_dir,
         drift_injection_config=[
-            {
-                "method": "inject_drift",
-                "params": {
-                    "columns": column_to_drift,
+            DriftConfig(
+                method="inject_drift",
+                params={
+                    "columns": [column_to_drift],
                     "drift_type": "shift",
                     "magnitude": 0.3,
                     "mode": "abrupt",
                 },
-            }
+            )
         ],
     )
 

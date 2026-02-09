@@ -17,7 +17,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 
 from calm_data_generator.generators.clinical.ClinicReporter import ClinicReporter
-from calm_data_generator.generators.configs import DateConfig
+from calm_data_generator.generators.configs import DateConfig, DriftConfig
 from calm_data_generator.generators.base import BaseGenerator
 
 
@@ -473,22 +473,9 @@ class ClinicalDataGenerator(BaseGenerator):
                 generator_name="ClinicalDataGenerator_Demographic",
                 time_col=date_column_name,
             )
-            for drift_conf in drift_injection_config:
-                method_name = drift_conf.get("method")
-                params = drift_conf.get("params", {})
-                if hasattr(injector, method_name):
-                    drift_method = getattr(injector, method_name)
-                    try:
-                        if "df" not in params:
-                            params["df"] = df_temp
-                        res = drift_method(**params)
-                        if isinstance(res, pd.DataFrame):
-                            df_temp = res
-                    except Exception as e:
-                        print(f"Failed to apply drift {method_name}: {e}")
-                        raise e
-                else:
-                    print(f"Drift method '{method_name}' not found.")
+            df_temp = injector.inject_multiple_types_of_drift(
+                df=df_temp, schedule=drift_injection_config, time_col=date_column_name
+            )
 
         # --- Constraints Application ---
         if constraints:
@@ -924,22 +911,9 @@ class ClinicalDataGenerator(BaseGenerator):
                 generator_name="ClinicalDataGenerator_Gene",
                 # Genes usually don't have time column unless passed or index logic
             )
-            for drift_conf in drift_injection_config:
-                method_name = drift_conf.get("method")
-                params = drift_conf.get("params", {})
-                if hasattr(injector, method_name):
-                    drift_method = getattr(injector, method_name)
-                    try:
-                        if "df" not in params:
-                            params["df"] = df_genes
-                        res = drift_method(**params)
-                        if isinstance(res, pd.DataFrame):
-                            df_genes = res
-                    except Exception as e:
-                        print(f"Failed to apply drift {method_name}: {e}")
-                        raise e
-                else:
-                    print(f"Drift method '{method_name}' not found.")
+            df_genes = injector.inject_multiple_types_of_drift(
+                df=df_genes, schedule=drift_injection_config
+            )
 
         return df_genes
 
@@ -1161,22 +1135,9 @@ class ClinicalDataGenerator(BaseGenerator):
             injector = DriftInjector(
                 original_df=df_proteins, generator_name="ClinicalDataGenerator_Protein"
             )
-            for drift_conf in drift_injection_config:
-                method_name = drift_conf.get("method")
-                params = drift_conf.get("params", {})
-                if hasattr(injector, method_name):
-                    drift_method = getattr(injector, method_name)
-                    try:
-                        if "df" not in params:
-                            params["df"] = df_proteins
-                        res = drift_method(**params)
-                        if isinstance(res, pd.DataFrame):
-                            df_proteins = res
-                    except Exception as e:
-                        print(f"Failed to apply drift {method_name}: {e}")
-                        raise e
-                else:
-                    print(f"Drift method '{method_name}' not found.")
+            df_proteins = injector.inject_multiple_types_of_drift(
+                df=df_proteins, schedule=drift_injection_config
+            )
 
         return df_proteins
 

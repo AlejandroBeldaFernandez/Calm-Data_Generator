@@ -24,6 +24,8 @@ try:
 except ImportError:
     SyntheticBlockGenerator = None
 
+from calm_data_generator.generators.configs import DriftConfig, ReportConfig
+
 
 @pytest.mark.skipif(not RIVER_AVAILABLE, reason="River not installed")
 class TestSyntheticBlockGenerator(unittest.TestCase):
@@ -82,6 +84,33 @@ class TestSyntheticBlockGenerator(unittest.TestCase):
         self.assertEqual(len(df), 50)
         self.assertEqual(df["block"].value_counts()[1], 25)
         self.assertEqual(df["block"].value_counts()[2], 25)
+
+    def test_generate_with_config_objects(self):
+        """Test generation with DriftConfig objects."""
+        gen = SyntheticBlockGenerator()
+
+        drift_conf = DriftConfig(
+            method="inject_feature_drift",
+            params={
+                "feature_cols": ["feature1"],
+                "drift_magnitude": 0.5,
+                "drift_type": "shift",
+            },
+        )
+        report_conf = ReportConfig(output_dir=self.output_dir)
+
+        path = gen.generate_blocks_simple(
+            output_dir=self.output_dir,
+            filename="test_config_blocks.csv",
+            n_blocks=2,
+            total_samples=20,
+            methods=["sea"],
+            drift_config=[drift_conf],
+            report_config=report_conf,
+            generate_report=False,
+        )
+
+        self.assertTrue(os.path.exists(path))
 
 
 if __name__ == "__main__":

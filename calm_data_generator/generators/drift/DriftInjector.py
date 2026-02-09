@@ -21,6 +21,7 @@ from typing import List, Optional, Dict, Sequence, Tuple, Any, Union
 import warnings
 import os
 from calm_data_generator.generators.tabular.QualityReporter import QualityReporter
+from calm_data_generator.generators.configs import DriftConfig
 
 # Suppress common warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -32,6 +33,35 @@ class DriftInjector:
     """
     A class to inject various types of drift into a pandas DataFrame.
     """
+
+    def _resolve_drift_config(
+        self, config: Optional[Union[DriftConfig, Dict]] = None, **kwargs
+    ) -> DriftConfig:
+        """
+        Resolves the drift configuration from a DriftConfig object, a dictionary, or kwargs.
+        Kwargs override config values.
+        """
+        if isinstance(config, DriftConfig):
+            # Pydantic copy with update
+            if kwargs:
+                # filter kwargs that are valid fields
+                valid_keys = config.model_fields.keys()
+                updates = {
+                    k: v for k, v in kwargs.items() if k in valid_keys and v is not None
+                }
+                return config.copy(update=updates)
+            return config
+
+        elif isinstance(config, dict):
+            # Merge kwargs into dict
+            merged = {**config, **{k: v for k, v in kwargs.items() if v is not None}}
+            return DriftConfig(**merged)
+
+        else:
+            # Create from kwargs
+            # Filter out None to let default values take precedence if not provided
+            filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            return DriftConfig(**filtered_kwargs)
 
     # -------------------------
     # Init & utils
@@ -609,7 +639,7 @@ class DriftInjector:
     def inject_feature_drift(
         self,
         df: pd.DataFrame,
-        feature_cols: List[str],
+        feature_cols: Optional[List[str]] = None,
         drift_type: str = "gaussian_noise",
         drift_magnitude: float = 0.2,
         drift_value: Optional[float] = None,
@@ -625,37 +655,93 @@ class DriftInjector:
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
+        drift_config: Optional[Union[DriftConfig, Dict]] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
         Applies drift at once based on various selection criteria.
-
-        Args:
-            df, feature_cols, drift_type, drift_magnitude, drift_value, drift_values: Core drift parameters.
-            start_index, block_index, block_column: Index and block-based selection.
-            time_start, time_end, time_ranges, specific_times: Time-based selection.
-            time_col: The timestamp column used for time selection.
-            auto_report: Whether to generate a report.
-            output_dir: Directory for reports (overrides init default).
-            generator_name: Name for reports (overrides init default).
-            correlations: Optional. Controls drift propagation to correlated features.
-                - If `True`: Calculates the correlation matrix from the current DataFrame and propagates drift.
-                - If `pd.DataFrame` or `Dict`: Uses the provided correlation structure to propagate drift.
-                - If `None` (default): No propagation is performed.
+        Can use a DriftConfig object/dict or individual arguments.
         """
-        self._validate_feature_op(drift_type, drift_magnitude)
+        # Resolve config
+        config_args = {
+            "feature_cols": feature_cols,
+            "drift_type": drift_type,
+            "magnitude": drift_magnitude,  # Map drift_magnitude to magnitude
+            "drift_value": drift_value,
+            "drift_values": drift_values,
+            "start_index": start_index,
+            "block_index": block_index,
+            "block_column": block_column,
+            "time_start": time_start,
+            "time_end": time_end,
+            # Pass extra params that might be in Config (via extra='allow') or just kwargs
+            "time_ranges": time_ranges,
+            "specific_times": specific_times,
+            "time_col": time_col,
+        }
+        # Filter None from config_args to avoid overwriting defaults/config values with None
+        config_args = {k: v for k, v in config_args.items() if v is not None}
+
+        config = self._resolve_drift_config(drift_config, **config_args)
+
+        # Fallbacks for required fields if not in config
+        if not config.feature_cols:
+            # Should not happen if passed as arg, but if config passed w/o it and arg is None
+            # We can't do much. Raise error?
+            # For now, assume user knows what they are doing or it enters loop with empty list
+            config.feature_cols = []
+
+        # Override magnitude if it was passed as drift_magnitude
+        # (Already handled by mapping above)
+
+        self._validate_feature_op(config.drift_type, config.magnitude)
         df_drift = df.copy()
+
+        # Use config properties for get_target_rows
+        # We need to extract them or pass config as kwargs?
+        # _get_target_rows takes specific args.
+
+        # Extract args for get_target_rows from config (including extras)
+        row_selector_args = config.model_dump(
+            exclude={
+                "feature_cols",
+                "drift_type",
+                "magnitude",
+                "drift_value",
+                "drift_values",
+            }
+        )
+        # Map magnitude back? No, get_target_rows doesn't need it.
+
+        # Filter kwargs to avoid passing duplicate parameters
+        # Remove all parameters that _get_target_rows accepts explicitly
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k
+            not in {
+                "start_index",
+                "end_index",
+                "index_step",
+                "block_index",
+                "block_column",
+                "blocks",
+                "block_start",
+                "n_blocks",
+                "block_step",
+                "time_col",
+                "time_start",
+                "time_end",
+                "time_ranges",
+                "specific_times",
+                "time_step",
+            }
+        }
+
         rows = self._get_target_rows(
             df,
-            start_index=start_index,
-            block_index=block_index,
-            block_column=block_column,
-            time_col=time_col,
-            time_start=time_start,
-            time_end=time_end,
-            time_ranges=time_ranges,
-            specific_times=specific_times,
-            **kwargs,
+            **row_selector_args,
+            **filtered_kwargs,  # Use filtered kwargs
         )
 
         w = np.ones(len(rows), dtype=float)
@@ -664,7 +750,7 @@ class DriftInjector:
         # If correlations is implicitly True, we can either calculate here or inside propagation
         # Let's clean it up slightly if it's just a boolean flag to start with
 
-        for col in feature_cols:
+        for col in config.feature_cols:
             if col not in df.columns:
                 warnings.warn(f"Column '{col}' not found")
                 continue
@@ -677,11 +763,13 @@ class DriftInjector:
                 "divide_value",
             }:
                 column_drift_value = (
-                    drift_values.get(col) if drift_values else drift_value
+                    config.drift_values.get(col)
+                    if config.drift_values
+                    else config.drift_value
                 )
                 if column_drift_value is None:
                     raise ValueError(
-                        f"For '{drift_type}', provide drift_value or drift_values['{col}']"
+                        f"For '{config.drift_type}', provide drift_value or drift_values['{col}']"
                     )
 
             if pd.api.types.is_numeric_dtype(df[col]):
@@ -692,8 +780,8 @@ class DriftInjector:
 
                 x2 = self._apply_numeric_op_with_weights(
                     x_original,
-                    drift_type,
-                    drift_magnitude,
+                    config.drift_type,
+                    config.magnitude,
                     w,
                     self.rng,
                     column_drift_value,
@@ -713,7 +801,7 @@ class DriftInjector:
             else:
                 s = df_drift.loc[rows, col]
                 s2 = self._apply_categorical_with_weights(
-                    s, w, drift_magnitude, self.rng
+                    s, w, config.magnitude, self.rng
                 )
                 df_drift.loc[rows, col] = s2
 
@@ -721,25 +809,25 @@ class DriftInjector:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
 
-            drift_config = {
+            drift_config_dict = {
                 "drift_method": "inject_feature_drift",
-                "feature_cols": feature_cols,
-                "drift_type": drift_type,
-                "drift_magnitude": drift_magnitude,
-                "start_index": start_index,
-                "block_index": block_index,
-                "time_start": time_start,
+                "feature_cols": config.feature_cols,
+                "drift_type": config.drift_type,
+                "drift_magnitude": config.magnitude,
+                "start_index": config.start_index,
+                "block_index": config.block_index,
+                "time_start": config.time_start,
                 "generator_name": f"{gen_name}_feature_drift",
             }
             if out_dir:
                 df_drift.to_csv(
-                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    os.path.join(out_dir, f"{drift_config_dict['generator_name']}.csv"),
                     index=False,
                 )
                 self._generate_reports(
                     df,
                     df_drift,
-                    drift_config,
+                    drift_config_dict,
                     time_col=time_col,
                     resample_rule=kwargs.get("resample_rule"),
                 )
@@ -751,7 +839,7 @@ class DriftInjector:
     def inject_feature_drift_gradual(
         self,
         df: pd.DataFrame,
-        feature_cols: List[str],
+        feature_cols: Optional[List[str]] = None,
         drift_type: str = "gaussian_noise",
         drift_magnitude: float = 0.2,
         drift_value: Optional[float] = None,
@@ -778,61 +866,98 @@ class DriftInjector:
         generator_name: Optional[str] = None,
         resample_rule: Optional[Union[str, int]] = None,
         correlations: Optional[Union[pd.DataFrame, Dict, bool]] = None,
+        drift_config: Optional[Union[DriftConfig, Dict]] = None,
+        **kwargs,
     ) -> pd.DataFrame:
         """
         Injects gradual drift on selected rows using a transition window.
-
-        Args:
-            df, feature_cols, drift_type, drift_magnitude...: Standard drift params.
-            correlations: Optional. Controls drift propagation to correlated features.
-                - If `True`: Calculates correlations from data and propagates.
-                - If `pd.DataFrame`/`Dict`: Uses provided correlations.
-                - If `None`: No propagation.
+        Can use DriftConfig or individual args.
         """
-        self._validate_feature_op(drift_type, drift_magnitude)
+        # Resolve config
+        config_args = {
+            "feature_cols": feature_cols,
+            "drift_type": drift_type,
+            "magnitude": drift_magnitude,
+            "drift_value": drift_value,
+            "drift_values": drift_values,
+            "start_index": start_index,
+            "end_index": end_index,
+            "block_index": block_index,
+            "block_column": block_column,
+            "time_start": time_start,
+            "time_end": time_end,
+            "center": center,
+            "width": width,
+            "profile": profile,
+            "speed_k": speed_k,
+            "direction": direction,
+            "inconsistency": inconsistency,
+            # Extras
+            "time_ranges": time_ranges,
+            "specific_times": specific_times,
+            "blocks": blocks,
+            "block_start": block_start,
+            "n_blocks": n_blocks,
+            "time_col": time_col,
+        }
+        config_args = {k: v for k, v in config_args.items() if v is not None}
+        config = self._resolve_drift_config(drift_config, **config_args)
+
+        if not config.feature_cols:
+            config.feature_cols = []
+
+        self._validate_feature_op(config.drift_type, config.magnitude)
         df_drift = df.copy()
 
-        rows = self._get_target_rows(
-            df,
-            start_index=start_index,
-            end_index=end_index,
-            block_index=block_index,
-            block_column=block_column,
-            blocks=blocks,
-            block_start=block_start,
-            n_blocks=n_blocks,
-            time_start=time_start,
-            time_end=time_end,
-            time_ranges=time_ranges,
-            specific_times=specific_times,
+        # Extract target rows args from config
+        row_selector_args = config.model_dump(
+            exclude={
+                "feature_cols",
+                "drift_type",
+                "magnitude",
+                "drift_value",
+                "drift_values",
+            }
         )
+
+        rows = self._get_target_rows(df, **row_selector_args, **kwargs)
 
         n = len(rows)
         if n == 0:
             return df_drift
 
-        c = int(n // 2) if center is None else int(np.clip(center, 0, n - 1))
-        w_width = max(1, int(width if width is not None else max(1, n // 5)))
+        c = (
+            int(n // 2)
+            if config.center is None
+            else int(np.clip(config.center, 0, n - 1))
+        )
+        w_width = max(
+            1, int(config.width if config.width is not None else max(1, n // 5))
+        )
         w = self._window_weights(
             n,
             center=c,
             width=w_width,
-            profile=profile,
-            k=float(speed_k),
-            direction=direction,
+            profile=config.profile,
+            k=float(config.speed_k),
+            direction=config.direction,
         )
 
-        if inconsistency > 0:
+        if config.inconsistency > 0:
             # Simplified inconsistency logic for brevity
-            noise = self.rng.normal(0, 0.1 * inconsistency, n)
+            noise = self.rng.normal(0, 0.1 * config.inconsistency, n)
             w = np.clip(w + noise, 0.0, 1.0)
 
-        for col in feature_cols:
+        for col in config.feature_cols:
             if col not in df.columns:
                 warnings.warn(f"Column '{col}' not found")
                 continue
 
-            column_drift_value = drift_values.get(col) if drift_values else drift_value
+            column_drift_value = (
+                config.drift_values.get(col)
+                if config.drift_values
+                else config.drift_value
+            )
             if pd.api.types.is_numeric_dtype(df[col]):
                 x_original = df_drift.loc[rows, col].to_numpy(copy=True)
 
@@ -841,8 +966,8 @@ class DriftInjector:
 
                 x2 = self._apply_numeric_op_with_weights(
                     x_original,
-                    drift_type,
-                    drift_magnitude,
+                    config.drift_type,
+                    config.magnitude,
                     w,
                     self.rng,
                     column_drift_value,
@@ -858,33 +983,33 @@ class DriftInjector:
             else:
                 s = df_drift.loc[rows, col]
                 s2 = self._apply_categorical_with_weights(
-                    s, w, drift_magnitude, self.rng
+                    s, w, config.magnitude, self.rng
                 )
                 df_drift.loc[rows, col] = s2
 
         if self.auto_report:
             gen_name = generator_name or self.generator_name
             out_dir = output_dir or self.output_dir
-            drift_config = {
+            drift_config_dict = {
                 "drift_method": "inject_feature_drift_gradual",
-                "feature_cols": feature_cols,
-                "drift_type": drift_type,
-                "drift_magnitude": drift_magnitude,
-                "profile": profile,
-                "center": center,
-                "width": width,
-                "inconsistency": inconsistency,
+                "feature_cols": config.feature_cols,
+                "drift_type": config.drift_type,
+                "drift_magnitude": config.magnitude,
+                "profile": config.profile,
+                "center": config.center,
+                "width": config.width,
+                "inconsistency": config.inconsistency,
                 "generator_name": f"{gen_name}_feature_gradual",
             }
             if out_dir:
                 df_drift.to_csv(
-                    os.path.join(out_dir, f"{drift_config['generator_name']}.csv"),
+                    os.path.join(out_dir, f"{drift_config_dict['generator_name']}.csv"),
                     index=False,
                 )
                 self._generate_reports(
                     df,
                     df_drift,
-                    drift_config,
+                    drift_config_dict,
                     time_col=time_col,
                     resample_rule=resample_rule,
                 )
@@ -1927,7 +2052,7 @@ class DriftInjector:
     def inject_multiple_types_of_drift(
         self,
         df: pd.DataFrame,
-        schedule: List[Dict[str, Any]],
+        schedule: List[Union[Dict[str, Any], DriftConfig]],
         output_dir: Optional[str] = None,
         generator_name: Optional[str] = None,
         time_col: Optional[str] = None,
@@ -1939,9 +2064,8 @@ class DriftInjector:
 
         Args:
             df (pd.DataFrame): The dataframe to apply drift to.
-            schedule (List[Dict[str, Any]]): A list of drift configurations.
-                Each config must have a 'method' key (e.g., 'inject_feature_drift')
-                and a 'params' dict.
+            schedule (List[Union[Dict, Any], DriftConfig]): A list of drift configurations.
+                Each config must have a 'method' key (or be a DriftConfig with a method).
             output_dir (Optional[str]): Override output directory.
             generator_name (Optional[str]): Override generator name.
 
@@ -1956,8 +2080,17 @@ class DriftInjector:
         current_df = df.copy()
 
         for i, config in enumerate(schedule):
-            method_name = config.get("method")
-            params = config.get("params", {}).copy()
+            method_name = "inject_feature_drift"
+            params = {}
+            drift_obj = None
+
+            if isinstance(config, DriftConfig):
+                method_name = config.method
+                drift_obj = config
+                params = config.params.copy() if config.params else {}
+            elif isinstance(config, dict):
+                method_name = config.get("method")
+                params = config.get("params", {}).copy()
 
             if not method_name or not hasattr(self, method_name):
                 warnings.warn(
@@ -1992,7 +2125,14 @@ class DriftInjector:
                 if "df" in params:
                     del params["df"]
 
-                current_df = drift_method(current_df, **params)
+                if drift_obj:
+                    # Pass config object if available
+                    current_df = drift_method(
+                        current_df, drift_config=drift_obj, **params
+                    )
+                else:
+                    # Pass params as kwargs
+                    current_df = drift_method(current_df, **params)
             except Exception as e:
                 warnings.warn(f"Failed to apply drift '{method_name}': {e}")
 
@@ -2948,6 +3088,38 @@ class DriftInjector:
         )
 
         try:
+            # Filter kwargs to avoid duplicate parameter errors
+            # Remove parameters that are already explicitly passed to _apply_drift_by_mode
+            filtered_kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if k
+                not in {
+                    "drift_type",
+                    "drift_magnitude",
+                    "drift_mode",
+                    "center",
+                    "width",
+                    "profile",
+                    "speed_k",
+                    "direction",
+                    "repeats",
+                    "windows",
+                    "start_index",
+                    "end_index",
+                    "block_index",
+                    "block_column",
+                    "blocks",
+                    "time_col",
+                    "time_start",
+                    "time_end",
+                    "time_ranges",
+                    "specific_times",
+                    "conditions",
+                    "feature_cols",
+                }
+            }
+
             # Apply drift to numeric columns
             if numeric_cols:
                 df_drift = self._apply_drift_by_mode(
@@ -2974,7 +3146,7 @@ class DriftInjector:
                     time_ranges=time_ranges,
                     specific_times=specific_times,
                     conditions=conditions,
-                    **kwargs,
+                    **filtered_kwargs,
                 )
 
             # Apply drift to categorical columns
@@ -3055,7 +3227,7 @@ class DriftInjector:
                         specific_times=specific_times,
                         conditions=conditions,
                         is_boolean=True,
-                        **kwargs,
+                        **filtered_kwargs,
                     )
 
         finally:

@@ -277,6 +277,89 @@ data = injector.inject_feature_evolution(
 
 ---
 
+## ScenarioConfig Class Reference
+
+**Import:** `from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig`
+
+`ScenarioConfig` is a Pydantic model for configuring scenario injection with feature evolution and target construction.
+
+### ScenarioConfig Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `state_config` | Dict | `None` | State configuration for scenario |
+| `evolve_features` | Dict[str, Union[Dict, EvolutionFeatureConfig]] | `{}` | Feature evolution configurations |
+| `construct_target` | Dict | `None` | Target construction configuration |
+
+### EvolutionFeatureConfig Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | str | - | Evolution type: `"linear"`, `"cycle"`, `"sigmoid"`, `"trend"`, `"seasonal"`, `"noise"`, `"decay"` |
+| `slope` | float | `0.0` | Slope for linear/trend evolution |
+| `intercept` | float | `0.0` | Intercept for linear evolution |
+| `amplitude` | float | `1.0` | Amplitude for seasonal/cycle patterns |
+| `period` | float | `100.0` | Period length for cyclical patterns |
+| `phase` | float | `0.0` | Phase shift for cyclical patterns |
+| `center` | float | `None` | Center point for sigmoid evolution |
+| `width` | float | `None` | Width for sigmoid transition |
+
+### Usage Examples
+
+**Basic Feature Evolution (Object):**
+```python
+from calm_data_generator.generators.configs import EvolutionFeatureConfig
+
+evolution_config = {
+    "revenue": EvolutionFeatureConfig(
+        type="linear",
+        slope=100.0,  # Increase by 100 per period
+        intercept=1000.0
+    ),
+    "temperature": EvolutionFeatureConfig(
+        type="seasonal",
+        amplitude=10.0,
+        period=365,  # Yearly cycle
+        phase=0.0
+    )
+}
+```
+
+**Using ScenarioConfig:**
+```python
+from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig
+
+scenario_config = ScenarioConfig(
+    evolve_features={
+        "sales": EvolutionFeatureConfig(
+            type="trend",
+            slope=0.05  # 5% growth
+        ),
+        "churn": EvolutionFeatureConfig(
+            type="decay",
+            slope=-0.02  # 2% decay
+        )
+    },
+    construct_target={
+        "formula": "0.3 * sales - 0.5 * churn",
+        "threshold": 0.7
+    }
+)
+```
+
+**Backward Compatibility (Dictionary):**
+```python
+# Still supported
+evolution_config = {
+    "price": {
+        "type": "trend",
+        "slope": 0.01
+    }
+}
+```
+
+---
+
 A module to evolve features, build targets based on rules, and project data to future time periods.
 
 ---
