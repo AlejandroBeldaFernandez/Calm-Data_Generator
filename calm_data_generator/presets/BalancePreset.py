@@ -1,0 +1,37 @@
+import pandas as pd
+import numpy as np
+from typing import Dict, Union, Any, Optional, List
+from .base import GeneratorPreset
+from calm_data_generator.generators.tabular import RealGenerator
+
+
+class BalancedDataGeneratorPreset(GeneratorPreset):
+    """
+    Preset designed to balance an originally imbalanced dataset.
+
+    Uses SMOTE (or ADASYN) to oversample minority classes to achieve a balanced distribution.
+    """
+
+    def generate(
+        self, data: pd.DataFrame, n_samples: int, target_col: str, **kwargs
+    ) -> pd.DataFrame:
+        gen = RealGenerator(
+            auto_report=kwargs.pop("auto_report", False), random_state=self.random_state
+        )
+
+        if self.verbose:
+            print(
+                f"[BalancedDataGeneratorPreset] Balancing data based on '{target_col}' using SMOTE..."
+            )
+
+        # Enforce SMOTE
+        # SMOTE is fast, so fast_dev_run might not need to change much,
+        # but we ensure parameters are fixed.
+
+        return gen.generate(
+            data=data,
+            n_samples=n_samples,
+            target_col=target_col,
+            method="smote",
+            # No kwargs passed to generate to prevent override of method
+        )

@@ -1,0 +1,25 @@
+from .base import GeneratorPreset
+from calm_data_generator.generators.clinical import ClinicalDataGenerator
+
+
+class LongitudinalHealthPreset(GeneratorPreset):
+    """
+    Generates longitudinal clinical data (multi-visit patients).
+    """
+
+    def generate(self, n_samples, n_visits=5, **kwargs):
+        gen = ClinicalDataGenerator(
+            auto_report=kwargs.pop("auto_report", False), seed=self.random_state
+        )
+
+        if self.verbose:
+            print(
+                f"[LongitudinalHealthPreset] Simulating {n_samples} patients with ~{n_visits} visits each..."
+            )
+
+        # Clinical generator supports longitudinal generation natively
+        # We lock method but ClinicalGenerator usually handles multiple internal models.
+        # fast_dev_run doesn't explicitly map to ClinicalGenerator epochs easily without checking implementation,
+        # but we definitely block kwargs.
+
+        return gen.generate(n_samples=n_samples, longitudinal=True, avg_visits=n_visits)

@@ -1,0 +1,42 @@
+from .base import GeneratorPreset
+from calm_data_generator.generators.tabular import RealGenerator
+from calm_data_generator.generators.configs import DriftConfig
+
+
+class GradualDriftPreset(GeneratorPreset):
+    """
+    Simulates gradual drift over time or index.
+    """
+
+    def generate(self, data, n_samples, drift_cols, slope=0.01, **kwargs):
+        drift_conf = []
+        for col in drift_cols:
+            drift_conf.append(
+                {
+                    "column": col,
+                    "type": "linear_drift",  # or shift_mean with trend
+                    "slope": slope,
+                }
+            )
+
+        gen = RealGenerator(
+            auto_report=kwargs.pop("auto_report", True), random_state=self.random_state
+        )
+
+        if self.verbose:
+            print(
+                f"[GradualDriftPreset] Injecting gradual drift (slope={slope}) into {drift_cols}..."
+            )
+
+        # Enforce CTGAN for gradual drift
+        epochs = 1 if self.fast_dev_run else 300
+
+        config = {"method": "ctgan", "epochs": epochs}
+
+        # Leveraging RealGenerator's drift injection which supports linear trends via DriftInjector/ScenarioInjector linkage
+        return gen.generate(
+            data=data,
+            n_samples=n_samples,
+            drift_injection_config=DriftConfig(drift_injection_config=drift_conf),
+            **config,
+        )
