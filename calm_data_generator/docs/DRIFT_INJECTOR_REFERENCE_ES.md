@@ -1,288 +1,249 @@
 # DriftInjector - Referencia Completa
 
-**Ubicación:** `calm_data_generator.generators.drift.DriftInjector`
+**Ubicación:** `calm_data_generator.injectors.DriftInjector`
 
-Un módulo para inyectar varios tipos de drift (desplazamiento de datos) en datasets.
+El `DriftInjector` es una herramienta potente para simular **drift de datos** (cambios en la distribución de datos a lo largo del tiempo) en datasets sintéticos. Es esencial para probar sistemas de monitoreo de modelos, algoritmos de detección de drift y pipelines de ML adaptativos.
 
 ---
 
-## Inicio Rápido: Drift desde `generate()`
+## ⚡ Inicio Rápido: Drift desde `generate()`
 
-Puedes inyectar drift directamente al generar datos sintéticos usando `RealGenerator.generate()`:
+La forma más sencilla de especificar drift es pasando una `drift_injection_config` a `RealGenerator.generate()`. Exhortamos el uso del objeto `DriftConfig` para validación y seguridad de tipos.
+
+### Usando `DriftConfig` (Recomendado)
 
 ```python
 from calm_data_generator.generators.configs import DriftConfig
 
+# 1. Definir Configuración de Drift
+drift_conf = DriftConfig(
+    method="inject_feature_drift_gradual",
+    feature_cols=["age", "income"],  # Columnas a afectar
+    drift_type="shift",              # Tipo de operación (shift, scale, noise, etc.)
+    magnitude=0.3,                   # Intensidad (0.0 - 1.0)
+    center=500,                      # Fila donde el drift alcanza su pico
+    width=200,                       # Ancho de la ventana de transición
+    profile="sigmoid"                # Forma de la transición
+)
+
+# 2. Generar Datos con Drift
 synthetic = gen.generate(
     data=real_data,
     n_samples=1000,
     method='ctgan',
-    drift_injection_config=[
-        DriftConfig(
-            method="inject_drift",
-            params={
-                "columns": ["age", "income"],
-                "drift_mode": "gradual",
-                "drift_magnitude": 0.3
-            }
-        )
-    ]
+    drift_injection_config=[drift_conf]
 )
 ```
 
-Cada elemento en `drift_injection_config` requiere:
-- `method`: Nombre del método de DriftInjector (ver abajo)
-- `params`: Diccionario de parámetros para ese método
+### Parámetros Soportados por `DriftConfig`
 
----
-
-## Referencia de la Clase DriftConfig
-
-**Importar:** `from calm_data_generator.generators.configs import DriftConfig`
-
-`DriftConfig` es un modelo Pydantic que proporciona configuración con tipos seguros para la inyección de drift. Soporta configuración basada en diccionarios y objetos.
-
-### Parámetros Principales
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
+| Parámetro | Tipo | Defecto | Descripción |
+|-----------|------|---------|-------------|
 | `method` | str | `"inject_feature_drift"` | Método de DriftInjector a llamar |
-| `drift_type` | str | `"gaussian_noise"` | Tipo de operación de drift (ver Tipos de Operación) |
 | `feature_cols` | List[str] | `None` | Columnas a las que aplicar drift |
+| `drift_type` | str | `"gaussian_noise"` | Tipo de operación de drift (ej. `shift`, `scale`) |
 | `magnitude` | float | `0.2` | Intensidad del drift (típicamente 0.0-1.0) |
-
-### Parámetros de Selección (Rango de Filas/Tiempo)
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
-| `start_index` | int | `None` | Índice de fila inicial para drift |
-| `end_index` | int | `None` | Índice de fila final para drift |
-| `block_index` | int | `None` | Bloque específico para aplicar drift |
-| `block_column` | str | `None` | Nombre de columna que identifica bloques |
-| `time_start` | str | `None` | Timestamp de inicio (formato ISO) |
-| `time_end` | str | `None` | Timestamp final (formato ISO) |
-
-### Parámetros de Drift Gradual (Ventana/Perfil)
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
-| `center` | int/float | `None` | Punto central de la ventana de drift |
-| `width` | int/float | `None` | Ancho de la transición de drift |
-| `profile` | str | `"sigmoid"` | Forma de transición: `"sigmoid"`, `"linear"`, `"cosine"` |
-| `speed_k` | float | `1.0` | Multiplicador de velocidad de transición |
-| `direction` | str | `"up"` | Dirección del drift: `"up"` o `"down"` |
-| `inconsistency` | float | `0.0` | Ruido aleatorio en aplicación de drift (0.0-1.0) |
-
-### Parámetros de Drift Especializado
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
-| `drift_value` | float | `None` | Valor fijo para `add_value`, `multiply_value`, etc. |
-| `drift_values` | Dict[str, float] | `None` | Valores de drift por columna |
-| `params` | Dict[str, Any] | `{}` | Parámetros adicionales específicos del método |
-
-### Ejemplos de Uso
-
-**Uso Básico (Objeto):**
-```python
-from calm_data_generator.generators.configs import DriftConfig
-
-drift_config = DriftConfig(
-    method="inject_feature_drift",
-    feature_cols=["age", "income"],
-    drift_type="shift",
-    magnitude=0.3,
-    start_index=100,
-    end_index=500
-)
-```
-
-**Drift Gradual con Ventana:**
-```python
-drift_config = DriftConfig(
-    method="inject_feature_drift_gradual",
-    feature_cols=["temperature"],
-    drift_type="shift",
-    magnitude=0.5,
-    center=500,      # Drift alcanza el pico en fila 500
-    width=200,       # Transición sobre 200 filas
-    profile="sigmoid"  # Transición suave en curva S
-)
-```
-
-**Compatibilidad hacia Atrás (Diccionario):**
-```python
-# Todavía soportado para compatibilidad
-drift_config = {
-    "method": "inject_feature_drift",
-    "params": {
-        "feature_cols": ["age"],
-        "drift_magnitude": 0.3
-    }
-}
-```
-
----
-
-## Inicialización
-
-```python
-from calm_data_generator.generators.drift import DriftInjector
-
-injector = DriftInjector(
-    output_dir="./drift_output",      # Directorio de salida
-    generator_name="my_drift",        # Nombre base para archivos
-    random_state=42,                  # Semilla
-    time_col="timestamp",             # Columna de tiempo por defecto
-    block_column="block",             # Columna de bloque por defecto
-    target_column="target",           # Columna objetivo por defecto
-    auto_report=True,                 # Generar informe automáticamente
-    minimal_report=False,             # Informes simplificados
-)
-```
-
-### Parámetros del Constructor
-
-| Parámetro | Tipo | Defecto | Descripción |
-|-----------|------|---------|-------------|
-| `output_dir` | str | `"drift_output"` | Directorio para salidas |
-| `generator_name` | str | `"DriftInjector"` | Nombre base para archivos |
-| `random_state` | int | `None` | Semilla para reproducibilidad |
-| `time_col` | str | `None` | Columna de tiempo por defecto |
-| `block_column` | str | `None` | Columna de bloque por defecto |
-| `target_column` | str | `None` | Columna objetivo por defecto |
-| `auto_report` | bool | `True` | Generar informe de calidad auto. |
-| `minimal_report` | bool | `False` | Informes simplificados |
-
----
-
-## Inyección de Drift Unificada: `inject_drift()`
-
-**¡NUEVO!** Un único método que auto-detecta tipos de columna y aplica operaciones de drift apropiadas.
-
-```python
-drifted = injector.inject_drift(
-    df=data,
-    columns=['age', 'income', 'gender', 'is_active'],  # Cualquier tipo
-    drift_mode='gradual',          # 'abrupt', 'gradual', 'incremental', 'recurrent'
-    drift_magnitude=0.3,
-    center=500,                    # Para modo gradual
-    width=200,
-    correlations=True,             # Propagar drift a columnas correlacionadas
-)
-```
-
-### Propagación de Correlaciones
-
-La inyección de drift puede respetar la estructura de correlación de tus datos, asegurando que los cambios en una característica se reflejen de manera realista en las características correlacionadas.
-
-**Parámetro `correlations`:**
-- **`True`**: Calcula la matriz de correlación de Pearson desde el DataFrame actual y propaga el drift proporcionalmente.
-- **`pd.DataFrame`** o **`Dict`**: Usa una matriz o diccionario de correlación específico proporcionado por ti.
-- **`None`** (Defecto): No se realiza propagación; solo cambian las columnas especificadas.
-
-Mecanismo: $\Delta Y = \rho_{XY} \cdot \frac{\sigma_Y}{\sigma_X} \cdot \Delta X$
-
-> [!TIP]
-> **Nota sobre Concept Drift:** Si deseas simular **Concept Drift** (donde las reglas del modelo cambian y por tanto falla, ej: el input sube pero el target se mantiene igual), debes **excluir la columna target** de la matriz de correlaciones o anular su correlación manualmente antes de pasarla. Si incluyes el target en la propagación, este se ajustará junto con el input (Covariate Shift), manteniendo la relación original y haciendo que el drift sea más difícil de detectar por el modelo.
-
-### Tipos de Columna Auto-Detectados
-
-| Tipo Columna | Detección | Operación por Defecto |
-|--------------|-----------|-----------------------|
-| **Numérica** | dtypes `int`, `float` | `shift` |
-| **Categórica** | dtypes `object`, `category` | `frequency` |
-| **Booleana** | dtype `bool` o 2 valores únicos | `flip` |
-
-### Modos de Drift
-
-| Modo | Descripción |
-|------|-------------|
-| `abrupt` | Cambio inmediato desde `start_index` |
-| `gradual` | Transición suave usando función ventana (sigmoide, lineal, coseno) |
-| `incremental` | Drift constante y suave sobre todo el rango |
-| `recurrent` | Múltiples ventanas de drift (controlado por `repeats`) |
-
-### Parámetros
-
-| Parámetro | Tipo | Defecto | Descripción |
-|-----------|------|---------|-------------|
-| `columns` | List[str] | - | Columnas donde aplicar drift (cualquier tipo) |
-| `drift_magnitude` | float | `0.3` | Intensidad del drift (0.0 a 1.0) |
-| `drift_mode` | str | `"abrupt"` | Patrón del drift |
-| `numeric_operation` | str | `"shift"` | Operación para columnas numéricas |
-| `categorical_operation` | str | `"frequency"` | Operación para columnas categóricas |
-| `boolean_operation` | str | `"flip"` | Operación para columnas booleanas |
-| `center` | int | auto | Centro de ventana de transición (gradual) |
-| `width` | int | auto | Ancho de ventana de transición (gradual) |
-| `profile` | str | `"sigmoid"` | Perfil de transición: `sigmoid`, `linear`, `cosine` |
-| `repeats` | int | `3` | Número de ventanas (recurrent) |
 | `start_index` | int | `None` | Fila donde empieza el drift |
-| `conditions` | List[Dict] | `None` | Filtros para drift condicional |
-
-### Operaciones Disponibles
-
-**Numéricas**: `shift` (desplazar), `scale` (escalar), `gaussian_noise` (ruido gaussiano), `uniform_noise` (ruido uniforme), `add_value` (sumar), `subtract_value`, `multiply_value`
-
-**Categóricas**: 
-- `frequency`: Cambia la distribución de frecuencia (hace lo raro frecuente).
-- `new_category`: Introduce un valor nuevo (ej. "NEW_CAT").
-- `typos`: Introduce errores tipográficos o ruido de caracteres.
-
-**Booleanas**: 
-- `flip`: Invierte el valor (True <-> False).
+| `end_index` | int | `None` | Fila donde termina el drift |
+| `center` | int | `None` | Punto central de la ventana (para gradual) |
+| `width` | int | `None` | Ancho de la transición (para gradual) |
+| `profile` | str | `"sigmoid"` | Forma de transición (`sigmoid`, `linear`, `cosine`) |
 
 ---
 
-## Tipos de Operación (`drift_type`)
+## 🌲 Árbol de Decisión: ¿Qué Tipo de Drift Usar?
 
-Para columnas **numéricas**:
+Usa esta guía para elegir el método correcto:
 
-| Tipo | Descripción | Fórmula |
-|------|-------------|---------|
-| `gaussian_noise` | Ruido Gaussiano | `x + N(0, magnitude * std)` |
-| `uniform_noise` | Ruido Uniforme | `x + U(-mag*std, +mag*std)` |
-| `shift` | Desplazamiento de Media | `x + (mean * magnitude)` |
-| `scale` | Escalado (apertura) | `mean + (x - mean) * (1 + magnitude)` |
-| `add_value` | Sumar valor fijo | `x + drift_value` |
+```text
+¿Qué quieres cambiar?
+├─ ¿Valores de una característica (Feature)?
+│  ├─ ¿Gradualmente en el tiempo? → inject_feature_drift_gradual()
+│  └─ ¿Repentinamente en un punto? → inject_feature_drift() (con start_index)
+├─ ¿Distribución del objetivo/etiqueta (Label)?
+│  ├─ ¿Invertir etiquetas? → inject_label_drift()
+│  └─ ¿Forzar una distribución específica? → inject_label_shift()
+├─ ¿Distribución de características (no valores)?
+│  └─ → inject_categorical_frequency_drift() o inject_covariate_shift()
+└─ ¿Relación Feature→Target?
+   └─ → inject_conditional_drift() (Concept Drift)
+```
 
 ---
 
-## Métodos Especializados
+## 📚 Tipos de Drift Explicados
 
-Aunque `inject_drift` es recomendado, puedes usar métodos específicos para control granular.
+| Tipo de Drift | Qué Hace | Escenario de Ejemplo |
+|---------------|----------|----------------------|
+| **Feature Drift (Gradual)** | Cambia valores lentamente | Población envejeciendo, inflación |
+| **Feature Drift (Repentino)**| Cambio abrupto | Reemplazo de sensor, actualización de sistema |
+| **Label Drift** | Cambia distribución del target | Ola de fraudes, cambio de mercado |
+| **Covariate Shift** | Cambia distribución de inputs | Nuevo segmento de usuarios |
+| **Concept Drift** | Cambia lógica Feature→Target | Definición de "buen cliente" cambia |
 
-**Numéricos:**
-- `inject_feature_drift`
-- `inject_feature_drift_gradual`
-- `inject_feature_drift_incremental`
-- `inject_feature_drift_recurrent`
+---
 
-**Targets/Labels:**
-- `inject_label_drift` (Abrupto)
-- `inject_label_drift_gradual`
+## 🛠️ Referencia de Clase `DriftInjector`
 
-**Categóricos:**
-- `inject_categorical_frequency_drift`
-- `inject_new_category_drift`
-- `inject_typos_drift`
+Si necesitas más control del que permite `generate()`, puedes usar `DriftInjector` directamente sobre cualquier DataFrame.
 
-**Otros:**
-- `inject_missing_values_drift` (Introduce NaNs)
-- `inject_conditional_drift` (Drift basado en filtros SQL-like)
+**Importar:** `from calm_data_generator.injectors import DriftInjector`
 
-## Ejemplo: Drift Numérico No-Negativo
-
-Para inyectar drift en columnas numéricas que deben permanecer positivas (ej. precios, edad), usa la operación `scale`. Esto multiplica los valores en lugar de sumar, preservando el signo (si el factor es positivo).
+### Inicialización
 
 ```python
-# Evitar valores negativos (ej. Salario, Edad)
-# Usa 'scale' (multiplicación) en lugar de 'shift' (suma).
-drifted = injector.inject_drift(
-    df=data,
-    columns=['salary', 'age'],
-    drift_mode='gradual',
-    drift_magnitude=0.2,       # Aumenta valores un ~20%
-    numeric_operation='scale'  # Seguro para datos no negativos
+injector = DriftInjector(
+    output_dir="./drift_output",      # Directorio para reportes/gráficos
+    generator_name="my_drift",        # Prefijo para archivos
+    random_state=42,                  # Semilla de reproducibilidad
+    auto_report=True,                 # Generar reporte PDF automáticamente
+)
+```
+
+### Métodos de Feature Drift
+
+#### `inject_feature_drift()` - Cambio Abrupto
+Cambia valores directamente a partir de `start_index`.
+
+```python
+drifted_df = injector.inject_feature_drift(
+    df=df,
+    feature_cols=["price", "quantity"],
+    drift_type="shift",        # Opciones: shift, scale, gaussian_noise ...
+    drift_magnitude=0.3,       # +30% desplazamiento
+    start_index=500,           # Empieza en fila 500
+)
+```
+
+#### `inject_feature_drift_gradual()` - Transición Suave
+La transición sigue una curva (sigmoide, lineal) centrada en `center`.
+
+```python
+drifted_df = injector.inject_feature_drift_gradual(
+    df=df,
+    feature_cols=["price"],
+    drift_type="scale",
+    drift_magnitude=0.5,     # Factor de escala aumenta en 0.5
+    center=500,              # Centro de transición
+    width=200,               # Duración de transición (filas)
+    profile="sigmoid"        # Forma de curva
+)
+```
+
+#### `inject_feature_drift_incremental()` - Crecimiento Continuo
+Drift lineal que sigue creciendo o decreciendo sobre el rango.
+
+```python
+drifted_df = injector.inject_feature_drift_incremental(
+    df=df,
+    feature_cols=["usage"],
+    drift_type="shift",
+    drift_magnitude=0.5,
+    start_index=0,
+    end_index=1000,
+)
+```
+
+### Drift de Etiquetas (Label) y Categórico
+
+#### `inject_label_drift()`
+Invierte etiquetas aleatoriamente (bueno para simular ruido/errores).
+
+```python
+drifted_df = injector.inject_label_drift(
+    df=df,
+    target_cols=["is_fraud"],
+    drift_magnitude=0.1,     # Invierte 10% de etiquetas
+    start_index=500
+)
+```
+
+#### `inject_categorical_frequency_drift()`
+Cambia la frecuencia de categorías (ej. hacer comunes los ítems raros).
+
+```python
+drifted_df = injector.inject_categorical_frequency_drift(
+    df=df,
+    feature_cols=["category"],
+    drift_magnitude=0.5,
+    perturbation="invert"    # Invierte distribución de frecuencia
+)
+```
+
+---
+
+## 🧪 Tipos de Operación (`drift_type`)
+
+### Para Columnas Numéricas
+
+| Tipo | Fórmula/Lógica | Caso de Uso |
+|------|----------------|-------------|
+| `shift` | `x + (mean * magnitude)` | Promedio móvil, sesgo |
+| `scale` | `mean + (x - mean) * (1 + magnitude)` | Aumento de varianza/amplitud |
+| `gaussian_noise` | `x + N(0, magnitude * std)` | Ruido de sensor, error de medición |
+| `add_value` | `x + magnitude` | Offset fijo |
+| `multiply_value` | `x * magnitude` | Ganancia multiplicativa |
+
+### Para Categóricas/Booleanas
+
+| Tipo | Método | Lógica |
+|------|--------|--------|
+| `frequency` | `inject_categorical...` | Remuestrea para cambiar conteos |
+| `new_category` | `inject_new_category...` | Inyecta valores desconocidos |
+| `flip` | `inject_boolean_drift` | Invierte True/False |
+| `typos` | `inject_typos_drift` | Añade ruido de caracteres |
+
+---
+
+## 🌟 Escenarios del Mundo Real
+
+### Caso 1: Degradación de Sensor (Incremental + Ruido)
+Simular un sensor IoT que pierde calibración y se vuelve más ruidoso.
+
+```python
+# 1. Pérdida de calibración (Shift Lineal)
+df = injector.inject_feature_drift_incremental(
+    df=sensor_df,
+    feature_cols=["reading"],
+    drift_type="shift",
+    drift_magnitude=0.5
+)
+
+# 2. Ruido creciente (Gaussiano)
+df = injector.inject_feature_drift(
+    df=df,
+    feature_cols=["reading"],
+    drift_type="gaussian_noise",
+    drift_magnitude=0.3,
+    start_index=500
+)
+```
+
+### Caso 2: Patrón Estacional (Recurrente)
+Añadir efecto de temporada vacacional donde las ventas se disparan.
+
+```python
+df = injector.inject_feature_drift_recurrent(
+    df=sales_df,
+    feature_cols=["sales"],
+    drift_type="multiply_value",
+    drift_magnitude=1.5,  # 50% aumento
+    repeats=3             # 3 temporadas
+)
+```
+
+### Caso 3: Concept Drift (Basado en Reglas)
+Cambio de lógica: Usuarios de altos ingresos empiezan a impagar repentinamente.
+
+```python
+df = injector.inject_conditional_drift(
+    df=loan_df,
+    feature_cols=["default"],
+    conditions=[
+        {"column": "income", "operator": ">", "value": 80000}
+    ],
+    drift_type="add_value", # Flip 0 -> 1
+    drift_magnitude=1.0,
+    center=1000
 )
 ```

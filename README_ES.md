@@ -66,6 +66,38 @@ Esta biblioteca aprovecha y unifica las mejores herramientas de código abierto 
 - **River**: Potencia las capacidades de generación en streaming (`[stream]` extra).
 - **YData Profiling**: Genera informes de calidad automatizados y completos.
 
+## ⚡ Presets (Plantillas)
+
+**Calm-Data-Generator** incluye un conjunto de **Presets** diseñados para darte una ventaja inicial. Son configuraciones predefinidas para casos de uso comunes.
+
+> [!TIP]
+> **Los Presets son Puntos de Partida**: Están pensados para ser usados como **base**. Debes importar un preset, modificarlo para que se ajuste a tus datos específicos (ej. cambiar columnas, ajustar umbrales) y luego pasarlo al generador.
+
+### Presets Disponibles
+Ubicados en `calm_data_generator/presets/`, fáciles de importar e iterar:
+
+- **`FastPrototypePreset`**: Optimizado para velocidad (menos épocas, modelos simples) para probar pipelines rápidamente.
+- **`HighFidelityPreset`**: Ajustado para máxima calidad (CTGAN/TVAE con más entrenamiento) para datos de producción.
+- **`ClinicalDataGenerator`**: Especializado para datos de salud (demografía + ómicas).
+- **`ImbalancePreset`**: Configurado para manejar y rebalancear datasets muy desbalanceados.
+- **`TimeSeriesPreset`**: Configuración para generación de datos secuenciales.
+
+**Ejemplo de Uso:**
+```python
+from calm_data_generator.presets import FastPrototypePreset
+from calm_data_generator import RealGenerator
+
+# 1. Cargar la configuración del preset
+config = FastPrototypePreset
+
+# 2. Modificarla para tu caso específico
+config["epochs"] = 50  # Sobrescribir valor por defecto
+
+# 3. Usarlo
+gen = RealGenerator()
+gen.generate(data, **config)
+```
+
 ## Librerías Clave y Ecosistema
  
  | Librería | Rol | Uso en Calm-Data-Generator |

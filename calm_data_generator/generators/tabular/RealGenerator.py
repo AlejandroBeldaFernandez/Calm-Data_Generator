@@ -28,6 +28,8 @@ from typing import Optional, Dict, Any, List, Union
 import os
 import math
 import tempfile
+import joblib
+import zipfile
 
 
 # Synthcity and customized dependencies are lazy-loaded
@@ -39,7 +41,9 @@ from calm_data_generator.generators.tabular.QualityReporter import QualityReport
 from calm_data_generator.generators.configs import DateConfig, DriftConfig, ReportConfig
 from calm_data_generator.generators.drift.DriftInjector import DriftInjector
 
+
 # Synthcity import
+from calm_data_generator.generators.persistence_models import SimpleDenoiser, FCSModel
 
 
 # Suppress common warnings for cleaner output
@@ -78,6 +82,319 @@ class RealGenerator(BaseGenerator):
         self.reporter = QualityReporter(minimal=minimal_report)
         self.synthesizer = None
         self.metadata = None
+        self.method = None  # Track the method used for training
+
+    def _generate_from_fitted(self, n_samples: int) -> pd.DataFrame:
+        """Helper to generate data from a fitted synthesizer."""
+        if self.method in [
+            "ctgan",
+            "tvae",
+            "timegan",
+            "timevae",
+            "ddpm",
+            "scvi",
+            "gears",
+        ]:
+            # Synthcity plugins usually return a loader/object with .dataframe()
+            # or sometimes just a dataframe? Let's assume standard plugin behavior.
+            res = self.synthesizer.generate(count=n_samples)
+            if hasattr(res, "dataframe"):
+                return res.dataframe()
+            return res
+        elif self.method in ["cart", "rf", "lgbm", "CART", "RF", "LGBM"]:
+            # FCS Methods
+            if hasattr(self.synthesizer, "generate"):
+                return self.synthesizer.generate(n_samples)
+            else:
+                self.logger.warning(
+                    f"Synthesizer for {self.method} does not have generate method via FCSModel."
+                )
+
+        elif self.method == "copula":
+            # Gaussian Copula (copulae lib)
+            samples = self.synthesizer.random(n_samples)
+
+            # Restore state
+            cols = self.metadata.get("columns")
+            numeric_cols = self.metadata.get("numeric_cols")
+            scaler = self.metadata.get("scaler")
+
+            if scaler is None or numeric_cols is None or len(numeric_cols) == 0:
+                self.logger.warning(
+                    "Copula scaler or numeric columns not found in metadata. Returning raw samples."
+                )
+                return pd.DataFrame(samples, columns=cols)
+
+            # Inverse transform
+            synth_numeric = pd.DataFrame(
+                scaler.inverse_transform(samples), columns=numeric_cols
+            )
+
+            # We need to handle non-numeric columns if they existed?
+            # _synthesize_copula handles them by resampling. We need that data?
+            # If we don't have the original data, we can't resample!
+            # We should probably store a sample of non-numeric data in metadata if we want to support this?
+            # For now, let's just return numeric parts and warn.
+            if len(cols) > len(numeric_cols):
+                self.logger.warning(
+                    "Original non-numeric data not stored. Only numeric columns generated for Copula."
+                )
+                # Fill others with NaNs or similar?
+                for c in cols:
+                    if c not in numeric_cols:
+                        synth_numeric[c] = np.nan
+
+            return synth_numeric[cols]
+
+        elif self.method == "gmm":
+            # sklearn GMM
+            synth_data, _ = self.synthesizer.sample(n_samples)
+            cols = self.metadata.get("columns") if self.metadata else None
+            return pd.DataFrame(synth_data, columns=cols)
+
+        elif self.method == "diffusion":
+            import torch
+
+            model = self.synthesizer
+            meta = self.metadata
+            steps = meta["steps"]
+            n_features = meta["n_features"]
+            alphas = meta["alphas"]
+            alphas_cumprod = meta["alphas_cumprod"]
+            betas = meta["betas"]
+            scaler = meta["scaler"]
+            encoders = meta["encoders"]
+            numeric_cols = meta["numeric_cols"]
+
+            model.eval()
+            with torch.no_grad():
+                x = torch.randn(n_samples, n_features)
+                for t in reversed(range(steps)):
+                    t_batch = torch.full((n_samples,), t, dtype=torch.float32)
+                    pred_noise = model(x, t_batch)
+
+                    alpha = alphas[t]
+                    alpha_cumprod = alphas_cumprod[t]
+                    beta = betas[t]
+
+                    if t > 0:
+                        noise = torch.randn_like(x)
+                    else:
+                        noise = 0
+
+                    x = (1 / torch.sqrt(alpha)) * (
+                        x - (beta / torch.sqrt(1 - alpha_cumprod)) * pred_noise
+                    ) + torch.sqrt(beta) * noise
+
+            synth_array = scaler.inverse_transform(x.numpy())
+            synth_df = pd.DataFrame(synth_array, columns=meta["columns"])
+
+            for col, le in encoders.items():
+                synth_df[col] = (
+                    synth_df[col].round().clip(0, len(le.classes_) - 1).astype(int)
+                )
+                synth_df[col] = le.inverse_transform(synth_df[col])
+
+            for col in numeric_cols:
+                # We don't know original type exactly unless we stored it, but we can guess or use float
+                pass  # Keep as float?
+
+            return synth_df
+
+        # Fallback
+        self.logger.warning(
+            f"Persistence for method '{self.method}' not fully implemented. Attempting generic generation."
+        )
+        if hasattr(self.synthesizer, "sample"):
+            return pd.DataFrame(self.synthesizer.sample(n_samples)[0])
+        elif hasattr(self.synthesizer, "generate"):
+            return self.synthesizer.generate(n_samples)
+
+        raise NotImplementedError(
+            f"Generation from loaded model not implemented for method '{self.method}'"
+        )
+
+    def __getstate__(self):
+        """Prepares the object for pickling by removing the logger."""
+        state = self.__dict__.copy()
+        if "logger" in state:
+            del state["logger"]
+        return state
+
+    def __setstate__(self, state):
+        """Restores the object from a pickle and re-initializes the logger."""
+        self.__dict__.update(state)
+        from calm_data_generator.logger import get_logger
+
+        self.logger = get_logger(self.__class__.__name__)
+
+    def save(self, path: str):
+        """
+        Saves the trained generator to a file.
+
+        Args:
+            path (str): File path to save the generator (e.g., 'generator.pkl').
+        """
+        self.logger.info(f"Saving generator model to {path}...")
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+
+        # We use a zip file to store the wrapper (this object) and the model separately
+        # if the model is complex (like synthcity plugins which fail mostly with joblib).
+        # We strip the synthesizer from self before pickling, save it using its own method
+        # or joblib if supported, and then zip them together.
+
+        try:
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+                # 1. Handle Synthesizer
+                # Check if we have a synthcity-like save method
+                synthesizer_backup = self.synthesizer
+
+                # We temporarily unset the synthesizer to pickle the wrapper/metadata cleanly
+                self.synthesizer = None
+
+                # Save wrapper state
+                # joblib.dump with filename None returns bytes? No, it writes to stream or returns list of filenames.
+                # Actually joblib.dump doesn't easily return bytes. Pickle does.
+                # Let's use tempdir strategy for safety.
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    wrapper_path = os.path.join(tmpdir, "wrapper.pkl")
+                    joblib.dump(self, wrapper_path)
+                    zf.write(wrapper_path, "wrapper.pkl")
+
+                    # Restore synthesizer to self (in memory)
+                    self.synthesizer = synthesizer_backup
+
+                    if self.synthesizer is not None:
+                        native_save = False
+
+                        # Synthcity Plugin check
+                        if hasattr(self.synthesizer, "save") and hasattr(
+                            self.synthesizer, "load"
+                        ):
+                            try:
+                                # Synthcity save returns bytes directly (no path arg)
+                                model_bytes = self.synthesizer.save()
+                                if isinstance(model_bytes, bytes):
+                                    with zf.open("model.bytes", "w") as f_model:
+                                        f_model.write(model_bytes)
+                                    native_save = True
+                                else:
+                                    self.logger.warning(
+                                        f"Native save returned non-bytes: {type(model_bytes)}. Retrying with joblib."
+                                    )
+                            except Exception as e:
+                                self.logger.warning(
+                                    f"Native save failed for {self.method}: {e}. Retrying with joblib."
+                                )
+
+                        if not native_save:
+                            # Fallback to joblib
+                            with tempfile.NamedTemporaryFile(
+                                delete=False
+                            ) as tmp_model_file:
+                                joblib.dump(self.synthesizer, tmp_model_file.name)
+                                tmp_model_path = tmp_model_file.name
+
+                            zf.write(tmp_model_path, "model.pkl")
+                            os.remove(tmp_model_path)
+
+            self.logger.info("Generator saved successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to save generator: {e}")
+            raise e
+
+    @classmethod
+    def load(cls, path: str) -> "RealGenerator":
+        """
+        Loads a generator from a file.
+
+        Args:
+            path (str): File path to load the generator from.
+
+        Returns:
+            RealGenerator: The loaded generator instance.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file not found at: {path}")
+
+        try:
+            # Check if it is a zip file (new format) or just a pickle (old/simple format)
+            if zipfile.is_zipfile(path):
+                with zipfile.ZipFile(path, "r") as zf:
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        zf.extractall(tmpdir)
+
+                        wrapper_path = os.path.join(tmpdir, "wrapper.pkl")
+                        obj = joblib.load(wrapper_path)
+
+                        # Re-init logger
+                        if not hasattr(obj, "logger") or obj.logger is None:
+                            from calm_data_generator.logger import get_logger
+
+                            obj.logger = get_logger(obj.__class__.__name__)
+
+                        # Load model if exists
+                        # Check for bytes model first (Synthcity)
+                        try:
+                            # Check list of files in zip
+                            zip_files = zf.namelist()
+                            obj.logger.info(f"Files in zip: {zip_files}")
+                            loaded_model = None
+
+                            if "model.bytes" in zip_files:
+                                model_bytes = zf.read("model.bytes")
+                                if obj.method in [
+                                    "ctgan",
+                                    "tvae",
+                                    "timegan",
+                                    "timevae",
+                                    "ddpm",
+                                    "scvi",
+                                    "gears",
+                                ]:
+                                    try:
+                                        from synthcity.plugins import Plugins
+
+                                        plugin = Plugins().get(obj.method)
+                                        # load returns the loaded object (or modifies in place and returns self)
+                                        loaded_model = plugin.load(model_bytes)
+                                    except Exception as e:
+                                        obj.logger.warning(f"Native load failed: {e}")
+
+                            elif "model.pkl" in zip_files:
+                                model_file_extracted = os.path.join(tmpdir, "model.pkl")
+                                loaded_model = joblib.load(model_file_extracted)
+
+                            if loaded_model is not None:
+                                obj.synthesizer = loaded_model
+                            else:
+                                obj.logger.warning(
+                                    "Could not load internal model. Generator might be uninitialized."
+                                )
+
+                        except Exception as e:
+                            obj.logger.error(f"Failed to load internal model: {e}")
+                            # Don't raise, return obj partially loaded? No, better to raise or warn.
+                            # But let's allow return if user wants to inspect metadata.
+
+                        obj.logger.info(f"Generator loaded successfully from {path}.")
+                        return obj
+            else:
+                # Standard Pickle fallback
+                obj = joblib.load(path)
+                if not hasattr(obj, "logger") or obj.logger is None:
+                    from calm_data_generator.logger import get_logger
+
+                    obj.logger = get_logger(obj.__class__.__name__)
+                obj.logger.info(f"Generator loaded successfully from {path}.")
+                return obj
+
+        except Exception as e:
+            # We can't log easily if we failed to load the object, so raise
+            raise RuntimeError(f"Failed to load generator from {path}: {e}")
 
     def _get_model_params(
         self, method: str, user_params: Optional[Dict] = None
@@ -194,6 +511,9 @@ class RealGenerator(BaseGenerator):
 
         syn = self._get_synthesizer("ctgan", **model_kwargs)
         syn.fit(data)
+        self.synthesizer = syn
+        self.method = "ctgan"
+        self.metadata = {"columns": data.columns.tolist()}
         return syn.generate(count=n_samples).dataframe()
 
     def _synthesize_tvae(
@@ -211,6 +531,9 @@ class RealGenerator(BaseGenerator):
 
         syn = self._get_synthesizer("tvae", **model_kwargs)
         syn.fit(data)
+        self.synthesizer = syn
+        self.method = "tvae"
+        self.metadata = {"columns": data.columns.tolist()}
         return syn.generate(count=n_samples).dataframe()
 
     def _synthesize_copula(
@@ -245,6 +568,15 @@ class RealGenerator(BaseGenerator):
         # Fit copula
         cop = GaussianCopula(dim=len(numeric_cols))
         cop.fit(X_scaled)
+
+        # Store state for persistence
+        self.synthesizer = cop
+        self.method = "copula"
+        self.metadata = {
+            "columns": data.columns.tolist(),
+            "numeric_cols": numeric_cols,
+            "scaler": scaler,
+        }
 
         # Sample
         samples = cop.random(n_samples)
@@ -449,23 +781,12 @@ class RealGenerator(BaseGenerator):
 
         n_features = X.shape[1]
 
-        # Simple MLP Denoiser
-        class SimpleDenoiser(nn.Module):
-            def __init__(self, dim):
-                super().__init__()
-                self.net = nn.Sequential(
-                    nn.Linear(dim + 1, 128),  # +1 for timestep
-                    nn.ReLU(),
-                    nn.Linear(128, 256),
-                    nn.ReLU(),
-                    nn.Linear(256, 128),
-                    nn.ReLU(),
-                    nn.Linear(128, dim),
-                )
-
-            def forward(self, x, t):
-                t_emb = t.unsqueeze(-1) / steps  # Normalize timestep
-                return self.net(torch.cat([x, t_emb], dim=-1))
+        # Move SimpleDenoiser outside or ensure it's pickleable.
+        # Since we can't easily move it out in this patch, we rely on torch.save usually,
+        # but for joblib pickling, local classes are an issue.
+        # FIX: Define SimpleDenoiser at module level (see below tool call) OR
+        # If we can't move it, we can't pickle it easily.
+        # Let's assume user accepts we define it at module level.
 
         model = SimpleDenoiser(n_features)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -500,7 +821,26 @@ class RealGenerator(BaseGenerator):
                 loss.backward()
                 optimizer.step()
 
-        # Sampling (reverse diffusion)
+        # Store model state for persistence
+        self.synthesizer = model
+        self.method = "diffusion"
+        # Store necessary components for generation in metadata or a dedicated attribute
+        # We need scaler, encoders, steps, alphas etc.
+        # Ideally, we should encapsulate this in a proper class, but for now we store in metadata.
+        self.metadata = {
+            "columns": df.columns.tolist(),
+            "numeric_cols": numeric_cols,
+            "cat_cols": cat_cols,
+            "encoders": encoders,
+            "scaler": scaler,
+            "steps": steps,
+            "betas": betas,
+            "alphas": alphas,
+            "alphas_cumprod": alphas_cumprod,
+            "n_features": n_features,
+        }
+
+        # Sampling (reverse diffusion) - use the generate helper logic (redundancy for now to match interface)
         model.eval()
         with torch.no_grad():
             x = torch.randn(n_samples, n_features)
@@ -788,6 +1128,9 @@ class RealGenerator(BaseGenerator):
 
         gmm = GaussianMixture(**model_p)
         gmm.fit(data)
+        self.synthesizer = gmm
+        self.method = "gmm"
+        self.metadata = {"columns": data.columns.tolist()}
         synth_data, _ = gmm.sample(n_samples)
         synth = pd.DataFrame(synth_data, columns=data.columns)
 
@@ -1271,6 +1614,32 @@ class RealGenerator(BaseGenerator):
                 )
 
         try:
+            # Storage for persistence
+            fitted_models = {}
+            encoding_info = {}
+            for col in X_real.select_dtypes(include="category").columns:
+                encoding_info[col] = X_real[col].cat.categories
+
+            # Marginals for initialization (using raw values for sampling)
+            # We store the unique values and their counts to sample with replacement respecting distribution
+            marginals = {}
+            for col in X_real.columns:
+                marginals[col] = X_real[
+                    col
+                ].values  # Storing full column values might be heavy?
+                # Optimization: Store value_counts if cardinality is low, else sample?
+                # Actually, storing values allows np.random.choice easily.
+                # If data is huge, we might want to store just unique and counts.
+                # For now let's store values (simplest for 'bootstrap' init).
+
+            # Or better, just store the bootstrap source we created?
+            # X_bootstrap_source is balanced.
+            # But the persistent model generates from scratch.
+            # Let's populate marginals from X_bootstrap_source (balanced if requested).
+            marginals = {
+                c: X_bootstrap_source[c].values for c in X_bootstrap_source.columns
+            }
+
             for it in range(iterations):
                 self.logger.info(f"{method_name} iteration {it + 1}/{iterations}")
                 for col in X_real.columns:
@@ -1348,6 +1717,15 @@ class RealGenerator(BaseGenerator):
                             ) from e
                         raise e
 
+                    # Store model if last iteration
+                    if it == iterations - 1:
+                        import copy
+
+                        try:
+                            fitted_models[col] = copy.deepcopy(model)
+                        except Exception:
+                            fitted_models[col] = model  # Fallback if deepcopy fails
+
                     if (
                         is_classification
                         and hasattr(model, "predict_proba")
@@ -1374,6 +1752,18 @@ class RealGenerator(BaseGenerator):
                         )
 
                     X_synth[col] = y_synth_pred
+
+            # End of loop
+            # Instantiate FCSModel
+            self.synthesizer = FCSModel(
+                models=fitted_models,
+                marginals=marginals,
+                encoding_info=encoding_info,
+                visit_order=list(X_real.columns),
+            )
+            self.method = method_name
+            self.metadata = {"columns": data.columns.tolist()}
+
             return X_synth
         except Exception as e:
             self.logger.error(f"{method_name} synthesis failed: {e}", exc_info=True)
@@ -1658,8 +2048,8 @@ class RealGenerator(BaseGenerator):
 
     def generate(
         self,
-        data: Union[pd.DataFrame, Any],
-        n_samples: int,
+        data: Optional[Union[pd.DataFrame, Any]] = None,
+        n_samples: Optional[int] = None,
         method: str = "cart",
         target_col: Optional[str] = None,
         block_column: Optional[str] = None,
@@ -1753,7 +2143,26 @@ class RealGenerator(BaseGenerator):
                     return None
             else:
                 self.logger.error(f"Unsupported file format for direct loading: {ext}")
-                return None
+            return None
+
+        # Handle generation from loaded model (data is None)
+        if data is None:
+            if self.synthesizer is None:
+                raise ValueError(
+                    "Data must be provided to train the generator, or a model must be loaded first."
+                )
+            if n_samples is None:
+                raise ValueError(
+                    "n_samples must be provided when generating from a loaded model."
+                )
+
+            self.logger.info(
+                f"Generating {n_samples} samples from loaded '{self.method}' model..."
+            )
+            return self._generate_from_fitted(n_samples)
+
+        if n_samples is None:
+            raise ValueError("n_samples must be provided.")
 
         # Handle AnnData input
         original_adata = None

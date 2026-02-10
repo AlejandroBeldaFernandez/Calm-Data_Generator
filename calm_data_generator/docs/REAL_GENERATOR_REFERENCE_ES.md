@@ -51,7 +51,9 @@ synthetic_df = gen.generate(
     drift_injection_config=[
         DriftConfig(
             method="inject_feature_drift",
-            params={"feature_cols": ["age"], "drift_magnitude": 0.5}
+            feature_cols=["age"],
+            drift_type="shift", 
+            magnitude=0.5
         )
     ],
     
@@ -217,6 +219,31 @@ synthetic = gen.generate(
 
 ---
 
+
+---
+
+## Características Avanzadas
+
+### Inyección de Fechas (DateConfig)
+
+Puedes inyectar una columna de fecha/hora en los datos generados usando `DateConfig`.
+
+```python
+from calm_data_generator.generators.configs import DateConfig
+
+synthetic = gen.generate(
+    data=df,
+    n_samples=1000,
+    method="cart",
+    date_config=DateConfig(
+        date_col="timestamp",
+        start_date="2024-06-01",
+        step={"hours": 1},  # Incremento temporal
+        frequency=1         # Incrementar cada N filas
+    )
+)
+```
+
 ## Manejo de Datos Desbalanceados
 
 `RealGenerator` ofrece varias estrategias para trabajar con datasets fuertemente desbalanceados (ej. detección de fraude, diagnósticos raros):
@@ -311,37 +338,37 @@ Si tu columna objetivo (`target`) tiene clases muy minoritarias que quieres pote
     ```
     *Nota: `balance_target` es un atajo para `custom_distributions={"col": "balanced"}`. Para desbalanceos extremos, los métodos de Deep Learning como `method="ctgan"` suelen ofrecer mayor estabilidad que los métodos basados en árboles.*
 ---
-# New Methods Documentation for REAL_GENERATOR_REFERENCE.md
-
-## Content to Add After Existing Methods Section
-
 ---
 
-### `ddpm` - Synthcity TabDDPM (Advanced Tabular Diffusion)
+### `ddpm` - Synthcity TabDDPM (Difusión Tabular Avanzada)
+
+**Tipo:** Deep Learning (Modelo de Difusión)
+**Mejor para:** Síntesis tabular de alta calidad, entornos de producción, grandes datasets
+**Requisitos:** `synthcity` (incluido en instalación base de deep learning)
 
 **Type:** Deep Learning (Diffusion Model)  
 **Best For:** High-quality tabular synthesis, production environments, large datasets  
 **Requirements:** `synthcity` (included in base installation)
 
-#### Description
+#### Descripción
 
-TabDDPM (Tabular Denoising Diffusion Probabilistic Model) is Synthcity's advanced implementation of diffusion models for tabular data. It offers multiple architectures, advanced schedulers, and superior quality compared to the custom `diffusion` method.
+TabDDPM (Tabular Denoising Diffusion Probabilistic Model) es la implementación avanzada de modelos de difusión para datos tabulares de Synthcity. Ofrece múltiples arquitecturas, schedulers avanzados y calidad superior comparada con el método `diffusion` personalizado.
 
-#### When to Use
+#### Cuándo usarlo
 
 ✅ **Usa `ddpm` cuando:**
-- You need **maximum quality** synthetic data
-- Working with **large datasets** (>100k rows)
-- In **production environments** requiring robust, maintained code
-- You need **advanced architectures** (ResNet, TabNet)
-- You want **cosine scheduling** for better diffusion
-- You have **time for longer training** (1000 epochs default)
+- Necesitas **calidad máxima** en datos sintéticos
+- Trabajas con **grandes datasets** (>100k filas)
+- En **entornos de producción** que requieren código robusto y mantenido
+- Necesitas **arquitecturas avanzadas** (ResNet, TabNet)
+- Quieres **cosine scheduling** para una mejor difusión
+- Tienes **tiempo para entrenamientos largos** (1000 épocas por defecto)
 
-❌ **No uses `ddpm` when:**
-- You need **quick prototyping** (use `diffusion` instead)
-- Working with **very small datasets** (<1k rows)
-- You have **limited computational resources**
-- You need **custom modifications** to the algorithm
+❌ **No uses `ddpm` cuando:**
+- Necesitas **prototipado rápido** (usa `diffusion` en su lugar)
+- Trabajas con **datasets muy pequeños** (<1k filas)
+- Tienes **recursos computacionales limitados**
+- Necesitas **modificaciones personalizadas** al algoritmo
 
 #### Parameters
 
@@ -466,35 +493,35 @@ synth = gen.generate(
 
 ### `timegan` - TimeGAN (Time Series GAN)
 
-**Type:** Deep Learning (GAN for Time Series)  
-**Best For:** Complex temporal patterns, multi-entity time series  
-**Requirements:** `synthcity` (included in base installation)
+**Tipo:** Deep Learning (GAN para Series Temporales)
+**Mejor para:** Patrones temporales complejos, series temporales multi-entidad
+**Requisitos:** `synthcity` (incluido en instalación base)
 
-#### Description
+#### Descripción
 
-TimeGAN (Time-series Generative Adversarial Network) is designed specifically for sequential/temporal data. It learns both temporal dynamics and feature distributions, making it ideal for time series with complex patterns.
+TimeGAN (Time-series Generative Adversarial Network) está diseñado específicamente para datos secuenciales/temporales. Aprende tanto la dinámica temporal como la distribución de características, haciéndolo ideal para series temporales con patrones complejos.
 
-#### When to Use
+#### Cuándo usarlo
 
-✅ **Use `timegan` when:**
-- You have **time series data** with temporal dependencies
-- Working with **multi-entity sequences** (e.g., multiple users/sensors)
-- You need to preserve **temporal dynamics**
-- You have **complex temporal patterns** to learn
-- You need **high-quality** time series synthesis
+✅ **Usa `timegan` cuando:**
+- Tienes **datos de series temporales** con dependencias temporales
+- Trabajas con **secuencias multi-entidad** (ej. múltiples usuarios/sensores)
+- Necesitas preservar **dinámicas temporales**
+- Tienes **patrones temporales complejos** para aprender
+- Necesitas síntesis de series temporales de **alta calidad**
 
-❌ **No uses `timegan` when:**
-- You have **simple tabular data** (use `ctgan` or `ddpm` instead)
-- Working with **very short sequences** (<10 timesteps)
-- You need **fast generation** (use `timevae` instead)
-- You have **limited computational resources**
+❌ **No uses `timegan` cuando:**
+- Tienes **datos tabulares simples** (usa `ctgan` o `ddpm` en su lugar)
+- Trabajas con **secuencias muy cortas** (<10 pasos de tiempo)
+- Necesitas **generación rápida** (usa `timevae` en su lugar)
+- Tienes **recursos computacionales limitados**
 
-#### Data Requirements
+#### Requisitos de Datos
 
-TimeGAN expects data in a specific temporal format:
-- **Temporal ordering**: Data must be sorted by time
-- **Entity grouping**: If multi-entity, group by entity ID
-- **Consistent timesteps**: Regular time intervals preferred
+TimeGAN espera datos en un formato temporal específico:
+- **Orden temporal**: Los datos deben estar ordenados por tiempo
+- **Agrupación por entidad**: Si es multi-entidad, agrupa por ID de entidad
+- **Pasos consistentes**: Preferible intervalos de tiempo regulares
 
 #### Parameters
 
@@ -502,13 +529,13 @@ TimeGAN expects data in a specific temporal format:
 synth = gen.generate(
     data,
     method='timegan',
-    n_samples=100,  # Number of sequences to generate
+    n_samples=100,  # Número de secuencias a generar
     
-    # Training parameters
-    n_iter=1000,                    # Training epochs (default: 1000)
-    n_units_hidden=100,             # Hidden units in RNN (default: 100)
-    batch_size=128,                 # Batch size (default: 128)
-    lr=0.001,                       # Learning rate (default: 0.001)
+    # Parámetros de entrenamiento
+    n_iter=1000,                    # Épocas de entrenamiento (defecto: 1000)
+    n_units_hidden=100,             # Unidades ocultas en RNN (defecto: 100)
+    batch_size=128,                 # Tamaño de batch (defecto: 128)
+    lr=0.001,                       # Tasa de aprendizaje (defecto: 0.001)
 )
 ```
 
@@ -614,6 +641,47 @@ synth = gen.generate(
 | `decoder_n_units_hidden` | int | 100 | Number of hidden units in decoder |
 | `batch_size` | int | 128 | Training batch size |
 | `lr` | float | 0.001 | Learning rate for optimizer |
+
+---
+
+## Guardado y Carga de Modelos
+
+`RealGenerator` permite guardar modelos generadores entrenados y cargarlos posteriormente para inferencia sin re-entrenar. Esto es útil para pipelines de producción donde el entrenamiento es costoso.
+
+### Guardar un Modelo
+
+Después de generar datos (lo cual entrena el modelo subyacente), puedes guardar el generador:
+
+```python
+# 1. Entrenar y Generar
+gen.generate(data, n_samples=1000, method="ctgan", batch_size=500)
+
+# 2. Guardar el generador entrenado
+gen.save("models/mi_modelo_ctgan.pkl")
+```
+> **Nota:** El archivo guardado es un archivo zip que contiene la configuración del `RealGenerator` y el modelo subyacente (ej. estado del plugin de Synthcity).
+
+### Cargar un Modelo
+
+Puedes cargar un modelo guardado usando el método de clase `load()`. Una vez cargado, puedes generar más muestras sin proporcionar los datos de entrenamiento originales.
+
+```python
+from calm_data_generator.generators.tabular import RealGenerator
+
+# 1. Cargar el generador
+loaded_gen = RealGenerator.load("models/mi_modelo_ctgan.pkl")
+
+# 2. Generar nuevas muestras (¡No se necesita argumento 'data'!)
+new_samples = loaded_gen.generate(n_samples=500)
+```
+
+> **Advertencia:** Al generar desde un modelo cargado, **no debes** pasar `data` a `generate()`, pero **debes** pasar `n_samples`.
+
+---
+
+## Mejores Prácticas
+
+6. **Desbalance severo:** Usa `smote` o `adasyn` con `target_col`.
 
 #### Comparison: `timegan` vs `timevae`
 

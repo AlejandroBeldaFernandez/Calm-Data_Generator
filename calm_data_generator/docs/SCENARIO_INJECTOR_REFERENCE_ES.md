@@ -1,315 +1,169 @@
-# Referencia del ScenarioInjector
+# ScenarioInjector - Referencia Completa
 
-**Ubicación:** `calm_data_generator.generators.dynamics.ScenarioInjector`
+**Ubicación:** `calm_data_generator.injectors.ScenarioInjector`
 
-Un módulo para evolucionar variables (features), construir variables objetivo (targets) basadas en reglas y proyectar datos a periodos de tiempo futuros.
+El `ScenarioInjector` simula **dinámicas temporales** y **patrones evolutivos** en datasets sintéticos. A diferencia del `DriftInjector` que modifica distribuciones, `ScenarioInjector` crea patrones deterministas o estocásticos de evolución (cómo cambian las features en el tiempo) y construye variables objetivo basadas en lógica.
 
 ---
 
-## Referencia de las Clases ScenarioConfig y EvolutionFeatureConfig
+## ⚡ Inicio Rápido: Usando Objetos de Configuración
 
-**Importar:** `from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig`
+Recomendamos usar `ScenarioConfig` y `EvolutionFeatureConfig` para seguridad de tipos.
 
-`ScenarioConfig` es un modelo Pydantic para configurar la inyección de escenarios con evolución de features y construcción de targets.
-
-### Parámetros de ScenarioConfig
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
-| `state_config` | Dict | `None` | Configuración de estado para el escenario |
-| `evolve_features` | Dict[str, Union[Dict, EvolutionFeatureConfig]] | `{}` | Configuraciones de evolución de features |
-| `construct_target` | Dict | `None` | Configuración de construcción de target |
-
-### Parámetros de EvolutionFeatureConfig
-
-| Parámetro | Tipo | Por Defecto | Descripción |
-|-----------|------|-------------|-------------|
-| `type` | str | - | Tipo de evolución: `"linear"`, `"cycle"`, `"sigmoid"`, `"trend"`, `"seasonal"`, `"noise"`, `"decay"` |
-| `slope` | float | `0.0` | Pendiente para evolución lineal/tendencia |
-| `intercept` | float | `0.0` | Intercepto para evolución lineal |
-| `amplitude` | float | `1.0` | Amplitud para patrones estacionales/cíclicos |
-| `period` | float | `100.0` | Longitud del periodo para patrones cíclicos |
-| `phase` | float | `0.0` | Desfase de fase para patrones cíclicos |
-| `center` | float | `None` | Punto central para evolución sigmoide |
-| `width` | float | `None` | Ancho para transición sigmoide |
-
-### Ejemplos de Uso
-
-**Evolución Básica de Features (Objeto):**
-```python
-from calm_data_generator.generators.configs import EvolutionFeatureConfig
-
-evolution_config = {
-    "ingresos": EvolutionFeatureConfig(
-        type="linear",
-        slope=100.0,  # Incremento de 100 por periodo
-        intercept=1000.0
-    ),
-    "temperatura": EvolutionFeatureConfig(
-        type="seasonal",
-        amplitude=10.0,
-        period=365,  # Ciclo anual
-        phase=0.0
-    )
-}
-```
-
-**Usando ScenarioConfig:**
 ```python
 from calm_data_generator.generators.configs import ScenarioConfig, EvolutionFeatureConfig
 
-scenario_config = ScenarioConfig(
+# 1. Definir evolución de features (ej. ingresos crecen, interés decae)
+scenario_conf = ScenarioConfig(
     evolve_features={
-        "ventas": EvolutionFeatureConfig(
-            type="trend",
-            slope=0.05  # 5% de crecimiento
-        ),
-        "abandono": EvolutionFeatureConfig(
-            type="decay",
-            slope=-0.02  # 2% de decaimiento
-        )
+        "revenue": EvolutionFeatureConfig(type="trend", slope=100.0),
+        "interest": EvolutionFeatureConfig(type="decay", rate=0.01)
     },
+    # 2. Construir target basado en features evolucionadas
     construct_target={
-        "formula": "0.3 * ventas - 0.5 * abandono",
-        "threshold": 0.7
+        "target_col": "high_value_customer",
+        "formula": "0.4 * revenue - 100 * interest",
+        "threshold": 0.8
     }
 )
-```
 
-**Compatibilidad hacia Atrás (Diccionario):**
-```python
-# Todavía soportado
-evolution_config = {
-    "precio": {
-        "type": "trend",
-        "slope": 0.01
-    }
-}
+# 3. Aplicar al DataFrame (o usar dentro de RealGenerator con dynamics_config)
+# Vía RealGenerator:
+# gen.generate(..., dynamics_config=scenario_conf)
+
+# Vía Inyección Directa:
+from calm_data_generator.injectors import ScenarioInjector
+injector = ScenarioInjector()
+df_evolved = injector.apply_config(df, scenario_conf)
 ```
 
 ---
 
-## Inicialización
+## 🌲 Árbol de Decisión: Guía de Uso
 
-```python
-from calm_data_generator.generators.dynamics import ScenarioInjector
-
-scenario = ScenarioInjector(
-    seed=42,                    # Semilla para reproducibilidad
-    minimal_report=False,       # Informes completos
-)
+```text
+¿Qué quieres hacer?
+├─ ¿Hacer que valores cambien en el tiempo (Crecimiento, Estacionalidad)?
+│  └─ → inject_feature_evolution() (o ScenarioConfig.evolve_features)
+├─ ¿Crear una variable Target a partir de Features?
+│  └─ → construct_target_from_features() (o ScenarioConfig.construct_target)
+├─ ¿Proyectar datos históricos al futuro?
+│  └─ → project_to_future_period()
+└─ ¿Cambiar propiedades de distribución (Promedio, Ruido)?
+   └─ → Usa DriftInjector en su lugar.
 ```
-
-### Parámetros del Constructor
-
-| Parámetro | Tipo | Defecto | Descripción |
-|-----------|------|---------|-------------|
-| `seed` | int | `None` | Semilla para reproducibilidad |
-| `minimal_report` | bool | `False` | Si es True, informes simplificados |
 
 ---
 
-## Método: `evolve_features()`
+## 📚 Tipos de Evolución (`type`)
 
-Evoluciona columnas numéricas basándose en configuraciones como tendencias, estacionalidad, ruido, etc.
-
-### Sintaxis Básica
-
-```python
-evolved_df = scenario.evolve_features(
-    df=df,                                    # DataFrame de entrada
-    evolution_config={...},                   # Config de evolución por columna
-    time_col="date",                          # Columna de tiempo (opcional)
-    output_dir="./output",                    # Directorio de salida
-    auto_report=True,                         # Generar informe
-    generator_name="ScenarioInjector",        # Nombre base del archivo
-    auto_report=True,                         # Generar informe
-    generator_name="ScenarioInjector",        # Nombre base del archivo
-    resample_rule=None,                       # Regla de re-muestreo temporal
-    correlations=None,                        # Control de propagación de drift
-)
-```
-
-### Parámetros
-
-| Parámetro | Tipo | Defecto | Descripción |
-|-----------|------|---------|-------------|
-| `df` | DataFrame | - | Dataset original (requerido) |
-| `evolution_config` | Dict | - | Configuración de evolución por columna |
-| `time_col` | str | `None` | Columna de tiempo para ordenar |
-| `output_dir` | str | `None` | Directorio de salida |
-| `auto_report` | bool | `True` | Generar informe automáticamente |
-| `generator_name` | str | `"ScenarioInjector"` | Nombre base para archivos de salida |
-| `resample_rule` | str/int | `None` | Regla de re-muestreo (ej., "D", "W") |
-| `correlations` | bool/df/dict | `None` | Si es `True`, propaga la evolución a columnas correlacionadas. |
-
-### Tipos de Evolución
-
-#### 1. Tendencia Lineal (`trend`)
-
-Añade una pendiente lineal creciente o decreciente:
-
-```python
-evolution_config = {
-    "price": {
-        "type": "trend",
-        "slope": 0.01,      # Incremento por fila (positivo = crecimiento)
-    }
-}
-```
-
-**Fórmula:** `nuevo_valor = valor_antiguo + (pendiente * indice_fila)`
-
-#### 2. Estacionalidad (`seasonal`)
-
-Añade un patrón sinusoidal periódico:
-
-```python
-evolution_config = {
-    "temperature": {
-        "type": "seasonal",
-        "amplitude": 5.0,     # Altura máxima desde el centro
-        "period": 365,        # Filas por ciclo completo
-        "phase": 0,           # Desfase opcional
-    }
-}
-```
-
-**Fórmula:** `nuevo_valor = valor_antiguo + amplitud * sin(2π * indice_fila / periodo + fase)`
-
-#### 3. Ruido Gaussiano (`noise`)
-
-Añade ruido aditivo aleatorio:
-
-```python
-evolution_config = {
-    "reading": {
-        "type": "noise",
-        "scale": 0.1,         # Desviación estándar del ruido
-    }
-}
-```
-
-#### 4. Decaimiento Exponencial (`decay`)
-
-Aplica un factor de decaimiento exponencial:
-
-```python
-evolution_config = {
-    "battery": {
-        "type": "decay",
-        "rate": 0.01,         # Tasa de decaimiento por fila
-    }
-}
-```
-
-**Fórmula:** `nuevo_valor = valor_antiguo * (1 - tasa) ^ indice_fila`
+| Tipo | Patrón | Caso de Uso | Fórmula |
+|------|--------|-------------|---------|
+| `trend` / `linear` | Cambio constante | Ventas, inflación | `y = x + pendiente * t` |
+| `exponential_growth` | Incremento acelerado | Crecimiento viral | `y = x * (1 + tasa)^t` |
+| `decay` | Valores decrecientes | Pérdida de retención | `y = x * (1 - tasa)^t` |
+| `seasonal` | Patrón cíclico | Vacaciones, clima | `y = x + A * sin(2πt/P)` |
+| `step` | Salto repentino | Cambio política, precio | `y = x + valor si t > paso` |
+| `noise` | Fluctuación aleatoria | Error sensor, ruido mercado | `y = x + N(0, escala)` |
 
 ---
 
-## Método: `construct_target()`
+## 🛠️ Referencia de Clase `ScenarioInjector`
 
-Crea o sobrescribe una variable objetivo basada en fórmulas definidas por el usuario.
+**Importar:** `from calm_data_generator.injectors import ScenarioInjector`
 
-### Sintaxis Básica
+### Método: `evolve_features()`
 
-```python
-df_with_target = scenario.construct_target(
-    df=df,                              # DataFrame de entrada
-    target_col="risk_score",            # Nombre columna objetivo
-    formula="...",                      # Cadena o función (callable)
-    noise_std=0.0,                      # Ruido Gaussiano aditivo
-    task_type="regression",             # "regression" o "classification"
-    threshold=None,                     # Umbral para salida binaria
-)
-```
-
-### Tipos de Fórmula
-
-#### 1. Fórmula de Cadena (String)
-
-Expresión matemática referenciando columnas existentes:
+Evoluciona columnas numéricas basado en patrones configurados.
 
 ```python
-df = scenario.construct_target(
+evolved_df = injector.evolve_features(
     df=df,
-    target_col="risk_score",
-    formula="0.3 * age + 0.5 * bmi - 0.2 * exercise_hours",
-)
-```
-
-#### 2. Fórmula Llamable (Función)
-
-Una función que toma una fila y retorna un valor:
-
-```python
-def calculate_risk(row):
-    return row["age"] * 0.01 * (2 if row["smoker"] == 1 else 1)
-
-df = scenario.construct_target(
-    df=df,
-    target_col="risk_score",
-    formula=calculate_risk,
-)
-```
-
----
-
-## Método: `project_to_future_period()`
-
-Proyecta datos históricos hacia periodos futuros generando datos sintéticos y aplicando tendencias.
-
-### Sintaxis Básica
-
-```python
-future_df = scenario.project_to_future_period(
-    df=df,                              # DataFrame histórico
-    periods=12,                         # Número de periodos futuros
-    time_col="month",                   # Columna de tiempo
-    evolution_config={...},             # Tendencias a aplicar
-    generator_method="ctgan",           # Método para base sintética
-    n_samples_per_period=100,           # Muestras por periodo futuro
-)
-```
-
-### Flujo de Trabajo Interno
-
-1. **Generación base sintética** usando `RealGenerator`.
-2. **Asignación de periodos futuros** secuencialmente.
-3. **Aplicación de `evolve_features()`** para las tendencias solicitadas.
-4. **Generación de informe** comparando historial vs. proyección.
-
----
-
-## Casos de Uso Exhaustivos
-
-### Caso 1: Impacto de Recesión Económica
-
-**Escenario:** Simular una caída del mercado donde el poder adquisitivo baja y el riesgo de impago sube.
-
-**Solución:** Aplicar tendencia negativa a ingresos y positiva a riesgo.
-
-```python
-from calm_data_generator.generators.dynamics import ScenarioInjector
-
-scenario = ScenarioInjector()
-
-recession_df = scenario.evolve_features(
-    df=economic_df,
     evolution_config={
-        "avg_income": {"type": "trend", "slope": -50.0},  # Ingreso cae $50/día
-        "unemployment_rate": {"type": "trend", "slope": 0.01}, # Desempleo sube
-        "market_index": {"type": "decay", "rate": 0.005}  # Mercado colapsa exp.
+        "price": {"type": "trend", "slope": 0.01},          # Crecimiento lineal
+        "demand": {"type": "seasonal", "amplitude": 10, "period": 30} # Ciclo mensual
     },
-    time_col="date"
+    time_col="date"  # Opcional: usar columna fecha paso de tiempo
+)
+```
+
+### Método: `construct_target()`
+
+Crea una variable objetivo basada en lógica de features. Útil para crear "ground truth" (verdad terreno) en escenarios sintéticos.
+
+```python
+# Fórmula de Texto
+df = injector.construct_target(
+    df=df,
+    target_col="risk_score",
+    formula="0.3 * age + 0.5 * bmi - 0.2 * exercise",
+    noise_std=0.1  # Añadir ruido para realismo
 )
 
-# Recalcular probabilidad de impago
-recession_df = scenario.construct_target(
-    df=recession_df,
-    target_col="default_prob",
-    # Regla: Bajo ingreso & alto desempleo = alto riesgo
-    formula="0.7 * (1/avg_income) + 0.5 * unemployment_rate",
-    task_type="regression"
+# Función Python (Callable)
+def complex_logic(row):
+    return 1 if (row["age"] > 50 and row["income"] > 100000) else 0
+
+df = injector.construct_target(
+    df=df,
+    target_col="is_vip",
+    formula=complex_logic
+)
+```
+
+### Método: `project_to_future_period()`
+
+Extiende un dataset hacia el futuro generando nuevas muestras y aplicando evolución.
+
+```python
+future_df = injector.project_to_future_period(
+    df=historical_df,
+    periods=12,                   # Generar 12 pasos futuros (ej. meses)
+    time_col="month",
+    evolution_config={...},       # Aplicar tendencias a datos futuros
+    n_samples_per_period=100
+)
+```
+
+---
+
+## 🌟 Escenarios del Mundo Real
+
+### Caso 1: Crecimiento SaaS (Viral + Churn)
+Simular una startup con crecimiento viral de usuarios pero churn creciente.
+
+```python
+scenario_conf = ScenarioConfig(
+    evolve_features={
+        "users": EvolutionFeatureConfig(type="exponential_growth", rate=0.1), # 10% crecimiento diario
+        "churn": EvolutionFeatureConfig(type="trend", slope=0.001)           # Churn sube lentamente
+    }
+)
+```
+
+### Caso 2: Estacionalidad Retail
+Simular picos de ventas en vacaciones.
+
+```python
+# Ciclo anual con pico a final de año
+seasonal_conf = EvolutionFeatureConfig(
+    type="seasonal",
+    amplitude=5000,
+    period=365,
+    phase=300 # Desplazar pico hacia ~Día 300 (Nov/Dic)
+)
+```
+
+### Caso 3: Credit Scoring (Generación de Ground Truth)
+Crear un dataset donde CONOCES la relación exacta entre inputs y target.
+
+```python
+# Definimos el mecanismo de verdad:
+# Riesgo = 2 * Deuda - 0.5 * Ingreso + Ruido
+injector.construct_target(
+    df=data,
+    target_col="default_probability",
+    formula="2 * debt_ratio - 0.5 * normalized_income",
+    noise_std=0.05
 )
 ```

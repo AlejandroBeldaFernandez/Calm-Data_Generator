@@ -396,15 +396,21 @@ synthetic = gen.generate(
 
 ### Date Injection
 
+You can inject a datetime column into the generated data using `DateConfig`.
+
 ```python
+from calm_data_generator.generators.configs import DateConfig
+
 synthetic = gen.generate(
     data=df,
     n_samples=1000,
     method="cart",
-    date_col="timestamp",
-    date_start="2024-06-01",
-    date_step={"hours": 1},
-    date_every=1,
+    date_config=DateConfig(
+        date_col="timestamp",
+        start_date="2024-06-01",
+        step={"hours": 1},  # Increment
+        frequency=1         # Every 1 row
+    )
 )
 ```
 
@@ -438,6 +444,41 @@ When `auto_report=True`, the following are generated:
 - `quality_scores.json`: Detailed quality metrics
 - `distribution_plots.png`: Distribution visualizations
 - `correlation_heatmap.png`: Correlation maps
+
+---
+
+## Saving and Loading Models
+
+`RealGenerator` allows you to save trained generator models and load them later for inference without retraining. This is useful for production pipelines where training is expensive.
+
+### Saving a Model
+
+After generating data (which trains the underlying model), you can save the generator:
+
+```python
+# 1. Train and Generate
+gen.generate(data, n_samples=1000, method="ctgan", batch_size=500)
+
+# 2. Save the trained generator
+gen.save("models/my_ctgan_model.pkl")
+```
+> **Note:** The saved file is a zip archive containing the `RealGenerator` configuration and the underlying model (e.g., Synthcity plugin state).
+
+### Loading a Model
+
+You can load a saved model using the `load()` class method. Once loaded, you can generate more samples without providing the original training data.
+
+```python
+from calm_data_generator.generators.tabular import RealGenerator
+
+# 1. Load the generator
+loaded_gen = RealGenerator.load("models/my_ctgan_model.pkl")
+
+# 2. Generate new samples (No 'data' argument needed!)
+new_samples = loaded_gen.generate(n_samples=500)
+```
+
+> **Warning:** When generating from a loaded model, you **must not** pass `data` to `generate()`, but you **must** pass `n_samples`.
 
 ---
 
