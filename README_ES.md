@@ -142,7 +142,10 @@ La librería está disponible en PyPI. Para una experiencia estable, recomendamo
 python3 -m venv venv
 source venv/bin/activate
 
-# 2. Instalar la librería (optimizada para velocidad)
+# 2. Actualizar pip, setuptools y wheel (Crucial para una instalación exitosa)
+pip install --upgrade pip setuptools wheel
+
+# 3. Instalar la librería (optimizada para velocidad)
 pip install calm-data-generator
 ```
 

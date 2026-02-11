@@ -155,7 +155,10 @@ The library is available on PyPI. For the most stable experience, we recommend u
 python3 -m venv venv
 source venv/bin/activate
 
-# 2. Install the core library (optimized for speed)
+# 2. Upgrade pip, setuptools and wheel (Crucial for successful installation)
+pip install --upgrade pip setuptools wheel
+
+# 3. Install the core library (optimized for speed)
 pip install calm-data-generator
 ```
 
