@@ -2240,330 +2240,320 @@ class RealGenerator(BaseGenerator):
             custom_distributions[target_col] = {
                 c: 1 / len(target_classes) for c in target_classes
             }
-        try:
-            synth = None
-            if method == "ctgan":
-                synth = self._synthesize_ctgan(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **kwargs,
-                )
-            elif method == "tvae":
-                synth = self._synthesize_tvae(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **kwargs,
-                )
-            elif method == "resample":
-                synth = self._synthesize_resample(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                )
-            elif method == "cart":
-                synth = self._synthesize_cart(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
-            elif method == "copula":
-                synth = self._synthesize_copula(
-                    data,
-                    n_samples,
-                    "copula",
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
-            elif method == "rf":
-                synth = self._synthesize_rf(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
-            elif method == "lgbm":
-                synth = self._synthesize_lgbm(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
-            elif method == "gmm":
-                synth = self._synthesize_gmm(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
+        # synth default
+        synth = None
 
-            elif method == "smote":
-                synth = self._synthesize_smote(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
-            elif method == "adasyn":
-                synth = self._synthesize_adasyn(
-                    data,
-                    n_samples,
-                    target_col=target_col,
-                    custom_distributions=custom_distributions,
-                    **(kwargs or {}),
-                )
+        if method == "ctgan":
+            synth = self._synthesize_ctgan(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **kwargs,
+            )
+        elif method == "tvae":
+            synth = self._synthesize_tvae(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **kwargs,
+            )
+        elif method == "resample":
+            synth = self._synthesize_resample(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+            )
+        elif method == "cart":
+            synth = self._synthesize_cart(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
+        elif method == "copula":
+            synth = self._synthesize_copula(
+                data,
+                n_samples,
+                "copula",
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
+        elif method == "rf":
+            synth = self._synthesize_rf(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
+        elif method == "lgbm":
+            synth = self._synthesize_lgbm(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
+        elif method == "gmm":
+            synth = self._synthesize_gmm(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
 
-            elif method == "diffusion":
-                synth = self._synthesize_diffusion(data, n_samples, **(kwargs or {}))
-            elif method == "ddpm":
-                synth = self._synthesize_ddpm(data, n_samples, **(kwargs or {}))
-            elif method == "timegan":
-                synth = self._synthesize_timegan(data, n_samples, **(kwargs or {}))
-            elif method == "timevae":
-                synth = self._synthesize_timevae(data, n_samples, **(kwargs or {}))
-            elif method == "scvi":
-                # Pass original_adata if available to avoid redundant conversion
-                synth = self._synthesize_scvi(
-                    original_adata if original_adata is not None else data,
-                    n_samples,
-                    target_col=target_col,
-                    **(kwargs or {}),
-                )
-            elif method == "gears":
-                # Pass original_adata if available to avoid redundant conversion
-                synth = self._synthesize_gears(
-                    original_adata if original_adata is not None else data,
-                    n_samples,
-                    target_col=target_col,
-                    **(kwargs or {}),
-                )
+        elif method == "smote":
+            synth = self._synthesize_smote(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
+        elif method == "adasyn":
+            synth = self._synthesize_adasyn(
+                data,
+                n_samples,
+                target_col=target_col,
+                custom_distributions=custom_distributions,
+                **(kwargs or {}),
+            )
 
-            # --- Constraints Application ---
-            if synth is not None and constraints:
-                self.logger.info(
-                    f"Applying {len(constraints)} constraints to generated data..."
-                )
-                # Simple Rejection Sampling or Filtering
-                # constraint format: {'col': 'Age', 'op': '>', 'val': 18}
+        elif method == "diffusion":
+            synth = self._synthesize_diffusion(data, n_samples, **(kwargs or {}))
+        elif method == "ddpm":
+            synth = self._synthesize_ddpm(data, n_samples, **(kwargs or {}))
+        elif method == "timegan":
+            synth = self._synthesize_timegan(data, n_samples, **(kwargs or {}))
+        elif method == "timevae":
+            synth = self._synthesize_timevae(data, n_samples, **(kwargs or {}))
+        elif method == "scvi":
+            # Pass original_adata if available to avoid redundant conversion
+            synth = self._synthesize_scvi(
+                original_adata if original_adata is not None else data,
+                n_samples,
+                target_col=target_col,
+                **(kwargs or {}),
+            )
+        elif method == "gears":
+            # Pass original_adata if available to avoid redundant conversion
+            synth = self._synthesize_gears(
+                original_adata if original_adata is not None else data,
+                n_samples,
+                target_col=target_col,
+                **(kwargs or {}),
+            )
 
-                initial_count = len(synth)
-                valid_mask = pd.Series(True, index=synth.index)
+        # --- Constraints Application ---
+        if synth is not None and constraints:
+            self.logger.info(
+                f"Applying {len(constraints)} constraints to generated data..."
+            )
+            # Simple Rejection Sampling or Filtering
+            # constraint format: {'col': 'Age', 'op': '>', 'val': 18}
 
-                for const in constraints:
-                    col = const.get("col")
-                    op = const.get("op")
-                    val = const.get("val")
+            initial_count = len(synth)
+            valid_mask = pd.Series(True, index=synth.index)
 
-                    if col not in synth.columns:
-                        self.logger.warning(
-                            f"Constraint column '{col}' not found. Skipping."
-                        )
-                        continue
+            for const in constraints:
+                col = const.get("col")
+                op = const.get("op")
+                val = const.get("val")
 
-                    if op == ">":
-                        valid_mask &= synth[col] > val
-                    elif op == "<":
-                        valid_mask &= synth[col] < val
-                    elif op == ">=":
-                        valid_mask &= synth[col] >= val
-                    elif op == "<=":
-                        valid_mask &= synth[col] <= val
-                    elif op == "==":
-                        valid_mask &= synth[col] == val
-                    elif op == "!=":
-                        valid_mask &= synth[col] != val
-
-                synth = synth[valid_mask].reset_index(drop=True)
-                final_count = len(synth)
-                dropped = initial_count - final_count
-
-                if dropped > 0:
+                if col not in synth.columns:
                     self.logger.warning(
-                        f"Constraints filtering dropped {dropped} rows ({dropped / initial_count:.1%}). consider loosening constraints or improving model."
+                        f"Constraint column '{col}' not found. Skipping."
                     )
-                    # Optional: Retry loop could go here (generate more to compensate)
-                    if len(synth) < n_samples:
-                        self.logger.info(
-                            "Regenerating to fill filtered rows not implemented yet in this pass."
-                        )  # TODO: Add loop
+                    continue
 
-            if synth is not None:
-                self.logger.info(f"Successfully synthesized {len(synth)} samples.")
+                if op == ">":
+                    valid_mask &= synth[col] > val
+                elif op == "<":
+                    valid_mask &= synth[col] < val
+                elif op == ">=":
+                    valid_mask &= synth[col] >= val
+                elif op == "<=":
+                    valid_mask &= synth[col] <= val
+                elif op == "==":
+                    valid_mask &= synth[col] == val
+                elif op == "!=":
+                    valid_mask &= synth[col] != val
 
-                # --- Dynamics Injection (Feature Evolution & Target Construction) ---
-                if synth is not None and dynamics_config:
-                    print("DEBUG: Applying dynamics config...")
-                    self.logger.info("Applying dynamics injection config...")
-                    from calm_data_generator.generators.dynamics.ScenarioInjector import (
-                        ScenarioInjector,
-                    )
+            synth = synth[valid_mask].reset_index(drop=True)
+            final_count = len(synth)
+            dropped = initial_count - final_count
 
-                    injector = ScenarioInjector(
-                        random_state=self.random_state, logger=self.logger
-                    )
-                    synth = injector.apply_config(synth, dynamics_config)
+            if dropped > 0:
+                self.logger.warning(
+                    f"Constraints filtering dropped {dropped} rows ({dropped / initial_count:.1%}). consider loosening constraints or improving model."
+                )
+                # Optional: Retry loop could go here (generate more to compensate)
+                if len(synth) < n_samples:
+                    self.logger.info(
+                        "Regenerating to fill filtered rows not implemented yet in this pass."
+                    )  # TODO: Add loop
 
-                # --- Date Injection (if not done in dynamics) ---
-                if date_config and date_config.start_date:
-                    synth = self._inject_dates(
-                        df=synth,
-                        date_col=date_config.date_col,
-                        date_start=date_config.start_date,
-                        date_every=date_config.frequency,
-                        date_step=date_config.step,
-                    )
+        if synth is not None:
+            self.logger.info(f"Successfully synthesized {len(synth)} samples.")
 
-                # --- Drift Injection ---
-                if synth is not None and drift_injection_config:
-                    print("DEBUG: Applying drift injection...")
-                    self.logger.info("Applying drift injection config...")
-                    drift_out_dir = (
-                        output_dir or "."
-                    )  # Drift injector might need a dir, fallback to current
-                    time_col_name = date_config.date_col if date_config else "timestamp"
+            # --- Dynamics Injection (Feature Evolution & Target Construction) ---
+            if synth is not None and dynamics_config:
+                print("DEBUG: Applying dynamics config...")
+                self.logger.info("Applying dynamics injection config...")
+                from calm_data_generator.generators.dynamics.ScenarioInjector import (
+                    ScenarioInjector,
+                )
 
-                    drift_injector = DriftInjector(
-                        original_df=synth,  # We drift the synthetic data
-                        output_dir=drift_out_dir,
-                        generator_name=f"{method}_drifted",
-                        target_column=target_col,
-                        block_column=block_column,
-                        time_col=time_col_name,
-                        random_state=self.random_state,
-                    )
+                injector = ScenarioInjector(
+                    random_state=self.random_state, logger=self.logger
+                )
+                synth = injector.apply_config(synth, dynamics_config)
 
-                    for drift_conf in drift_injection_config:
-                        # Determine method and params
-                        method_name = "inject_feature_drift"  # Default
-                        params_drift = {}
-                        drift_obj = None
+            # --- Date Injection (if not done in dynamics) ---
+            if date_config and date_config.start_date:
+                synth = self._inject_dates(
+                    df=synth,
+                    date_col=date_config.date_col,
+                    date_start=date_config.start_date,
+                    date_every=date_config.frequency,
+                    date_step=date_config.step,
+                )
 
-                        if isinstance(drift_conf, DriftConfig):
-                            method_name = drift_conf.method
-                            drift_obj = drift_conf
-                            params_drift = drift_conf.params or {}
-                        elif isinstance(drift_conf, dict):
-                            # Support nested {"method": ..., "params": ...} or flat
-                            if "method" in drift_conf and "params" in drift_conf:
-                                method_name = drift_conf.get("method")
-                                params_drift = drift_conf.get("params", {})
-                            else:
-                                # Flat dict
-                                method_name = drift_conf.get(
-                                    "drift_method",
-                                    drift_conf.get("method", "inject_feature_drift"),
-                                )
-                                params_drift = drift_conf
+            # --- Drift Injection ---
+            if synth is not None and drift_injection_config:
+                print("DEBUG: Applying drift injection...")
+                self.logger.info("Applying drift injection config...")
+                drift_out_dir = (
+                    output_dir or "."
+                )  # Drift injector might need a dir, fallback to current
+                time_col_name = date_config.date_col if date_config else "timestamp"
 
-                        if hasattr(drift_injector, method_name):
-                            self.logger.info(f"Injecting drift: {method_name}")
-                            drift_method = getattr(drift_injector, method_name)
-                            try:
-                                # Add 'df' if not present
-                                if "df" not in params_drift:
-                                    params_drift["df"] = synth
+                drift_injector = DriftInjector(
+                    original_df=synth,  # We drift the synthetic data
+                    output_dir=drift_out_dir,
+                    generator_name=f"{method}_drifted",
+                    target_column=target_col,
+                    block_column=block_column,
+                    time_col=time_col_name,
+                    random_state=self.random_state,
+                )
 
-                                # Call method
-                                if drift_obj:
-                                    # Pass config object explicitly
-                                    res = drift_method(
-                                        drift_config=drift_obj, **params_drift
-                                    )
-                                else:
-                                    # Pass params (will be converted to config internally if needed)
-                                    res = drift_method(**params_drift)
+                for drift_conf in drift_injection_config:
+                    # Determine method and params
+                    method_name = "inject_feature_drift"  # Default
+                    params_drift = {}
+                    drift_obj = None
 
-                                # Update synth if result is dataframe
-                                if isinstance(res, pd.DataFrame):
-                                    synth = res
-                            except Exception as e:
-                                self.logger.error(
-                                    f"Failed to apply drift {method_name}: {e}"
-                                )
-                                raise e
+                    if isinstance(drift_conf, DriftConfig):
+                        method_name = drift_conf.method
+                        drift_obj = drift_conf
+                        params_drift = drift_conf.params or {}
+                    elif isinstance(drift_conf, dict):
+                        # Support nested {"method": ..., "params": ...} or flat
+                        if "method" in drift_conf and "params" in drift_conf:
+                            method_name = drift_conf.get("method")
+                            params_drift = drift_conf.get("params", {})
                         else:
-                            self.logger.warning(
-                                f"Drift method '{method_name}' not found in DriftInjector."
+                            # Flat dict
+                            method_name = drift_conf.get(
+                                "drift_method",
+                                drift_conf.get("method", "inject_feature_drift"),
+                            )
+                            params_drift = drift_conf
+
+                    if hasattr(drift_injector, method_name):
+                        self.logger.info(f"Injecting drift: {method_name}")
+                        drift_method = getattr(drift_injector, method_name)
+                        try:
+                            # Add 'df' if not present
+                            if "df" not in params_drift:
+                                params_drift["df"] = synth
+
+                            # Call method
+                            if drift_obj:
+                                # Pass config object explicitly
+                                res = drift_method(
+                                    drift_config=drift_obj, **params_drift
+                                )
+                            else:
+                                # Pass params (will be converted to config internally if needed)
+                                res = drift_method(**params_drift)
+
+                            # Update synth if result is dataframe
+                            if isinstance(res, pd.DataFrame):
+                                synth = res
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to apply drift {method_name}: {e}"
+                            )
+                            raise e
+                    else:
+                        self.logger.warning(
+                            f"Drift method '{method_name}' not found in DriftInjector."
+                        )
+
+            if self.auto_report and output_dir:
+                print("DEBUG: Generating report...")
+                time_col_name = date_config.date_col if date_config else "timestamp"
+
+                # Build drift_config for report if drift was applied
+                report_drift_config = None
+                if drift_injection_config:
+                    # Summarize drift configuration for the report
+                    drift_methods = []
+                    for d in drift_injection_config:
+                        if isinstance(d, DriftConfig):
+                            drift_methods.append(d.method)
+                        else:
+                            drift_methods.append(
+                                d.get("method", d.get("drift_method", "unknown"))
                             )
 
-                if self.auto_report and output_dir:
-                    print("DEBUG: Generating report...")
-                    time_col_name = date_config.date_col if date_config else "timestamp"
+                    report_drift_config = {
+                        "drift_type": ", ".join(drift_methods),
+                        "drift_magnitude": "See config",
+                        "affected_columns": "Multiple (via drift_injection_config)",
+                    }
 
-                    # Build drift_config for report if drift was applied
-                    report_drift_config = None
-                    if drift_injection_config:
-                        # Summarize drift configuration for the report
-                        drift_methods = []
-                        for d in drift_injection_config:
-                            if isinstance(d, DriftConfig):
-                                drift_methods.append(d.method)
-                            else:
-                                drift_methods.append(
-                                    d.get("method", d.get("drift_method", "unknown"))
-                                )
+                self.reporter.generate_comprehensive_report(
+                    real_df=data,
+                    synthetic_df=synth,
+                    generator_name=f"RealGenerator_{method}",
+                    output_dir=effective_output_dir or output_dir,  # Use effective dir
+                    target_column=target_col,
+                    time_col=time_col_name,
+                    drift_config=report_drift_config,
+                    adversarial_validation=adversarial_validation,
+                    report_config=report_config,  # Pass the config object
+                )
 
-                        report_drift_config = {
-                            "drift_type": ", ".join(drift_methods),
-                            "drift_magnitude": "See config",
-                            "affected_columns": "Multiple (via drift_injection_config)",
-                        }
-
-                    self.reporter.generate_comprehensive_report(
-                        real_df=data,
-                        synthetic_df=synth,
-                        generator_name=f"RealGenerator_{method}",
-                        output_dir=effective_output_dir
-                        or output_dir,  # Use effective dir
-                        target_column=target_col,
-                        time_col=time_col_name,
-                        drift_config=report_drift_config,
-                        adversarial_validation=adversarial_validation,
-                        report_config=report_config,  # Pass the config object
+            # Save the generated dataset for inspection
+            if save_dataset:  # Only save if save_dataset is True
+                print("DEBUG: Saving dataset...")
+                if not output_dir:
+                    raise ValueError(
+                        "output_dir must be provided if save_dataset is True"
                     )
+                try:
+                    save_path = os.path.join(output_dir, f"synthetic_data_{method}.csv")
+                    synth.to_csv(save_path, index=False)
+                    self.logger.info(
+                        f"Generated synthetic dataset saved to: {save_path}"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to save synthetic dataset: {e}")
 
-                # Save the generated dataset for inspection
-                if save_dataset:  # Only save if save_dataset is True
-                    print("DEBUG: Saving dataset...")
-                    if not output_dir:
-                        raise ValueError(
-                            "output_dir must be provided if save_dataset is True"
-                        )
-                    try:
-                        save_path = os.path.join(
-                            output_dir, f"synthetic_data_{method}.csv"
-                        )
-                        synth.to_csv(save_path, index=False)
-                        self.logger.info(
-                            f"Generated synthetic dataset saved to: {save_path}"
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Failed to save synthetic dataset: {e}")
-
-                print(f"DEBUG: Returning synth for method '{method}'.")
-                return synth
-            else:
-                print(
-                    f"DEBUG: Synthesis method '{method}' failed to generate data (synth is None)."
-                )
-                self.logger.error(
-                    f"Synthesis method '{method}' failed to generate data."
-                )
-                return None
-        except Exception as e:
-            print(f"DEBUG: Synthesis with method '{method}' failed with exception: {e}")
-            self.logger.error(
-                f"Synthesis with method '{method}' failed: {e}", exc_info=True
+            print(f"DEBUG: Returning synth for method '{method}'.")
+            return synth
+        else:
+            print(
+                f"DEBUG: Synthesis method '{method}' failed to generate data (synth is None)."
             )
+            self.logger.error(f"Synthesis method '{method}' failed to generate data.")
             return None
