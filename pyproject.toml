@@ -40,7 +40,8 @@ dependencies = [
     "cell-gears>=0.1.1",
     "torch-geometric>=2.5.0",
     "huggingface-hub>=0.34.0,<1.0",
-    "xgboost>=2.0.0,<3.0.0"
+    "xgboost>=2.0.0,<3.0.0",
+    "setuptools"
 ]
 [project.optional-dependencies]
 stream = [
