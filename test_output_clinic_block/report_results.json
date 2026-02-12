@@ -1,0 +1,17 @@
+{
+  "generator_name": "ClinicalDataGeneratorBlock_Drifted_feature_drift",
+  "generation_timestamp": "2026-02-12T13:26:04.502952",
+  "real_rows": 10,
+  "synthetic_rows": 10,
+  "quality_scores": {
+    "error": "SDMetrics not available"
+  },
+  "quality_by_block": null,
+  "compared_data_files": {
+    "original": "real_data",
+    "generated": "synthetic_data"
+  },
+  "sequential_quality": null,
+  "privacy_metrics": null,
+  "constraints_stats": null
+}

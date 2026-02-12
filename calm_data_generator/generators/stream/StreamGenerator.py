@@ -333,13 +333,21 @@ class StreamGenerator(BaseGenerator):
                     )
 
         # Resolve generate_report
-        should_report = self.auto_report
+        should_report = kwargs.get("generate_report")
+        if should_report is None:
+            should_report = self.auto_report
 
         if should_report:
             report_kwargs = {
                 k: v
                 for k, v in kwargs.items()
-                if k not in ["save_dataset", "output_dir", "generate_report"]
+                if k
+                not in [
+                    "save_dataset",
+                    "output_dir",
+                    "generate_report",
+                    "report_config",
+                ]
             }
             # Ensure the report gets the actual generator instance, not the iterator
             report_kwargs["generator_instance"] = (

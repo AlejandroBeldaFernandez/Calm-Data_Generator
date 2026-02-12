@@ -9,8 +9,13 @@ try:
 
     RIVER_AVAILABLE = True
 except ImportError:
-    RIVER_AVAILABLE = False
-    synth = None
+    try:
+        from river.datasets import synth
+
+        RIVER_AVAILABLE = True
+    except ImportError:
+        RIVER_AVAILABLE = False
+        synth = None
 
 from calm_data_generator.generators.clinical.ClinicGeneratorBlock import (
     ClinicalDataGeneratorBlock,

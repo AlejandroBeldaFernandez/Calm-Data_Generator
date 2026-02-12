@@ -139,7 +139,11 @@ class ClinicalDataGenerator(BaseGenerator):
         if save_dataset and output_dir and unified_df is not None:
             unified_df.to_csv(os.path.join(output_dir, "unified_clinical_data.csv"))
 
-        if self.auto_report and output_dir:
+        should_report = kwargs.get("generate_report")
+        if should_report is None:
+            should_report = self.auto_report
+
+        if should_report and output_dir:
             # Build aggregated drift_config if any drift was applied
             drift_sources = []
             if kwargs.get("demographics_drift_config"):
