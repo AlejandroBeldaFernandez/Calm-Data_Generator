@@ -1195,10 +1195,10 @@ class RealGenerator(BaseGenerator):
         try:
             import anndata
             import scvi
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
-                "scvi-tools and anndata are required for scVI synthesis. "
-                "Install with: pip install scvi-tools anndata"
+                f"scvi-tools and anndata are required for scVI synthesis. "
+                f"Install with: pip install scvi-tools anndata. Original error: {e}"
             )
 
         # Create or use AnnData object
