@@ -16,10 +16,6 @@
 - **Privacy Assessment** - DCR metrics for re-identification risk
 - **Scenario Evolution** - Feature evolution and target construction
 
-![CALM Architecture](assets/architecture.png)
-
-![CALM Workflow](assets/ecosystem.png)
-
 ## Scope & Capabilities
 
 **Calm-Data-Generator** is optimized for **structured tabular data**. It is designed to handle:
