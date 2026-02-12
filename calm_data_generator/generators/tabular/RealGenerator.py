@@ -1193,7 +1193,6 @@ class RealGenerator(BaseGenerator):
         print(f"DEBUG: Entering _synthesize_scvi with data type: {type(data)}")
 
         try:
-            import pkg_resources
             import anndata
             import scvi
         except ImportError as e:
