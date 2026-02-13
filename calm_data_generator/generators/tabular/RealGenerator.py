@@ -330,6 +330,11 @@ class RealGenerator(BaseGenerator):
                         wrapper_path = os.path.join(tmpdir, "wrapper.pkl")
                         obj = joblib.load(wrapper_path)
 
+                        if not isinstance(obj, cls):
+                            raise TypeError(
+                                f"Loaded object is not instances of {cls.__name__}. Got: {type(obj)}"
+                            )
+
                         # Re-init logger
                         if not hasattr(obj, "logger") or obj.logger is None:
                             from calm_data_generator.logger import get_logger
