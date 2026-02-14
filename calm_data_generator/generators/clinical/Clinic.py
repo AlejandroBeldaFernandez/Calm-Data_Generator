@@ -838,9 +838,13 @@ class ClinicalDataGenerator(BaseGenerator):
             # --- Old logic for random assignment (backward compatibility) ---
             else:
                 if isinstance(disease_effects_config, list):
-                    effect_definitions = {
-                        effect["name"]: effect for effect in disease_effects_config
-                    }
+                    # Auto-generate names if not provided for backward compatibility
+                    effect_definitions = {}
+                    for idx, effect in enumerate(disease_effects_config):
+                        # Use provided name or generate one
+                        effect_name = effect.get("name", f"effect_{idx}")
+                        effect_definitions[effect_name] = effect
+
                     subgroups = [
                         {
                             "name": "all_disease",
@@ -923,7 +927,7 @@ class ClinicalDataGenerator(BaseGenerator):
 
     def _apply_effect_to_patients(self, df_omics, patient_ids, effect_config):
         """Helper function to apply a single defined effect to a given set of patients."""
-        indices = effect_config["indices"]
+        indices = effect_config["index"]
         effect_type = effect_config["effect_type"]
         effect_value = effect_config["effect_value"]
         omics_cols_to_affect = df_omics.columns[indices]
@@ -1077,13 +1081,17 @@ class ClinicalDataGenerator(BaseGenerator):
             n_disease = len(disease_patient_ids)
 
             for effect in disease_effects_config:
-                required_keys = ["name", "indices", "effect_type", "effect_value"]
-                if not all(key in effect for key in required_keys):
+                # Validate required keys
+                if "index" not in effect:
                     raise ValueError(
-                        f"Invalid disease effect config. Missing keys in {effect}."
+                        f"Invalid disease effect config. Must include 'index' key in {effect}."
+                    )
+                if "effect_type" not in effect or "effect_value" not in effect:
+                    raise ValueError(
+                        f"Invalid disease effect config. Missing 'effect_type' or 'effect_value' in {effect}."
                     )
 
-                indices = effect["indices"]
+                indices = effect["index"]
                 effect_type = effect["effect_type"]
                 effect_value = effect["effect_value"]
                 protein_cols_to_affect = df_proteins.columns[indices]
@@ -1601,7 +1609,7 @@ class ClinicalDataGenerator(BaseGenerator):
                         gene_effects.append(
                             {
                                 "name": "transition_effect",
-                                "indices": disease_gene_indices,
+                                "index": disease_gene_indices,
                                 "effect_type": disease_effect_type,
                                 "effect_value": disease_effect_value,
                             }
@@ -1628,7 +1636,7 @@ class ClinicalDataGenerator(BaseGenerator):
                         protein_effects.append(
                             {
                                 "name": "transition_effect",
-                                "indices": disease_protein_indices,
+                                "index": disease_protein_indices,
                                 "effect_type": disease_effect_type,
                                 "effect_value": disease_effect_value,
                             }
@@ -1911,19 +1919,19 @@ def replicate_genes_proteins(
         gene_effects_config = [
             {
                 "name": "Module_A",
-                "indices": gene_indices_modA,
+                "index": gene_indices_modA,
                 "effect_type": "additive_shift",
                 "effect_value": [0.8, 1.2],
             },
             {
                 "name": "Module_B",
-                "indices": gene_indices_modB,
+                "index": gene_indices_modB,
                 "effect_type": "variance_scale",
                 "effect_value": [1.5, 2.0],
             },
             {
                 "name": "Module_C",
-                "indices": gene_indices_modC,
+                "index": gene_indices_modC,
                 "effect_type": "additive_shift",
                 "effect_value": [-0.6, -0.4],
             },
@@ -1932,13 +1940,13 @@ def replicate_genes_proteins(
         gene_effects_config = [
             {
                 "name": "Module_A",
-                "indices": gene_indices_modA,
+                "index": gene_indices_modA,
                 "effect_type": "fold_change",
                 "effect_value": [2.0, 3.0],
             },
             {
                 "name": "Module_B",
-                "indices": gene_indices_modB,
+                "index": gene_indices_modB,
                 "effect_type": "fold_change",
                 "effect_value": [0.5, 0.7],
             },
@@ -1948,13 +1956,13 @@ def replicate_genes_proteins(
     protein_effects_config = [
         {
             "name": "Module_A",
-            "indices": protein_indices_modA,
+            "index": protein_indices_modA,
             "effect_type": "additive_shift",
             "effect_value": [np.log(1.8), np.log(2.2)],
         },
         {
             "name": "Module_B",
-            "indices": protein_indices_modB,
+            "index": protein_indices_modB,
             "effect_type": "variance_scale",
             "effect_value": [1.2, 1.5],
         },

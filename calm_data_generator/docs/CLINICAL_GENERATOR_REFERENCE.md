@@ -204,7 +204,7 @@ gen.generate(..., demographics_drift_config=[drift_conf])
 # Upregulate first 5 genes by 4x in Disease group
 biomarker_config = [{
     "target_type": "gene",
-    "indices": [0, 1, 2, 3, 4],    # Correct key is 'indices'
+    "index": [0, 1, 2, 3, 4],
     "effect_type": "fold_change",
     "effect_value": 4.0,
     "group": "Disease"

@@ -154,7 +154,7 @@ gen.generate(..., demographics_drift_config=[drift_conf])
 # Sobreexpresar primeros 5 genes por 4x en grupo Disease
 biomarker_config = [{
     "target_type": "gene",
-    "indices": [0, 1, 2, 3, 4],    # Clave correcta es 'indices'
+    "index": [0, 1, 2, 3, 4],
     "effect_type": "fold_change",
     "effect_value": 4.0,
     "group": "Disease"
