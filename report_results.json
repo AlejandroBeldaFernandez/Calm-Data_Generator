@@ -1,0 +1,18 @@
+{
+  "generator_name": "cart_drifted_feature_drift",
+  "generation_timestamp": "2026-02-16T10:55:12.279534",
+  "real_rows": 50,
+  "synthetic_rows": 50,
+  "quality_scores": {
+    "overall_quality_score": 0.92,
+    "weighted_quality_score": 0.5704
+  },
+  "quality_by_block": null,
+  "compared_data_files": {
+    "original": "real_data",
+    "generated": "synthetic_data"
+  },
+  "sequential_quality": null,
+  "privacy_metrics": null,
+  "constraints_stats": null
+}
