@@ -22,17 +22,23 @@ from calm_data_generator.reports.base import BaseReporter
 from calm_data_generator.reports.DiscriminatorReporter import DiscriminatorReporter
 from calm_data_generator.generators.configs import ReportConfig
 
-# Direct usage of sdmetrics 
+# Direct usage of sdmetrics
 try:
     from sdmetrics.reports.single_table import QualityReport
+
+    SDMETRICS_AVAILABLE = True
+except ImportError:
+    SDMETRICS_AVAILABLE = False
+
+# Sequential quality report (optional, may not be available in all versions)
+try:
     from sdmetrics.reports.sequential import (
         QualityReport as SequentialQualityReport,
     )
 
-    SDMETRICS_AVAILABLE = True
+    SEQUENTIAL_SDMETRICS_AVAILABLE = True
 except ImportError:
-    # Removed legacy imports
-    SDMETRICS_AVAILABLE = False
+    SEQUENTIAL_SDMETRICS_AVAILABLE = False
 
 
 logger = logging.getLogger("QualityReporter")
@@ -182,7 +188,7 @@ class QualityReporter(BaseReporter):
 
         # === Sequential Quality Assessment ===
         sequential_quality = None
-        if time_col and block_column and SDMETRICS_AVAILABLE:
+        if time_col and block_column and SEQUENTIAL_SDMETRICS_AVAILABLE:
             # Heuristic: Only run if explicit time/block provided
             sequential_quality = self._assess_sequential_quality(
                 real_df, synthetic_df, block_column, final_time_col
@@ -438,7 +444,7 @@ class QualityReporter(BaseReporter):
             report.generate(real_aligned, synth_aligned, md_dict)
 
             overall_score = report.get_score()
-            weighted_score = self._get_weighted_quality_score(
+            weighted_score = self._get_weighted_score(
                 real_df, synthetic_df, overall_score
             )
 
@@ -498,7 +504,7 @@ class QualityReporter(BaseReporter):
                     )
 
                     overall = report.get_score()
-                    weighted = self._get_weighted__score(
+                    weighted = self._get_weighted_score(
                         real_block, synth_block, overall
                     )
 
@@ -603,7 +609,7 @@ class QualityReporter(BaseReporter):
 
     def _assess_sequential_quality(self, real_df, synthetic_df, entity_col, time_col):
         """Assess quality of sequential data using SDMetrics."""
-        if not SDMETRICS_AVAILABLE:
+        if not SEQUENTIAL_SDMETRICS_AVAILABLE:
             return None
 
         try:
