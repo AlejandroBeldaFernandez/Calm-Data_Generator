@@ -446,3 +446,13 @@ Nos apoyamos en hombros de gigantes. Esta librería es posible gracias a estos i
 - **[scvi-tools](https://github.com/scverse/scvi-tools)** (BSD-3-Clause) - Habilitando análisis single-cell.
 - **[GEARS](https://github.com/snap-stanford/GEARS)** (MIT) - Soportando la predicción de perturbaciones basada en grafos.
 - **[Imbalanced-learn](https://github.com/scikit-learn-contrib/imbalanced-learn)** (MIT) - Proporcionando implementaciones de SMOTE y ADASYN.
+- **[SDMetrics](https://github.com/sdv-dev/SDMetrics)** (MIT) - Potenciando las métricas estandarizadas en nuestro QualityReporter.
+- **[Copulae](https://github.com/DanielBok/copulae)** (MIT) - Habilitando modelado de dependencia multivariante vía Cópulas Gaussianas.
+- **[AnnData](https://github.com/scverse/anndata)** (BSD-3-Clause) - Proporcionando la estructura de datos central para integración de single-cell y ómicas.
+- **[LightGBM](https://github.com/microsoft/LightGBM)** (MIT) - Potenciando nuestro método de síntesis basado en gradient boosting.
+- **[PyTorch](https://github.com/pytorch/pytorch)** (BSD-3-Clause) - El framework de deep learning que potencia nuestros modelos generativos.
+- **[PyTorch Geometric](https://github.com/pyg-team/pytorch_geometric)** (MIT) - Habilitando operaciones de Graph Neural Networks para datos relacionales.
+- **[XGBoost](https://github.com/dmlc/xgboost)** (Apache-2.0) - Librería optimizada de gradient boosting distribuido.
+- **[Opacus](https://github.com/pytorch/opacus)** (Apache-2.0) - Habilitando entrenamiento con privacidad diferencial para modelos PyTorch.
+- **[Hugging Face Hub](https://github.com/huggingface/huggingface_hub)** (Apache-2.0) - Facilitando el intercambio y versionado de modelos.
+- **[Plotly](https://github.com/plotly/plotly.py)** (MIT) - Habilitando visualizaciones de datos interactivas.
