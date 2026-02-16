@@ -136,9 +136,14 @@ Una ventaja clave de **Calm-Data-Generator** es permitir el uso de datos privado
  > [!WARNING]
  > **Aviso Importante**: Esta librería depende de frameworks de Deep Learning pesados como `PyTorch`, `Synthcity` y librerías `CUDA`.
  > La instalación puede ser **pesada (~2-3 GB)** y tardar unos minutos dependiendo de tu conexión. Recomendamos encarecidamente usar un entorno virtual limpio.
-
-### Instalación Estándar
-La librería está disponible en PyPI. Para una experiencia estable, recomendamos usar un entorno virtual:
+ 
+ ### 🔄 Estrategia de Versiones
+ 
+ - **GitHub (Recomendado para últimas novedades)**: La rama `main` contiene la versión más actualizada con los últimos arreglos y funcionalidades.
+ - **PyPI (Estable)**: Las versiones en PyPI son estables y se actualizan con menor frecuencia para cambios mayores.
+ 
+ ### Instalación Estándar (PyPI - Estable)
+ La librería está disponible en PyPI. Para una experiencia estable, recomendamos usar un entorno virtual:
 
 ```bash
 # 1. Crear y activar el entorno virtual
@@ -166,8 +171,14 @@ pip install "calm-data-generator[full]"
 > [!NOTE]
 > **Nota de Rendimiento**: Hemos optimizado el árbol de dependencias en la versión 1.0.0 bloqueando versiones específicas de `pydantic`, `xgboost` y `cloudpickle`. Esto reduce drásticamente el tiempo de instalación inicial, de unos ~40 minutos a solo un par de minutos. 🚀
 
-**Desde el código fuente:**
+**Desde fuente (GitHub - Últimas Actualizaciones):**
+Usa este método para obtener los últimos arreglos y funcionalidades aún no disponibles en PyPI.
+
 ```bash
+# Opción A: Instalar directamente desde GitHub
+pip install git+https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator.git
+
+# Opción B: Clonar e instalar (para desarrollo)
 git clone https://github.com/AlejandroBeldaFernandez/Calm-Data_Generator.git
 cd Calm-Data_Generator
 pip install .
