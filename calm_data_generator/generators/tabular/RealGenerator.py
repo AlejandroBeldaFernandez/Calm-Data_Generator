@@ -23,6 +23,8 @@ Key Features:
 import logging
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+
 import warnings
 from typing import Optional, Dict, Any, List, Union
 import os
@@ -64,6 +66,15 @@ class RealGenerator(BaseGenerator):
         logger: Optional[logging.Logger] = None,
         random_state: Optional[int] = None,
     ):
+        # Suppress Synthcity loggers (uses loguru)
+        try:
+            import synthcity.logger as sclog
+
+            sclog.remove()
+        except ImportError:
+            pass
+
+        # ... other initializations ...
         """
         Initializes the RealGenerator.
 
@@ -501,6 +512,77 @@ class RealGenerator(BaseGenerator):
                 }
         return validated_distributions
 
+    def _patch_synthcity_encoder(self):
+        """
+        Monkeypatches the Synthcity TabularEncoder to show a progress bar during fitting.
+        This is a workaround as Synthcity's encoder fitting can be slow on large datasets
+        due to BayesianGMM components.
+        """
+        try:
+            from synthcity.plugins.core.models.tabular_encoder import TabularEncoder
+            import synthcity.logger as log
+
+            # Avoid double patching
+            if getattr(TabularEncoder, "_is_patched", False):
+                return
+
+            def fit_with_progress(self_encoder, raw_data, discrete_columns=None):
+                from synthcity.utils.dataframe import discrete_columns as find_cat_cols
+                from synthcity.utils.serialization import dataframe_hash
+
+                if discrete_columns is None:
+                    discrete_columns = find_cat_cols(
+                        raw_data, self_encoder.categorical_limit
+                    )
+
+                self_encoder.output_dimensions = 0
+                self_encoder._column_raw_dtypes = raw_data.infer_objects().dtypes
+                self_encoder._column_transform_info_list = []
+
+                # --- START PATCH: Add tqdm ---
+                # Use tqdm.write to ensure it prints well with the progress bar
+                tqdm.write(
+                    "Building Synthcity metadata/encoding (this may take a while)..."
+                )
+
+                columns_to_encode = [
+                    name
+                    for name in raw_data.columns
+                    if name not in self_encoder.whitelist
+                ]
+
+                # Use tqdm for progress bar
+                pbar = tqdm(columns_to_encode, desc="Encoding Features", leave=False)
+
+                for name in pbar:
+                    # Update description to show current column
+                    pbar.set_description(f"Encoding '{name}'")
+
+                    column_hash = dataframe_hash(raw_data[[name]])
+                    log.info(f"Encoding {name} {column_hash}")
+                    ftype = "discrete" if name in discrete_columns else "continuous"
+                    column_transform_info = self_encoder._fit_feature(
+                        raw_data[name], ftype
+                    )
+
+                    self_encoder.output_dimensions += (
+                        column_transform_info.output_dimensions
+                    )
+                    self_encoder._column_transform_info_list.append(
+                        column_transform_info
+                    )
+
+                pbar.close()
+                # --- END PATCH ---
+
+                return self_encoder
+
+            TabularEncoder.fit = fit_with_progress
+            TabularEncoder._is_patched = True
+
+        except ImportError:
+            pass  # Synthcity not installed or structure changed
+
     def _synthesize_ctgan(
         self,
         data: pd.DataFrame,
@@ -511,6 +593,7 @@ class RealGenerator(BaseGenerator):
     ) -> pd.DataFrame:
         """Synthesizes data using CTGAN via Synthcity."""
         self.logger.info("Starting CTGAN synthesis via Synthcity...")
+        self._patch_synthcity_encoder()  # Apply patch
         if "epochs" in model_kwargs:
             model_kwargs["n_iter"] = model_kwargs.pop("epochs")
 
@@ -531,6 +614,7 @@ class RealGenerator(BaseGenerator):
     ) -> pd.DataFrame:
         """Synthesizes data using TVAE via Synthcity."""
         self.logger.info("Starting TVAE synthesis via Synthcity...")
+        self._patch_synthcity_encoder()  # Apply patch
         if "epochs" in model_kwargs:
             model_kwargs["n_iter"] = model_kwargs.pop("epochs")
 
@@ -1645,8 +1729,8 @@ class RealGenerator(BaseGenerator):
                 c: X_bootstrap_source[c].values for c in X_bootstrap_source.columns
             }
 
-            for it in range(iterations):
-                self.logger.info(f"{method_name} iteration {it + 1}/{iterations}")
+            for it in tqdm(range(iterations), desc=f"{method_name} Iterations"):
+                # self.logger.info(f"{method_name} iteration {it + 1}/{iterations}")
                 for col in X_real.columns:
                     y_real_train = X_real[col]
                     Xr_real_train = X_real.drop(columns=col)
