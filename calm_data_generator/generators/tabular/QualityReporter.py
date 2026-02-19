@@ -78,6 +78,22 @@ class QualityReporter(BaseReporter):
         super().__init__(verbose=verbose, minimal=minimal)
         self.discriminator_reporter = DiscriminatorReporter(verbose=verbose)
 
+    def calculate_quality_metrics(
+        self, real_df: pd.DataFrame, synthetic_df: pd.DataFrame
+    ) -> Dict[str, float]:
+        """
+        Calculates quality metrics (SDMetrics) for two datasets without generating a full report.
+
+        Args:
+           real_df (pd.DataFrame): The original/real dataset.
+           synthetic_df (pd.DataFrame): The generated/synthetic dataset.
+
+        Returns:
+           Dict[str, float]: A dictionary containing 'overall_quality_score' and 'weighted_quality_score'.
+                             Returns {'error': ...} if SDMetrics is not available or fails.
+        """
+        return self._assess_quality_scores(real_df, synthetic_df)
+
     def generate_report(self, *args, **kwargs):
         """Wrapper for generate_comprehensive_report to satisfy BaseReporter contract."""
         return self.generate_comprehensive_report(*args, **kwargs)
