@@ -1349,6 +1349,7 @@ class RealGenerator(BaseGenerator):
 
         self.logger.info(f"Training scVI model with {epochs} epochs...")
         model.train(max_epochs=epochs, train_size=0.9, early_stopping=True)
+        model.module.eval()  # Ensure model is in eval mode for generation
 
         # Generate synthetic samples by sampling from prior
         self.logger.info(f"Generating {n_samples} synthetic samples...")
@@ -1361,18 +1362,26 @@ class RealGenerator(BaseGenerator):
         import torch
 
         with torch.no_grad():
-            latent_tensor = torch.tensor(latent_samples)
+            latent_tensor = torch.tensor(latent_samples).to(model.device)
             # Get library size from training data
             # Use adata_to_train to ensure consistency
-            library_size = torch.tensor(
-                [[adata_to_train.X.sum(axis=1).mean()]] * n_samples
+            mean_lib_size = adata_to_train.X.sum(axis=1).mean()
+            log_library_size = np.log(mean_lib_size + 1e-8)
+            self.logger.debug(
+                f"scVI Mean library size: {mean_lib_size}, log: {log_library_size}"
             )
+
+            library_tensor = torch.full(
+                (n_samples, 1), log_library_size, dtype=torch.float32
+            ).to(model.device)
 
             # Generate from decoder
             generative_outputs = model.module.generative(
                 z=latent_tensor,
-                library=library_size,
-                batch_index=torch.zeros(n_samples, 1, dtype=torch.long),
+                library=library_tensor,
+                batch_index=torch.zeros(n_samples, 1, dtype=torch.long).to(
+                    model.device
+                ),
             )
 
             # Sample from the distribution
